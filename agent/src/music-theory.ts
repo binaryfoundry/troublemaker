@@ -285,3 +285,150 @@ export function clampVelocity(velocity: number): number {
 export function round6(value: number): number {
   return Math.round(value * 1e6) / 1e6;
 }
+
+// ---------------------------------------------------------------------------
+// Tempo-synced timing
+// ---------------------------------------------------------------------------
+
+/**
+ * Length of a note value in milliseconds: 60000 / BPM per quarter note.
+ * `division` is the note value denominator: 4 = quarter, 16 = sixteenth.
+ */
+export function noteMs(
+  bpm: number,
+  division: number,
+  options: { dotted?: boolean; triplet?: boolean } = {},
+): number {
+  if (!(bpm > 0) || !(division > 0)) throw new RangeError('BPM and division must be positive.');
+  let ms = (60000 / bpm) * (4 / division);
+  if (options.dotted) ms *= 1.5;
+  if (options.triplet) ms *= 2 / 3;
+  return Math.round(ms * 100) / 100;
+}
+
+// ---------------------------------------------------------------------------
+// Voicings and progressions
+// ---------------------------------------------------------------------------
+
+export type Voicing = 'triad' | 'seventh' | 'ninth' | 'sus2' | 'sus4' | 'power';
+
+/** Lowest pitch a chord voice should use when a bass owns the bottom octave. */
+export const CHORD_FLOOR = 48; // C2, about 131 Hz
+
+/** A diatonic chord with a named voicing. Suspended chords stay in the scale. */
+export function voicedChord(
+  root: string | number,
+  scale: string,
+  degree: number,
+  voicing: Voicing = 'triad',
+  octave = 3,
+): number[] {
+  const stack = (size: number) => diatonicChord(root, scale, degree, { size, octave });
+  switch (voicing) {
+    case 'triad':
+      return stack(3);
+    case 'seventh':
+      return stack(4);
+    case 'ninth': {
+      const [r, third, fifth, seventh, ninth] = stack(5);
+      // Drop the fifth: the ninth gives the colour, the fifth only thickens.
+      return [r!, third!, seventh!, ninth!].filter((p) => p !== undefined);
+    }
+    case 'sus2':
+    case 'sus4': {
+      const [r, , fifth] = stack(3);
+      const step = voicing === 'sus2' ? 1 : 3;
+      const intervals = scaleIntervals(scale);
+      const rootClass = typeof root === 'number' ? ((root % 12) + 12) % 12 : pitchClass(root);
+      const degreeIndex = (degree - 1 + step) % intervals.length;
+      const octaveShift = Math.floor((degree - 1 + step) / intervals.length);
+      const suspended = C_ZERO.live + octave * 12 + rootClass + intervals[degreeIndex]! + octaveShift * 12;
+      return [r!, suspended, fifth!];
+    }
+    case 'power': {
+      const [r, , fifth] = stack(3);
+      return [r!, fifth!];
+    }
+  }
+}
+
+/**
+ * Re-voice each chord to move as little as possible from the previous one,
+ * by choosing among its inversions within an octave of the starting register.
+ * Voice-led harmony is the deep-house default; parallel motion is the
+ * deliberate alternative.
+ */
+export function voiceLead(chords: number[][], floor = CHORD_FLOOR): number[][] {
+  if (chords.length === 0) return [];
+  const result: number[][] = [raiseAbove(chords[0]!, floor)];
+  for (let i = 1; i < chords.length; i += 1) {
+    const previous = result[i - 1]!;
+    const candidates = inversions(chords[i]!, floor);
+    let best = candidates[0]!;
+    let bestCost = Infinity;
+    for (const candidate of candidates) {
+      const cost = movement(previous, candidate);
+      if (cost < bestCost) {
+        best = candidate;
+        bestCost = cost;
+      }
+    }
+    result.push(best);
+  }
+  return result;
+}
+
+function raiseAbove(chord: number[], floor: number): number[] {
+  const out = [...chord].sort((a, b) => a - b);
+  // Move the lowest voice up an octave until every voice clears the floor.
+  while (out.length && out[0]! < floor) {
+    out.push(out.shift()! + 12);
+    out.sort((a, b) => a - b);
+  }
+  return out;
+}
+
+function inversions(chord: number[], floor: number): number[][] {
+  const base = raiseAbove(chord, floor);
+  const out: number[][] = [];
+  let current = [...base];
+  for (let i = 0; i < base.length * 2; i += 1) {
+    out.push([...current]);
+    // Rotate: lowest voice up an octave.
+    current = [...current.slice(1), current[0]! + 12].sort((a, b) => a - b);
+    if (current.at(-1)! > floor + 30) break;
+  }
+  // Also consider each candidate an octave down if it still clears the floor.
+  for (const candidate of [...out]) {
+    const down = candidate.map((p) => p - 12);
+    if (down[0]! >= floor) out.push(down);
+  }
+  return out;
+}
+
+/** Total semitone movement between two chords, matching voices by order. */
+function movement(a: number[], b: number[]): number {
+  const n = Math.max(a.length, b.length);
+  let total = 0;
+  for (let i = 0; i < n; i += 1) {
+    total += Math.abs((a[Math.min(i, a.length - 1)] ?? 0) - (b[Math.min(i, b.length - 1)] ?? 0));
+  }
+  return total;
+}
+
+/** Chords for a list of scale degrees, voiced and optionally voice-led. */
+export function progression(
+  root: string | number,
+  scale: string,
+  degrees: number[],
+  options: { voicing?: Voicing; octave?: number; voiceLed?: boolean } = {},
+): number[][] {
+  const chords = degrees.map((d) => voicedChord(root, scale, d, options.voicing ?? 'triad', options.octave ?? 3));
+  return options.voiceLed === false ? chords.map((c) => raiseAbove(c, CHORD_FLOOR)) : voiceLead(chords);
+}
+
+/** Least common multiple: when two cycle lengths realign. */
+export function lcm(a: number, b: number): number {
+  const gcd = (x: number, y: number): number => (y === 0 ? x : gcd(y, x % y));
+  return Math.abs(a * b) / gcd(a, b);
+}

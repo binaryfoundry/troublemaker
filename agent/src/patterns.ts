@@ -409,3 +409,249 @@ export function bassFromFeel(feel: BassFeel, options: BassFeelOptions = {}): Pat
   }
   return { length_beats: length, events };
 }
+
+// ---------------------------------------------------------------------------
+// Advanced rhythm (EDM-COMPOSITION.md)
+// ---------------------------------------------------------------------------
+
+/**
+ * Euclidean rhythm: k hits spread as evenly as possible over n steps,
+ * starting on a hit, then rotated by `rotation` steps. E(5,16) is a classic
+ * hat line; E(3,8) is the tresillo.
+ */
+export function euclidean(hits: number, steps: number, rotation = 0): boolean[] {
+  if (!Number.isInteger(hits) || !Number.isInteger(steps) || steps < 1 || hits < 0 || hits > steps) {
+    throw new RangeError('Euclidean rhythm needs integers with 0 <= hits <= steps.');
+  }
+  // Bjorklund: repeatedly pair the remainder groups onto the hit groups.
+  let a: boolean[][] = Array.from({ length: hits }, () => [true]);
+  let b: boolean[][] = Array.from({ length: steps - hits }, () => [false]);
+  while (b.length > 1 && a.length > 0) {
+    const m = Math.min(a.length, b.length);
+    const paired = a.slice(0, m).map((group, i) => [...group, ...b[i]!]);
+    const rest = a.length > m ? a.slice(m) : b.slice(m);
+    a = paired;
+    b = rest;
+  }
+  const aligned = [...a, ...b].flat();
+  const r = ((rotation % steps) + steps) % steps;
+  return r === 0 ? aligned : [...aligned.slice(steps - r), ...aligned.slice(0, steps - r)];
+}
+
+export function euclideanPattern(
+  options: GeneratorOptions & {
+    hits: number;
+    steps: number;
+    rotation?: number;
+    pitch: number;
+    stepBeats?: number;
+    velocity?: number;
+  },
+): Pattern {
+  const { length, random } = resolve(options);
+  const stepBeats = options.stepBeats ?? 0.25;
+  const grid = euclidean(options.hits, options.steps, options.rotation ?? 0);
+  const events: PatternEvent[] = [];
+  for (let i = 0; i * stepBeats < length - 1e-9; i += 1) {
+    if (!grid[i % grid.length]) continue;
+    events.push({
+      beat: round6(i * stepBeats),
+      pitch: options.pitch,
+      duration: round6(stepBeats * 0.5),
+      velocity: clampVelocity((options.velocity ?? 96) + (random() * 8 - 4)),
+    });
+  }
+  return { length_beats: length, events };
+}
+
+/**
+ * a:b polyrhythm: a evenly spaced hits on one pitch and b on another, both
+ * filling the same cycle. 3:2 over one bar puts three hits against two.
+ */
+export function polyrhythm(options: {
+  a: number;
+  b: number;
+  pitchA: number;
+  pitchB: number;
+  cycleBeats?: number;
+  bars?: number;
+  velocity?: number;
+}): Pattern {
+  const cycle = options.cycleBeats ?? 4;
+  const length = (options.bars ?? 1) * 4;
+  const events: PatternEvent[] = [];
+  for (let start = 0; start < length - 1e-9; start += cycle) {
+    const streams: Array<[number, number]> = [
+      [options.a, options.pitchA],
+      [options.b, options.pitchB],
+    ];
+    for (const [count, pitch] of streams) {
+      for (let i = 0; i < count; i += 1) {
+        events.push({
+          beat: round6(start + (i * cycle) / count),
+          pitch,
+          duration: round6(Math.min(0.25, cycle / count / 2)),
+          velocity: clampVelocity(options.velocity ?? 100),
+        });
+      }
+    }
+  }
+  return { length_beats: length, events };
+}
+
+/**
+ * A polymetric clip: a pattern whose loop is `steps` sixteenths long, so it
+ * drifts against the 16-step bar and realigns after lcm(steps, 16)
+ * sixteenths. Write it into its own clip and set that clip's loop to
+ * `length_beats`; Live then plays the polymeter by itself.
+ */
+export function polymeterClip(options: {
+  steps: number;
+  hits?: number;
+  pitch: number;
+  velocity?: number;
+  seed?: number;
+}): Pattern & { realignsAfterBars: number } {
+  if (!Number.isInteger(options.steps) || options.steps < 2) {
+    throw new RangeError('steps must be an integer >= 2.');
+  }
+  const hits = options.hits ?? Math.max(1, Math.round(options.steps / 2.5));
+  const length = options.steps * 0.25;
+  const grid = euclidean(hits, options.steps);
+  const random = makeRandom(options.seed ?? 1);
+  const events: PatternEvent[] = [];
+  grid.forEach((hit, i) => {
+    if (!hit) return;
+    events.push({
+      beat: round6(i * 0.25),
+      pitch: options.pitch,
+      duration: 0.125,
+      velocity: clampVelocity((options.velocity ?? 96) + (random() * 8 - 4)),
+    });
+  });
+  const gcd = (x: number, y: number): number => (y === 0 ? x : gcd(y, x % y));
+  const realign = (options.steps * 16) / gcd(options.steps, 16);
+  return { length_beats: length, events, realignsAfterBars: realign / 16 };
+}
+
+/**
+ * Exponential ratchet / retrigger deceleration: one note retriggered while
+ * the repeat rate moves from startHz to endHz along an exponential curve,
+ * so spacing changes by a constant ratio. Accelerating builds tension;
+ * decelerating is the roulette wheel slowing down. Each hit keeps its pitch,
+ * which is what separates it from a tape stop.
+ */
+export function retriggerRamp(options: {
+  pitch: number;
+  startHz: number;
+  endHz: number;
+  durationBeats: number;
+  bpm: number;
+  /** Fraction of each interval the note sounds. */
+  gate?: number;
+  velocity?: number;
+  /** Velocity at the end relative to the start, e.g. 0.6 to fade out. */
+  velocityEnd?: number;
+  /** Semitones of pitch drop across the gesture, for a deliberate hybrid. */
+  pitchDrop?: number;
+  offsetBeats?: number;
+}): Pattern {
+  const { startHz, endHz, bpm } = options;
+  if (!(startHz > 0) || !(endHz > 0)) throw new RangeError('Rates must be positive.');
+  const secondsTotal = (options.durationBeats * 60) / bpm;
+  const gate = options.gate ?? 0.4;
+  const v0 = options.velocity ?? 105;
+  const v1 = v0 * (options.velocityEnd ?? 1);
+  const events: PatternEvent[] = [];
+  let t = 0;
+  let guard = 0;
+  while (t < secondsTotal - 1e-6 && guard < 2000) {
+    const progress = t / secondsTotal;
+    const hz = startHz * Math.pow(endHz / startHz, progress);
+    const interval = 1 / hz;
+    events.push({
+      beat: round6((options.offsetBeats ?? 0) + (t * bpm) / 60),
+      pitch: Math.round(options.pitch - (options.pitchDrop ?? 0) * progress),
+      duration: round6(Math.max(0.01, (interval * gate * bpm) / 60)),
+      velocity: clampVelocity(v0 + (v1 - v0) * progress),
+    });
+    t += interval;
+    guard += 1;
+  }
+  return { length_beats: options.durationBeats + (options.offsetBeats ?? 0), events };
+}
+
+/**
+ * A fill ending at `endBeat`: the subdivision tightens and velocity rises
+ * over the last `beats`. Pitches cycle through `pitches`, so a fill can move
+ * between snare, toms and percussion.
+ */
+export function fill(options: {
+  pitches: number[];
+  beats?: number;
+  endBeat: number;
+  startDivision?: number;
+  endDivision?: number;
+  seed?: number;
+}): Pattern {
+  if (options.pitches.length === 0) throw new RangeError('A fill needs at least one pitch.');
+  const beats = options.beats ?? 2;
+  const startDivision = options.startDivision ?? 0.5;
+  const endDivision = options.endDivision ?? 0.125;
+  const random = makeRandom(options.seed ?? 1);
+  const start = options.endBeat - beats;
+  const events: PatternEvent[] = [];
+  let position = 0;
+  let index = 0;
+  while (position < beats - 1e-9) {
+    const progress = position / beats;
+    const division = startDivision + (endDivision - startDivision) * progress;
+    events.push({
+      beat: round6(start + position),
+      pitch: options.pitches[index % options.pitches.length]!,
+      duration: round6(Math.min(division, 0.25)),
+      velocity: clampVelocity(70 + 50 * progress + (random() * 6 - 3)),
+    });
+    // Snap to a 32nd so the fill stays on the grid.
+    position = Math.max(position + 0.125, Math.round((position + division) * 8) / 8);
+    index += 1;
+  }
+  return { length_beats: options.endBeat, events };
+}
+
+/** A tonal riser: scale steps climbing faster towards the drop. */
+export function risingNotes(options: {
+  root: string | number;
+  scale?: string;
+  startPitch: number;
+  semitones?: number;
+  beats: number;
+  offsetBeats?: number;
+}): Pattern {
+  const top = Math.min(127, options.startPitch + (options.semitones ?? 12));
+  const pitches = scalePitches(options.root, options.scale ?? 'minor', options.startPitch, top);
+  const n = pitches.length;
+  const events: PatternEvent[] = [];
+  for (let i = 0; i < n; i += 1) {
+    // Quadratic spacing: early notes are long, late ones crowd the drop.
+    const at = options.beats * (1 - Math.pow(1 - i / n, 2));
+    const next = options.beats * (1 - Math.pow(1 - (i + 1) / n, 2));
+    events.push({
+      beat: round6((options.offsetBeats ?? 0) + at),
+      pitch: pitches[i]!,
+      duration: round6(Math.max(0.06, next - at)),
+      velocity: clampVelocity(80 + (40 * i) / Math.max(1, n - 1)),
+    });
+  }
+  return { length_beats: (options.offsetBeats ?? 0) + options.beats, events };
+}
+
+/** A single impact note on the downbeat of an arrival. */
+export function impact(options: { pitch: number; atBeat: number; beats?: number; velocity?: number }): Pattern {
+  return {
+    length_beats: options.atBeat + (options.beats ?? 4),
+    events: [
+      { beat: options.atBeat, pitch: options.pitch, duration: options.beats ?? 2, velocity: options.velocity ?? 120 },
+    ],
+  };
+}

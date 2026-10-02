@@ -532,3 +532,31 @@ export function compareMaterial(
     offGridNotes: offGrid,
   };
 }
+
+/**
+ * Pre-drop silence: remove notes that start in [fromBeat, toBeat) and cut
+ * short any note that would ring into the window. Silence is part of the
+ * effects vocabulary: a gap before an impact often beats another riser.
+ */
+export function silenceGap(notes: Note[], fromBeat: number, toBeat: number): EditPlan {
+  requireIds(notes, 'silenceGap');
+  if (toBeat <= fromBeat) throw new RangeError('toBeat must be greater than fromBeat.');
+  const removals: number[] = [];
+  const updates: NoteUpdate[] = [];
+  for (const note of notes) {
+    if (note.start >= fromBeat && note.start < toBeat) {
+      removals.push(note.note_id as number);
+    } else if (note.start < fromBeat && note.start + note.duration > fromBeat) {
+      updates.push({ note_id: note.note_id as number, duration: round6(Math.max(0.01, fromBeat - note.start)) });
+    }
+  }
+  return {
+    updates,
+    additions: [],
+    removals,
+    summary:
+      removals.length || updates.length
+        ? [`cleared ${toBeat - fromBeat} beat(s) before beat ${toBeat}: removed ${removals.length}, shortened ${updates.length}`]
+        : [],
+  };
+}
