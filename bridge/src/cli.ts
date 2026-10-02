@@ -14,6 +14,7 @@ import { runQc } from '../../qc/src/run.js';
 import { compareFiles, runAb } from '../../qc/src/ab.js';
 import { analyzeBass, formatBassProfile } from '../../qc/src/bass.js';
 import { applyEffect, findEffect, loadCodex } from './fx.js';
+import { identifyEffect } from '../../qc/src/identify.js';
 import {
   arrangementCommands,
   checkArrangement,
@@ -138,6 +139,8 @@ Effects (agent/knowledge/effects.json):
   ableton-agent fx apply <id> --track <id> [--slot n] [--start beat] [--bars n | --length beats]
       [--pitch n] [--root F] [--set "Param=value"]... [--dry-run]
       Build the effect in Live from its recipe.
+  ableton-agent fx identify <file> [--start s] [--duration s]
+      Which effect an audio excerpt sounds like, from onset spacing, pitch and brightness.
 
 Arrangement (agent/knowledge/styles.json):
   ableton-agent arrangement plan <style> [--roles kick,bass,...]   Sections, energy, roles, checks
@@ -700,8 +703,30 @@ async function fx(argv: string[]): Promise<number> {
       for (const warning of result.warnings) process.stdout.write(`  ! ${warning}\n`);
       return 0;
     }
+    case 'identify': {
+      const options = [...rest];
+      const [start] = takeOption(options, '--start');
+      const [duration] = takeOption(options, '--duration');
+      const [file] = options;
+      if (!file) throw new Error('Usage: fx identify <file> [--start s] [--duration s]');
+      const id = await identifyEffect(
+        file,
+        start ? parseNumber('--start', start) : 0,
+        duration ? parseNumber('--duration', duration) : undefined,
+      );
+      const known = id.effect === 'unknown' ? null : findEffect(id.effect);
+      process.stdout.write(
+        `Sounds like: ${known ? known.name : 'no clear single effect'} (${id.confidence} confidence, auditory identification)
+`,
+      );
+      for (const line of id.evidence) process.stdout.write(`  - ${line}
+`);
+      if (known) process.stdout.write(`  mechanism: ${known.mechanism}
+`);
+      return 0;
+    }
     default:
-      throw new Error('Unknown fx subcommand. Try: list, show, apply.');
+      throw new Error('Unknown fx subcommand. Try: list, show, apply, identify.');
   }
 }
 

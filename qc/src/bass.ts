@@ -109,9 +109,16 @@ function rmsDb(samples: Float32Array, from: number, to: number): number {
 }
 
 /** YIN fundamental estimate on a window, in Hz, or null if unvoiced. */
-export function yin(samples: Float32Array, from: number, length: number, rate = RATE): number | null {
-  const minTau = Math.floor(rate / MAX_HZ);
-  const maxTau = Math.ceil(rate / MIN_HZ);
+export function yin(
+  samples: Float32Array,
+  from: number,
+  length: number,
+  rate = RATE,
+  minHz = MIN_HZ,
+  maxHz = MAX_HZ,
+): number | null {
+  const minTau = Math.floor(rate / maxHz);
+  const maxTau = Math.ceil(rate / minHz);
   const w = length - maxTau;
   if (w < minTau * 2 || from + length > samples.length) return null;
   const d = new Float64Array(maxTau + 1);
