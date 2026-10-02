@@ -635,6 +635,10 @@ def install_stubs():
 
     track_module = types.ModuleType("Live.Track")
     track_module.Track = Track
+    song_module = types.ModuleType("Live.Song")
+    song_module.Song = Song
+    live.Song = song_module
+    sys.modules["Live.Song"] = song_module
 
     live.Clip = clip_module
     live.Application = application_module
