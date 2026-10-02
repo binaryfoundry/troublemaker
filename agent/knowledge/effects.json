@@ -15,710 +15,1811 @@
     {
       "id": "filter_sweep",
       "name": "Filter sweep",
-      "aliases": ["cutoff sweep", "DJ filter", "low-pass build", "high-pass out"],
+      "aliases": [
+        "cutoff sweep",
+        "DJ filter",
+        "low-pass build",
+        "high-pass out"
+      ],
       "family": "spectral",
       "cue": "Tone gets brighter or darker while timing is unchanged.",
       "mechanism": "Low-pass or high-pass filter whose cutoff is automated.",
       "control": "ramp-exponential",
       "time_scale": "phrase",
-      "energy": ["accumulate", "release", "withhold"],
-      "params": { "cutoff": "~100 Hz to 18 kHz", "resonance": "low to moderate; peaks get loud", "span": "1-16 bars" },
-      "distinguish_from": [{ "id": "phaser", "how": "one moving cutoff, not many moving notches" }],
-      "mistakes": ["Starting the sweep too early empties a long build.", "High resonance makes huge peaks."],
+      "energy": [
+        "accumulate",
+        "release",
+        "withhold"
+      ],
+      "params": {
+        "cutoff": "~100 Hz to 18 kHz",
+        "resonance": "low to moderate; peaks get loud",
+        "span": "1-16 bars"
+      },
+      "distinguish_from": [
+        {
+          "id": "phaser",
+          "how": "one moving cutoff, not many moving notches"
+        }
+      ],
+      "mistakes": [
+        "Starting the sweep too early empties a long build.",
+        "High resonance makes huge peaks."
+      ],
       "build": {
         "method": "devices",
         "placement": "insert",
-        "devices": [{ "name": "Auto Filter", "params": { "Filter Type": "Low-pass", "Resonance": 20, "Frequency": 300 } }],
-        "automation": [{ "device": "Auto Filter", "parameter": "Frequency", "curve": "exponential", "points": [{ "at": 0, "value": 300 }, { "at": 1, "value": 18000 }] }]
+        "devices": [
+          {
+            "name": "Auto Filter",
+            "params": {
+              "Filter Type": "Low-pass",
+              "Resonance": 20,
+              "Frequency": 300
+            }
+          }
+        ],
+        "automation": [
+          {
+            "device": "Auto Filter",
+            "parameter": "Frequency",
+            "curve": "exponential",
+            "points": [
+              {
+                "at": 0,
+                "value": 300
+              },
+              {
+                "at": 1,
+                "value": 18000
+              }
+            ]
+          }
+        ]
       },
       "availability": "standard",
       "references": [
-        { "track": "Daft Punk - Da Funk", "where": "~0:00-0:40", "evidence": "A" },
-        { "track": "deadmau5 - Strobe", "where": "~5:00-6:30", "evidence": "A" }
+        {
+          "track": "Daft Punk - Da Funk",
+          "where": "~0:00-0:40",
+          "evidence": "A"
+        },
+        {
+          "track": "deadmau5 - Strobe",
+          "where": "~5:00-6:30",
+          "evidence": "A"
+        }
       ]
     },
     {
       "id": "trance_gate",
       "name": "Tempo-synchronised gate",
-      "aliases": ["trance gate", "chopper", "rhythmic gate"],
+      "aliases": [
+        "trance gate",
+        "chopper",
+        "rhythmic gate"
+      ],
       "family": "amplitude",
       "cue": "A sustained sound is chopped into a repeating on/off rhythm.",
       "mechanism": "Gain (VCA) driven by a square/step LFO locked to tempo; no buffer is replayed.",
       "control": "synced",
       "time_scale": "micro",
-      "energy": ["pulse"],
-      "params": { "rate": "1/8 to 1/32", "duty": "20-70%", "attack": "0-10 ms", "release": "5-80 ms" },
-      "distinguish_from": [{ "id": "beat_repeat", "how": "the source keeps running; nothing is captured and replayed" }],
-      "mistakes": ["Zero attack/release clicks.", "Reverb before the gate chops the ambience; after it leaves a smooth tail."],
+      "energy": [
+        "pulse"
+      ],
+      "params": {
+        "rate": "1/8 to 1/32",
+        "duty": "20-70%",
+        "attack": "0-10 ms",
+        "release": "5-80 ms"
+      },
+      "distinguish_from": [
+        {
+          "id": "beat_repeat",
+          "how": "the source keeps running; nothing is captured and replayed"
+        }
+      ],
+      "mistakes": [
+        "Zero attack/release clicks.",
+        "Reverb before the gate chops the ambience; after it leaves a smooth tail."
+      ],
       "build": {
         "method": "devices",
         "placement": "insert",
-        "devices": [{ "name": "Auto Pan-Tremolo", "params": { "Mode": "Tremolo", "Amount": 100, "Waveform": "Square", "Time Mode": "Sync", "Rate": "1/16" } }]
+        "devices": [
+          {
+            "name": "Auto Pan-Tremolo",
+            "params": {
+              "Mode": "Tremolo",
+              "Amount": 100,
+              "Waveform": "Square",
+              "Time Mode": "Synced",
+              "Rate": "1/16"
+            }
+          }
+        ]
       },
       "availability": "standard",
-      "references": [{ "track": "Faithless - Insomnia", "where": "~2:18 onward", "evidence": "A" }]
+      "references": [
+        {
+          "track": "Faithless - Insomnia",
+          "where": "~2:18 onward",
+          "evidence": "A"
+        }
+      ]
     },
     {
       "id": "sidechain_pump",
       "name": "Sidechain ducking",
-      "aliases": ["pumping", "volume shaping", "kick duck"],
+      "aliases": [
+        "pumping",
+        "volume shaping",
+        "kick duck"
+      ],
       "family": "dynamics",
       "cue": "Pads, bass or the whole mix inhale after every kick.",
       "mechanism": "Kick-triggered gain reduction, or a drawn volume envelope locked to the beat.",
       "control": "sidechain",
       "time_scale": "micro",
-      "energy": ["pulse"],
-      "params": { "attack": "0-10 ms", "release": "~80-300 ms (1/16 to 1/8 at common tempi)", "reduction": "2-10 dB" },
-      "distinguish_from": [{ "id": "trance_gate", "how": "dips are tied to the kick, not to an arbitrary grid" }],
-      "mistakes": ["Release too long drains the groove; too short chatters.", "Using sidechain to cover an overcrowded low end."],
+      "energy": [
+        "pulse"
+      ],
+      "params": {
+        "attack": "0-10 ms",
+        "release": "~80-300 ms (1/16 to 1/8 at common tempi)",
+        "reduction": "2-10 dB"
+      },
+      "distinguish_from": [
+        {
+          "id": "trance_gate",
+          "how": "dips are tied to the kick, not to an arbitrary grid"
+        }
+      ],
+      "mistakes": [
+        "Release too long drains the groove; too short chatters.",
+        "Using sidechain to cover an overcrowded low end."
+      ],
       "build": {
         "method": "devices",
         "placement": "insert",
         "note": "Approximation by tempo-locked volume shaping. A kick-keyed Compressor needs its sidechain input chosen in Live's UI, which the API does not expose; for basslines, prefer bassFromFeel with kickDelay.",
-        "devices": [{ "name": "Auto Pan-Tremolo", "params": { "Mode": "Tremolo", "Amount": 60, "Waveform": "Saw Down", "Time Mode": "Sync", "Rate": "1/4", "Phase": 0 } }]
+        "devices": [
+          {
+            "name": "Auto Pan-Tremolo",
+            "params": {
+              "Mode": "Tremolo",
+              "Amount": 60,
+              "Waveform": "Saw Down",
+              "Time Mode": "Synced",
+              "Rate": "1/4",
+              "Phase": 0
+            }
+          }
+        ]
       },
       "availability": "standard",
       "references": [
-        { "track": "Daft Punk - One More Time", "where": "~0:34 onward", "evidence": "D" },
-        { "track": "Doja Cat - Say So", "where": "throughout", "evidence": "D" }
+        {
+          "track": "Daft Punk - One More Time",
+          "where": "~0:34 onward",
+          "evidence": "D"
+        },
+        {
+          "track": "Doja Cat - Say So",
+          "where": "throughout",
+          "evidence": "D"
+        }
       ]
     },
     {
       "id": "beat_repeat",
       "name": "Beat repeat",
-      "aliases": ["loop roll", "buffer repeat", "micro-stutter"],
+      "aliases": [
+        "loop roll",
+        "buffer repeat",
+        "micro-stutter"
+      ],
       "family": "time",
       "cue": "A tiny slice of existing audio repeats at a constant rate - ka-ka-ka-ka.",
       "mechanism": "Recent input is captured and looped on a rhythmic grid.",
       "control": "synced",
       "time_scale": "micro",
-      "energy": ["signal", "destabilise"],
-      "params": { "grid": "1/8 to 1/64", "gate": "a burst to several 16ths", "chance": "0-100%" },
-      "distinguish_from": [
-        { "id": "retrigger_deceleration", "how": "constant repeat rate" },
-        { "id": "granular_stutter", "how": "rhythmic slices, not tiny independent grains" }
+      "energy": [
+        "signal",
+        "destabilise"
       ],
-      "mistakes": ["Stuttering everything destroys the groove; keep the low end and main transient dry."],
+      "params": {
+        "grid": "1/8 to 1/64",
+        "gate": "a burst to several 16ths",
+        "chance": "0-100%"
+      },
+      "distinguish_from": [
+        {
+          "id": "retrigger_deceleration",
+          "how": "constant repeat rate"
+        },
+        {
+          "id": "granular_stutter",
+          "how": "rhythmic slices, not tiny independent grains"
+        }
+      ],
+      "mistakes": [
+        "Stuttering everything destroys the groove; keep the low end and main transient dry."
+      ],
       "build": {
         "method": "devices",
         "placement": "insert",
-        "devices": [{ "name": "Beat Repeat", "params": { "Interval": "1 Bar", "Grid": "1/16", "Gate": "4/16", "Chance": 100, "Repeat": "Off" } }],
-        "automation": [{ "device": "Beat Repeat", "parameter": "Repeat", "curve": "step", "points": [{ "at": 0, "value": "On" }, { "at": 1, "value": "Off" }] }]
+        "devices": [
+          {
+            "name": "Beat Repeat",
+            "params": {
+              "Interval": "1 Bar",
+              "Grid": "1/16",
+              "Gate": "4/16",
+              "Chance": 100,
+              "Repeat": "Off"
+            }
+          }
+        ],
+        "automation": [
+          {
+            "device": "Beat Repeat",
+            "parameter": "Repeat",
+            "curve": "step",
+            "points": [
+              {
+                "at": 0,
+                "value": "On"
+              },
+              {
+                "at": 1,
+                "value": "Off"
+              }
+            ]
+          }
+        ]
       },
       "availability": "standard",
-      "references": [{ "track": "BT - Somnambulist", "where": "throughout", "evidence": "D" }]
+      "references": [
+        {
+          "track": "BT - Somnambulist",
+          "where": "throughout",
+          "evidence": "D"
+        }
+      ]
     },
     {
       "id": "exponential_ratchet",
       "name": "Exponential ratchet",
-      "aliases": ["ratchet lead", "exponential rhythm", "accelerating stutter", "roulette wheel speeding up"],
+      "aliases": [
+        "ratchet lead",
+        "exponential rhythm",
+        "accelerating stutter",
+        "roulette wheel speeding up"
+      ],
       "family": "rhythm",
       "cue": "Repeats get closer together: br... br... br-br-br... brrrrr.",
       "mechanism": "Retriggered notes whose interval shrinks along a curve; the retrigger clock itself changes speed.",
       "control": "ramp-exponential",
       "time_scale": "phrase",
-      "energy": ["accumulate", "signal"],
-      "params": { "rate": "~2-40 Hz free, or 1/4 to 1/64 synced", "gate": "10-70% of each interval", "span": "0.5-4 bars" },
-      "distinguish_from": [
-        { "id": "tape_stop", "how": "pitch of each hit stays put; only spacing changes" },
-        { "id": "retrigger_deceleration", "how": "intervals shrink rather than grow" }
+      "energy": [
+        "accumulate",
+        "signal"
       ],
-      "mistakes": ["A linear rate ramp spends most of its time at one end; use a curved law.", "Long note tails blur individual ticks."],
-      "build": { "method": "midi", "generator": "retriggerRamp", "args": { "direction": "accelerate", "startHz": 3, "endHz": 30 } },
+      "params": {
+        "rate": "~2-40 Hz free, or 1/4 to 1/64 synced",
+        "gate": "10-70% of each interval",
+        "span": "0.5-4 bars"
+      },
+      "distinguish_from": [
+        {
+          "id": "tape_stop",
+          "how": "pitch of each hit stays put; only spacing changes"
+        },
+        {
+          "id": "retrigger_deceleration",
+          "how": "intervals shrink rather than grow"
+        }
+      ],
+      "mistakes": [
+        "A linear rate ramp spends most of its time at one end; use a curved law.",
+        "Long note tails blur individual ticks."
+      ],
+      "build": {
+        "method": "midi",
+        "generator": "retriggerRamp",
+        "args": {
+          "direction": "accelerate",
+          "startHz": 3,
+          "endHz": 30
+        }
+      },
       "availability": "standard",
       "references": [
-        { "track": "Grum & Amba Shepherd - Slow Motion", "where": "transitions", "evidence": "A" },
-        { "track": "ODESZA - The Last Goodbye", "where": "~1:35-1:50", "evidence": "A" }
+        {
+          "track": "Grum & Amba Shepherd - Slow Motion",
+          "where": "transitions",
+          "evidence": "A"
+        },
+        {
+          "track": "ODESZA - The Last Goodbye",
+          "where": "~1:35-1:50",
+          "evidence": "A"
+        }
       ]
     },
     {
       "id": "retrigger_deceleration",
       "name": "Retrigger deceleration",
-      "aliases": ["roulette wheel slowing down", "decelerating stutter", "zipper", "bouncing-ball rhythm"],
+      "aliases": [
+        "roulette wheel slowing down",
+        "decelerating stutter",
+        "zipper",
+        "bouncing-ball rhythm"
+      ],
       "family": "rhythm",
       "cue": "Repeats spread out: brrrrr... br-br... br... br... Each hit keeps its pitch.",
       "mechanism": "A note or slice is retriggered while the gap between triggers grows exponentially.",
       "control": "ramp-exponential",
       "time_scale": "phrase",
-      "energy": ["release", "signal"],
-      "params": { "rate": "20-40 retriggers/s falling to 2-5/s", "span": "0.5-4 s", "envelope": "0.5-5 ms attack, 5-80 ms decay" },
-      "distinguish_from": [{ "id": "tape_stop", "how": "tape stop drops the pitch and stretches time together; here only spacing changes" }],
-      "mistakes": ["Increase gaps by multiplying, not adding: 25, 35, 50, 72, 105, 155, 230 ms."],
-      "build": { "method": "midi", "generator": "retriggerRamp", "args": { "direction": "decelerate", "startHz": 30, "endHz": 3 } },
+      "energy": [
+        "release",
+        "signal"
+      ],
+      "params": {
+        "rate": "20-40 retriggers/s falling to 2-5/s",
+        "span": "0.5-4 s",
+        "envelope": "0.5-5 ms attack, 5-80 ms decay"
+      },
+      "distinguish_from": [
+        {
+          "id": "tape_stop",
+          "how": "tape stop drops the pitch and stretches time together; here only spacing changes"
+        }
+      ],
+      "mistakes": [
+        "Increase gaps by multiplying, not adding: 25, 35, 50, 72, 105, 155, 230 ms."
+      ],
+      "build": {
+        "method": "midi",
+        "generator": "retriggerRamp",
+        "args": {
+          "direction": "decelerate",
+          "startHz": 30,
+          "endHz": 3
+        }
+      },
       "availability": "standard",
       "references": [
-        { "track": "Worakls - Cloches", "where": "2:33 onward", "evidence": "D" },
-        { "track": "Slam Duck - Intergalactic", "where": "0:08, ~1:18, ~3:18", "evidence": "D" }
+        {
+          "track": "Worakls - Cloches",
+          "where": "2:33 onward",
+          "evidence": "D"
+        },
+        {
+          "track": "Slam Duck - Intergalactic",
+          "where": "0:08, ~1:18, ~3:18",
+          "evidence": "D"
+        }
       ]
     },
     {
       "id": "fill",
       "name": "Fill",
-      "aliases": ["turnaround", "pre-drop fill", "drum roll"],
+      "aliases": [
+        "turnaround",
+        "pre-drop fill",
+        "drum roll"
+      ],
       "family": "rhythm",
       "cue": "A burst of extra rhythmic information at a phrase boundary.",
       "mechanism": "Temporary increase in subdivision and velocity contour at the end of a phrase.",
       "control": "stepped",
       "time_scale": "phrase",
-      "energy": ["signal"],
-      "params": { "length": "1/2-2 bars", "subdivision": "1/8 rising to 1/32", "velocity": "a contour, not flat maximum" },
-      "mistakes": ["Fills on every 4 bars stop meaning anything; place them on 8/16/32-bar boundaries."],
-      "build": { "method": "midi", "generator": "fill" },
+      "energy": [
+        "signal"
+      ],
+      "params": {
+        "length": "1/2-2 bars",
+        "subdivision": "1/8 rising to 1/32",
+        "velocity": "a contour, not flat maximum"
+      },
+      "mistakes": [
+        "Fills on every 4 bars stop meaning anything; place them on 8/16/32-bar boundaries."
+      ],
+      "build": {
+        "method": "midi",
+        "generator": "fill"
+      },
       "availability": "standard",
-      "references": [{ "track": "BT - Somnambulist", "where": "recurring", "evidence": "A" }]
+      "references": [
+        {
+          "track": "BT - Somnambulist",
+          "where": "recurring",
+          "evidence": "A"
+        }
+      ]
     },
     {
       "id": "noise_riser",
       "name": "White-noise riser",
-      "aliases": ["uplifter", "sweep-up", "noise build"],
+      "aliases": [
+        "uplifter",
+        "sweep-up",
+        "noise build"
+      ],
       "family": "transition",
       "cue": "Hiss gains brightness and level until a transition.",
       "mechanism": "Noise through a filter whose cutoff and level rise; cut hard at the drop.",
       "control": "ramp-exponential",
       "time_scale": "phrase",
-      "energy": ["accumulate"],
-      "params": { "cutoff": "~300 Hz to 15 kHz", "level": "+3 to +12 dB over the span", "span": "1-16 bars" },
-      "mistakes": ["Full-band noise masks hats and vocals; high-pass it."],
+      "energy": [
+        "accumulate"
+      ],
+      "params": {
+        "cutoff": "~300 Hz to 15 kHz",
+        "level": "+3 to +12 dB over the span",
+        "span": "1-16 bars"
+      },
+      "mistakes": [
+        "Full-band noise masks hats and vocals; high-pass it."
+      ],
       "build": {
         "method": "devices",
         "placement": "insert",
-        "source": { "instrument": "Drift", "params": { "Osc 1 On": "Off", "Osc 2 On": "Off", "Noise Gain": 0, "HP Freq": 200, "Env 1 Attack": 0, "Env 1 Sustain": 100, "Env 1 Release": 30 }, "note": { "pitch": 60, "sustain": true } },
-        "devices": [{ "name": "Auto Filter", "params": { "Filter Type": "Low-pass", "Resonance": 25, "Frequency": 300 } }],
+        "source": {
+          "instrument": "Drift",
+          "params": {
+            "Osc 1 On": "Off",
+            "Osc 2 On": "Off",
+            "Noise Gain": 0,
+            "HP Freq": 200,
+            "Env 1 Attack": 0,
+            "Env 1 Sustain": 100,
+            "Env 1 Release": 30
+          },
+          "note": {
+            "pitch": 60,
+            "sustain": true
+          }
+        },
+        "devices": [
+          {
+            "name": "Auto Filter",
+            "params": {
+              "Filter Type": "Low-pass",
+              "Resonance": 25,
+              "Frequency": 300
+            }
+          }
+        ],
         "automation": [
-          { "device": "Auto Filter", "parameter": "Frequency", "curve": "exponential", "points": [{ "at": 0, "value": 300 }, { "at": 1, "value": 15000 }] },
-          { "mixer": "volume", "curve": "linear", "points": [{ "at": 0, "value": 0.55 }, { "at": 1, "value": 0.85 }] }
+          {
+            "device": "Auto Filter",
+            "parameter": "Frequency",
+            "curve": "exponential",
+            "points": [
+              {
+                "at": 0,
+                "value": 300
+              },
+              {
+                "at": 1,
+                "value": 15000
+              }
+            ]
+          },
+          {
+            "mixer": "volume",
+            "curve": "linear",
+            "points": [
+              {
+                "at": 0,
+                "value": 0.55
+              },
+              {
+                "at": 1,
+                "value": 0.85
+              }
+            ]
+          }
         ]
       },
       "availability": "standard",
-      "references": [{ "track": "Swedish House Mafia - Greyhound", "where": "pre-drop builds", "evidence": "A" }]
+      "references": [
+        {
+          "track": "Swedish House Mafia - Greyhound",
+          "where": "pre-drop builds",
+          "evidence": "A"
+        }
+      ]
     },
     {
       "id": "tonal_riser",
       "name": "Tonal riser",
-      "aliases": ["pitch riser", "uplifter"],
+      "aliases": [
+        "pitch riser",
+        "uplifter"
+      ],
       "family": "transition",
       "cue": "A pitched sound climbs into the drop.",
       "mechanism": "Ascending notes or pitch automation, usually with brightening and more reverb.",
       "control": "ramp-linear",
       "time_scale": "phrase",
-      "energy": ["accumulate"],
-      "params": { "range": "+7 to +24 semitones", "span": "2-16 bars" },
-      "build": { "method": "midi", "generator": "risingNotes" },
+      "energy": [
+        "accumulate"
+      ],
+      "params": {
+        "range": "+7 to +24 semitones",
+        "span": "2-16 bars"
+      },
+      "build": {
+        "method": "midi",
+        "generator": "risingNotes"
+      },
       "availability": "standard",
-      "references": [{ "track": "Avicii - Levels", "where": "builds", "evidence": "A" }]
+      "references": [
+        {
+          "track": "Avicii - Levels",
+          "where": "builds",
+          "evidence": "A"
+        }
+      ]
     },
     {
       "id": "downlifter",
       "name": "Downlifter",
-      "aliases": ["downer", "faller", "sweep-down"],
+      "aliases": [
+        "downer",
+        "faller",
+        "sweep-down"
+      ],
       "family": "transition",
       "cue": "Pitch, brightness or noise energy falls away after a hit.",
       "mechanism": "Inverse riser: falling cutoff and level after an arrival.",
       "control": "ramp-exponential",
       "time_scale": "phrase",
-      "energy": ["release"],
-      "params": { "cutoff": "15 kHz down to ~300 Hz", "span": "0.5-8 bars" },
-      "mistakes": ["Keep sub out of it so it does not fight the kick and bass that follow."],
+      "energy": [
+        "release"
+      ],
+      "params": {
+        "cutoff": "15 kHz down to ~300 Hz",
+        "span": "0.5-8 bars"
+      },
+      "mistakes": [
+        "Keep sub out of it so it does not fight the kick and bass that follow."
+      ],
       "build": {
         "method": "devices",
         "placement": "insert",
-        "source": { "instrument": "Drift", "params": { "Osc 1 On": "Off", "Osc 2 On": "Off", "Noise Gain": 0, "HP Freq": 250, "Env 1 Attack": 0, "Env 1 Sustain": 100, "Env 1 Release": 200 }, "note": { "pitch": 60, "sustain": true } },
-        "devices": [{ "name": "Auto Filter", "params": { "Filter Type": "Low-pass", "Resonance": 15, "Frequency": 15000 } }],
+        "source": {
+          "instrument": "Drift",
+          "params": {
+            "Osc 1 On": "Off",
+            "Osc 2 On": "Off",
+            "Noise Gain": 0,
+            "HP Freq": 250,
+            "Env 1 Attack": 0,
+            "Env 1 Sustain": 100,
+            "Env 1 Release": 200
+          },
+          "note": {
+            "pitch": 60,
+            "sustain": true
+          }
+        },
+        "devices": [
+          {
+            "name": "Auto Filter",
+            "params": {
+              "Filter Type": "Low-pass",
+              "Resonance": 15,
+              "Frequency": 15000
+            }
+          }
+        ],
         "automation": [
-          { "device": "Auto Filter", "parameter": "Frequency", "curve": "exponential", "points": [{ "at": 0, "value": 15000 }, { "at": 1, "value": 300 }] },
-          { "mixer": "volume", "curve": "linear", "points": [{ "at": 0, "value": 0.85 }, { "at": 1, "value": 0.4 }] }
+          {
+            "device": "Auto Filter",
+            "parameter": "Frequency",
+            "curve": "exponential",
+            "points": [
+              {
+                "at": 0,
+                "value": 15000
+              },
+              {
+                "at": 1,
+                "value": 300
+              }
+            ]
+          },
+          {
+            "mixer": "volume",
+            "curve": "linear",
+            "points": [
+              {
+                "at": 0,
+                "value": 0.85
+              },
+              {
+                "at": 1,
+                "value": 0.4
+              }
+            ]
+          }
         ]
       },
       "availability": "standard",
-      "references": [{ "track": "Skrillex - Bangarang", "where": "post-drop transitions", "evidence": "A" }]
+      "references": [
+        {
+          "track": "Skrillex - Bangarang",
+          "where": "post-drop transitions",
+          "evidence": "A"
+        }
+      ]
     },
     {
       "id": "impact",
       "name": "Impact",
-      "aliases": ["hit", "drop hit", "sub drop", "boom"],
+      "aliases": [
+        "hit",
+        "drop hit",
+        "sub drop",
+        "boom"
+      ],
       "family": "transition",
       "cue": "One big attack and a bass-heavy tail marking an arrival.",
       "mechanism": "Transient plus a falling sine around 40-80 Hz; keep the clean sub dry.",
       "control": "fixed",
       "time_scale": "micro",
-      "energy": ["arrive"],
-      "params": { "sub": "40-80 Hz", "low_tail": "0.3-1.5 s" },
-      "mistakes": ["A long reverberant sub tail destroys low-end headroom."],
+      "energy": [
+        "arrive"
+      ],
+      "params": {
+        "sub": "40-80 Hz",
+        "low_tail": "0.3-1.5 s"
+      },
+      "mistakes": [
+        "A long reverberant sub tail destroys low-end headroom."
+      ],
       "build": {
         "method": "midi",
         "generator": "impact",
-        "source": { "instrument": "Drift", "params": { "Osc 1 Wave": "Sine", "Osc 2 On": "Off", "Env 1 Attack": 0, "Env 1 Decay": 900, "Env 1 Sustain": 0, "Env 1 Release": 300 } }
+        "source": {
+          "instrument": "Drift",
+          "params": {
+            "Osc 1 Wave": "Sine",
+            "Osc 2 On": "Off",
+            "Env 1 Attack": 0,
+            "Env 1 Decay": 900,
+            "Env 1 Sustain": 0,
+            "Env 1 Release": 300
+          }
+        }
       },
       "availability": "standard",
-      "references": [{ "track": "Skrillex - Scary Monsters and Nice Sprites", "where": "~0:40", "evidence": "A" }]
+      "references": [
+        {
+          "track": "Skrillex - Scary Monsters and Nice Sprites",
+          "where": "~0:40",
+          "evidence": "A"
+        }
+      ]
     },
     {
       "id": "silence_gap",
       "name": "Pre-drop silence",
-      "aliases": ["gap", "break", "drop-out"],
+      "aliases": [
+        "gap",
+        "break",
+        "drop-out"
+      ],
       "family": "structure",
       "cue": "A beat or less of nothing before the drop.",
       "mechanism": "Remove notes across tracks just before an arrival.",
       "control": "fixed",
       "time_scale": "micro",
-      "energy": ["withhold"],
-      "params": { "length": "1/8 to 1 beat" },
-      "build": { "method": "midi", "generator": "silenceGap" },
+      "energy": [
+        "withhold"
+      ],
+      "params": {
+        "length": "1/8 to 1 beat"
+      },
+      "build": {
+        "method": "midi",
+        "generator": "silenceGap"
+      },
       "availability": "standard",
       "references": []
     },
     {
       "id": "pitch_dive",
       "name": "Pitch-shift sweep",
-      "aliases": ["pitch dive", "pitch ramp"],
+      "aliases": [
+        "pitch dive",
+        "pitch ramp"
+      ],
       "family": "pitch",
       "cue": "Pitch falls or rises while the timing does not stretch.",
       "mechanism": "Pitch shifter automated over the span; duration stays the same.",
       "control": "ramp-linear",
       "time_scale": "phrase",
-      "energy": ["release", "accumulate"],
-      "params": { "range": "+/-12 to 24 st", "span": "0.25-8 bars" },
-      "distinguish_from": [{ "id": "tape_stop", "how": "time does not slow down" }],
+      "energy": [
+        "release",
+        "accumulate"
+      ],
+      "params": {
+        "range": "+/-12 to 24 st",
+        "span": "0.25-8 bars"
+      },
+      "distinguish_from": [
+        {
+          "id": "tape_stop",
+          "how": "time does not slow down"
+        }
+      ],
       "build": {
         "method": "devices",
         "placement": "insert",
-        "devices": [{ "name": "Shifter", "params": { "Mode": "Pitch", "Pitch Coarse": 0, "Dry/Wet": 100 } }],
-        "automation": [{ "device": "Shifter", "parameter": "Pitch Coarse", "curve": "exponential", "points": [{ "at": 0, "value": 0 }, { "at": 1, "value": -24 }] }]
+        "devices": [
+          {
+            "name": "Shifter",
+            "params": {
+              "Mode": "Pitch",
+              "Pitch Coarse": 0,
+              "Dry/Wet": 100
+            }
+          }
+        ],
+        "automation": [
+          {
+            "device": "Shifter",
+            "parameter": "Pitch Coarse",
+            "curve": "exponential",
+            "points": [
+              {
+                "at": 0,
+                "value": 0
+              },
+              {
+                "at": 1,
+                "value": -24
+              }
+            ]
+          }
+        ]
       },
       "availability": "standard",
-      "references": [{ "track": "deadmau5 - Ghosts 'n' Stuff", "where": "transitions", "evidence": "A" }]
+      "references": [
+        {
+          "track": "deadmau5 - Ghosts 'n' Stuff",
+          "where": "transitions",
+          "evidence": "A"
+        }
+      ]
     },
     {
       "id": "tape_stop",
       "name": "Tape stop",
-      "aliases": ["tape brake", "vinyl brake", "spin-down"],
+      "aliases": [
+        "tape brake",
+        "vinyl brake",
+        "spin-down"
+      ],
       "family": "time",
       "cue": "The whole sound slows and falls in pitch together until it stops.",
       "mechanism": "Variable-speed playback: time stretches and pitch falls together.",
       "control": "ramp-exponential",
       "time_scale": "phrase",
-      "energy": ["withhold"],
-      "params": { "stop_time": "0.1-4 s", "speed": "100% to 0%", "lpf": "optional, 16 kHz down to 3 kHz" },
-      "distinguish_from": [{ "id": "pitch_dive", "how": "a pitch dive keeps the timing" }, { "id": "retrigger_deceleration", "how": "hits keep their pitch" }],
-      "mistakes": ["Pitch automation alone is a pitch dive, not a tape stop."],
+      "energy": [
+        "withhold"
+      ],
+      "params": {
+        "stop_time": "0.1-4 s",
+        "speed": "100% to 0%",
+        "lpf": "optional, 16 kHz down to 3 kHz"
+      },
+      "distinguish_from": [
+        {
+          "id": "pitch_dive",
+          "how": "a pitch dive keeps the timing"
+        },
+        {
+          "id": "retrigger_deceleration",
+          "how": "hits keep their pitch"
+        }
+      ],
+      "mistakes": [
+        "Pitch automation alone is a pitch dive, not a tape stop."
+      ],
       "build": {
         "method": "unsupported",
         "note": "No stock Live device does variable-speed playback, and plugins (Kilohearts Tape Stop, TimeShaper) cannot be inserted through the API. Load one by hand, or use pitch_dive plus a closing filter and say it is an approximation."
       },
       "availability": "plugin",
-      "references": [{ "track": "Avicii - Levels", "where": "transitions", "evidence": "A" }]
+      "references": [
+        {
+          "track": "Avicii - Levels",
+          "where": "transitions",
+          "evidence": "A"
+        }
+      ]
     },
     {
       "id": "reverse_reverb",
       "name": "Reverse reverb",
-      "aliases": ["pre-verb", "reverb swell", "ghost tail"],
+      "aliases": [
+        "pre-verb",
+        "reverb swell",
+        "ghost tail"
+      ],
       "family": "space",
       "cue": "A wash rises out of silence into a vocal or hit.",
       "mechanism": "Reverse the source, reverberate, render, reverse the render, align before the dry event.",
       "control": "fixed",
       "time_scale": "phrase",
-      "energy": ["signal"],
-      "params": { "reverb": "1-8 s, 100% wet", "hpf": "100-300 Hz" },
-      "build": { "method": "unsupported", "note": "Needs rendering and reversing audio, which the Live API does not offer. A future offline path: capture, reverse and reverberate with ffmpeg, then import the result." },
+      "energy": [
+        "signal"
+      ],
+      "params": {
+        "reverb": "1-8 s, 100% wet",
+        "hpf": "100-300 Hz"
+      },
+      "build": {
+        "method": "unsupported",
+        "note": "Needs rendering and reversing audio, which the Live API does not offer. A future offline path: capture, reverse and reverberate with ffmpeg, then import the result."
+      },
       "availability": "offline",
-      "references": [{ "track": "The Chainsmokers - Closer", "where": "hook lead-ins", "evidence": "D" }]
+      "references": [
+        {
+          "track": "The Chainsmokers - Closer",
+          "where": "hook lead-ins",
+          "evidence": "D"
+        }
+      ]
     },
     {
       "id": "reverse_cymbal",
       "name": "Reverse cymbal",
-      "aliases": ["cymbal suck", "reverse crash"],
+      "aliases": [
+        "cymbal suck",
+        "reverse crash"
+      ],
       "family": "transition",
       "cue": "A reversed decay rises into an impact.",
       "mechanism": "Reversed crash sample aligned so its end lands on the target.",
       "control": "fixed",
       "time_scale": "phrase",
-      "energy": ["signal"],
-      "build": { "method": "unsupported", "note": "Needs a reversed sample; the API cannot reverse audio or load samples into Simpler." },
+      "energy": [
+        "signal"
+      ],
+      "build": {
+        "method": "unsupported",
+        "note": "Needs a reversed sample; the API cannot reverse audio or load samples into Simpler."
+      },
       "availability": "offline",
       "references": []
     },
     {
       "id": "dub_delay_throw",
       "name": "Dub delay throw",
-      "aliases": ["echo throw", "delay throw"],
+      "aliases": [
+        "echo throw",
+        "delay throw"
+      ],
       "family": "space",
       "cue": "One word, snare or note suddenly sprouts echoes while the rest stays dry.",
       "mechanism": "100%-wet delay on a return; the send is opened only on chosen events.",
       "control": "fixed",
       "time_scale": "phrase",
-      "energy": ["space", "release"],
-      "params": { "time": "1/8, dotted 1/8, 1/4", "feedback": "35-75%", "filter": "HP 150-500 Hz, LP 3-8 kHz" },
-      "mistakes": ["Leaving the send open muddies every phrase.", "Unfiltered repeats crowd the centre."],
+      "energy": [
+        "space",
+        "release"
+      ],
+      "params": {
+        "time": "1/8, dotted 1/8, 1/4",
+        "feedback": "35-75%",
+        "filter": "HP 150-500 Hz, LP 3-8 kHz"
+      },
+      "mistakes": [
+        "Leaving the send open muddies every phrase.",
+        "Unfiltered repeats crowd the centre."
+      ],
       "build": {
         "method": "devices",
         "placement": "return",
         "return_name": "DUB ECHO",
-        "devices": [{ "name": "Delay", "params": { "L Sync": "On", "Link": "On", "L 16th": 3, "Feedback": 55, "Filter On": "On", "Filter Freq": 1500, "Filter Width": 5, "Dry/Wet": 100 } }],
-        "automation": [{ "mixer": "send", "curve": "step", "points": [{ "at": 0, "value": 0 }, { "at": 0.9, "value": 0 }, { "at": 0.92, "value": 0.75 }, { "at": 1, "value": 0 }] }],
+        "devices": [
+          {
+            "name": "Delay",
+            "params": {
+              "L Sync": "On",
+              "Link": "On",
+              "L 16th": 3,
+              "Feedback": 55,
+              "Filter On": "On",
+              "Filter Freq": 1500,
+              "Filter Width": 5,
+              "Dry/Wet": 100
+            }
+          }
+        ],
+        "automation": [
+          {
+            "mixer": "send",
+            "curve": "step",
+            "points": [
+              {
+                "at": 0,
+                "value": 0
+              },
+              {
+                "at": 0.9,
+                "value": 0
+              },
+              {
+                "at": 0.92,
+                "value": 0.75
+              },
+              {
+                "at": 1,
+                "value": 0
+              }
+            ]
+          }
+        ],
         "note": "Echo (the dub-style delay in the source documents) is Suite-only; Delay is used instead."
       },
       "availability": "standard",
-      "references": [{ "track": "Augustus Pablo & King Tubby - King Tubby Meets Rockers Uptown", "where": "throughout", "evidence": "D" }]
+      "references": [
+        {
+          "track": "Augustus Pablo & King Tubby - King Tubby Meets Rockers Uptown",
+          "where": "throughout",
+          "evidence": "D"
+        }
+      ]
     },
     {
       "id": "delay_feedback_swell",
       "name": "Delay-feedback swell",
-      "aliases": ["feedback throw", "echo bloom"],
+      "aliases": [
+        "feedback throw",
+        "echo bloom"
+      ],
       "family": "space",
       "cue": "Echoes multiply towards self-oscillation, building density.",
       "mechanism": "Delay feedback automated up towards 90%+, filtered, with a safety limiter after it.",
       "control": "ramp-linear",
       "time_scale": "phrase",
-      "energy": ["accumulate"],
-      "params": { "feedback": "50-95%", "time": "1/8 to 1/2" },
-      "mistakes": ["Near-unity feedback runs away; always put filtering and a limiter after it."],
+      "energy": [
+        "accumulate"
+      ],
+      "params": {
+        "feedback": "50-95%",
+        "time": "1/8 to 1/2"
+      },
+      "mistakes": [
+        "Near-unity feedback runs away; always put filtering and a limiter after it."
+      ],
       "build": {
         "method": "devices",
-        "placement": "return",
-        "return_name": "FEEDBACK",
+        "placement": "insert",
         "devices": [
-          { "name": "Delay", "params": { "L Sync": "On", "L 16th": 4, "Feedback": 50, "Filter On": "On", "Filter Freq": 1200, "Dry/Wet": 100 } },
-          { "name": "Limiter", "params": { "Ceiling": -6 } }
+          {
+            "name": "Delay",
+            "params": {
+              "L Sync": "On",
+              "L 16th": 4,
+              "Feedback": 50,
+              "Filter On": "On",
+              "Filter Freq": 1200,
+              "Dry/Wet": 40
+            }
+          },
+          {
+            "name": "Limiter",
+            "params": {
+              "Ceiling": -6
+            }
+          }
         ],
-        "automation": [{ "device": "Delay", "parameter": "Feedback", "curve": "linear", "points": [{ "at": 0, "value": 50 }, { "at": 1, "value": 90 }] }]
+        "automation": [
+          {
+            "device": "Delay",
+            "parameter": "Feedback",
+            "curve": "linear",
+            "points": [
+              {
+                "at": 0,
+                "value": 50
+              },
+              {
+                "at": 1,
+                "value": 90
+              }
+            ]
+          }
+        ],
+        "note": "Inserted on the source track so the feedback can be automated (return tracks have no clips). The Limiter after the Delay is the safety net for near-unity feedback."
       },
       "availability": "standard",
-      "references": [{ "track": "King Tubby Meets Rockers Uptown", "where": "throughout", "evidence": "D" }]
+      "references": [
+        {
+          "track": "King Tubby Meets Rockers Uptown",
+          "where": "throughout",
+          "evidence": "D"
+        }
+      ]
     },
     {
       "id": "ping_pong_delay",
       "name": "Ping-pong delay",
-      "aliases": ["cross delay", "stereo delay"],
+      "aliases": [
+        "cross delay",
+        "stereo delay"
+      ],
       "family": "space",
       "cue": "Echoes bounce left-right-left-right.",
       "mechanism": "Stereo delay alternating sides, filtered.",
       "control": "synced",
       "time_scale": "micro",
-      "energy": ["space"],
-      "params": { "time": "1/8 dotted, 1/4, 1/4 triplet", "feedback": "20-60%" },
-      "mistakes": ["Wide bass echoes destabilise low-end mono; keep the filter on."],
+      "energy": [
+        "space"
+      ],
+      "params": {
+        "time": "1/8 dotted, 1/4, 1/4 triplet",
+        "feedback": "20-60%"
+      },
+      "mistakes": [
+        "Wide bass echoes destabilise low-end mono; keep the filter on."
+      ],
       "build": {
         "method": "devices",
         "placement": "insert",
-        "devices": [{ "name": "Delay", "params": { "Ping Pong": "On", "L Sync": "On", "L 16th": 3, "Feedback": 40, "Filter On": "On", "Filter Freq": 2000, "Dry/Wet": 25 } }]
+        "devices": [
+          {
+            "name": "Delay",
+            "params": {
+              "Ping Pong": "On",
+              "L Sync": "On",
+              "L 16th": 3,
+              "Feedback": 40,
+              "Filter On": "On",
+              "Filter Freq": 2000,
+              "Dry/Wet": 25
+            }
+          }
+        ]
       },
       "availability": "standard",
-      "references": [{ "track": "Jean-Michel Jarre - Oxygene Part IV", "where": "recurring", "evidence": "A" }]
+      "references": [
+        {
+          "track": "Jean-Michel Jarre - Oxygene Part IV",
+          "where": "recurring",
+          "evidence": "A"
+        }
+      ]
     },
     {
       "id": "gated_reverb",
       "name": "Gated reverb",
-      "aliases": ["gated ambience"],
+      "aliases": [
+        "gated ambience"
+      ],
       "family": "space",
       "cue": "A huge reverb blooms after a hit and then stops abruptly.",
       "mechanism": "Reverb followed by a gate, so the room is big but does not fill the gaps.",
       "control": "fixed",
       "time_scale": "micro",
-      "energy": ["arrive", "space"],
-      "params": { "reverb": "0.8-3 s before gating", "gate_hold": "80-400 ms", "gate_release": "20-150 ms" },
-      "mistakes": ["A slow gate release just sounds like ordinary reverb."],
+      "energy": [
+        "arrive",
+        "space"
+      ],
+      "params": {
+        "reverb": "0.8-3 s before gating",
+        "gate_hold": "80-400 ms",
+        "gate_release": "20-150 ms"
+      },
+      "mistakes": [
+        "A slow gate release just sounds like ordinary reverb."
+      ],
       "build": {
         "method": "devices",
         "placement": "return",
         "return_name": "GATED VERB",
         "devices": [
-          { "name": "Reverb", "params": { "Decay Time": 2000, "Dry/Wet": 100 } },
-          { "name": "Gate", "params": { "Threshold": -30, "Attack": 1, "Hold": 250, "Release": 60 } }
+          {
+            "name": "Reverb",
+            "params": {
+              "Decay Time": 2000,
+              "Dry/Wet": 100
+            }
+          },
+          {
+            "name": "Gate",
+            "params": {
+              "Threshold": -30,
+              "Attack": 1,
+              "Hold": 250,
+              "Release": 60
+            }
+          }
         ]
       },
       "availability": "standard",
       "references": [
-        { "track": "Peter Gabriel - Intruder", "where": "opening", "evidence": "D" },
-        { "track": "Phil Collins - In the Air Tonight", "where": "~3:40", "evidence": "D" }
+        {
+          "track": "Peter Gabriel - Intruder",
+          "where": "opening",
+          "evidence": "D"
+        },
+        {
+          "track": "Phil Collins - In the Air Tonight",
+          "where": "~3:40",
+          "evidence": "D"
+        }
       ]
     },
     {
       "id": "reverb_wash",
       "name": "Reverb wash",
-      "aliases": ["bloom", "infinite ambience"],
+      "aliases": [
+        "bloom",
+        "infinite ambience"
+      ],
       "family": "space",
       "cue": "A sound dissolves into a dense cloud that outlasts it.",
       "mechanism": "Long reverb on a return, low- and high-cut, send automated into breakdowns.",
       "control": "ramp-linear",
       "time_scale": "macro",
-      "energy": ["space", "release"],
-      "params": { "decay": "4-30 s", "low_cut": "150-500 Hz", "high_cut": "5-12 kHz" },
-      "mistakes": ["Full-range long reverb eats headroom; EQ it."],
+      "energy": [
+        "space",
+        "release"
+      ],
+      "params": {
+        "decay": "4-30 s",
+        "low_cut": "150-500 Hz",
+        "high_cut": "5-12 kHz"
+      },
+      "mistakes": [
+        "Full-range long reverb eats headroom; EQ it."
+      ],
       "build": {
         "method": "devices",
         "placement": "return",
         "return_name": "LONG VERB",
-        "devices": [{ "name": "Reverb", "params": { "Decay Time": 8000, "In Lo Cut On": "On", "Input Freq": 300, "Dry/Wet": 100 } }],
-        "automation": [{ "mixer": "send", "curve": "linear", "points": [{ "at": 0, "value": 0.1 }, { "at": 1, "value": 0.7 }] }]
+        "devices": [
+          {
+            "name": "Reverb",
+            "params": {
+              "Decay Time": 8000,
+              "In Lo Cut On": "On",
+              "Input Freq": 300,
+              "Dry/Wet": 100
+            }
+          }
+        ],
+        "automation": [
+          {
+            "mixer": "send",
+            "curve": "linear",
+            "points": [
+              {
+                "at": 0,
+                "value": 0.1
+              },
+              {
+                "at": 1,
+                "value": 0.7
+              }
+            ]
+          }
+        ]
       },
       "availability": "standard",
-      "references": [{ "track": "Jon Hopkins - Abandon Window", "where": "throughout", "evidence": "A" }]
+      "references": [
+        {
+          "track": "Jon Hopkins - Abandon Window",
+          "where": "throughout",
+          "evidence": "A"
+        }
+      ]
     },
     {
       "id": "shimmer_reverb",
       "name": "Shimmer reverb",
-      "aliases": ["octave reverb"],
+      "aliases": [
+        "octave reverb"
+      ],
       "family": "space",
       "cue": "The reverb climbs into a glassy upper octave.",
       "mechanism": "Long reverb with a +12-semitone pitch shift fed back into it.",
       "control": "fixed",
       "time_scale": "macro",
-      "energy": ["space"],
+      "energy": [
+        "space"
+      ],
       "build": {
         "method": "devices",
         "placement": "return",
         "return_name": "SHIMMER",
         "devices": [
-          { "name": "Reverb", "params": { "Decay Time": 6000, "Dry/Wet": 100 } },
-          { "name": "Shifter", "params": { "Mode": "Pitch", "Pitch Coarse": 12, "Dry/Wet": 40 } }
+          {
+            "name": "Reverb",
+            "params": {
+              "Decay Time": 6000,
+              "Dry/Wet": 100
+            }
+          },
+          {
+            "name": "Shifter",
+            "params": {
+              "Mode": "Pitch",
+              "Pitch Coarse": 12,
+              "Dry/Wet": 40
+            }
+          }
         ],
         "note": "Partial: without a feedback loop the octave does not keep building. Hybrid Reverb's Shimmer mode is Suite-only."
       },
       "availability": "standard",
-      "references": [{ "track": "Brian Eno - Deep Blue Day", "where": "throughout", "evidence": "D" }]
+      "references": [
+        {
+          "track": "Brian Eno - Deep Blue Day",
+          "where": "throughout",
+          "evidence": "D"
+        }
+      ]
     },
     {
       "id": "chorus",
       "name": "Chorus / ensemble",
-      "aliases": ["ensemble", "dimension"],
+      "aliases": [
+        "ensemble",
+        "dimension"
+      ],
       "family": "modulation",
       "cue": "One part sounds like several slightly detuned players; wider and moving.",
       "mechanism": "Short (5-30 ms) slowly modulated delayed copies mixed with the dry signal.",
       "control": "fixed",
       "time_scale": "micro",
-      "energy": ["space"],
-      "mistakes": ["Chorus on bass makes tuning and mono unstable; high-pass the chorus."],
+      "energy": [
+        "space"
+      ],
+      "mistakes": [
+        "Chorus on bass makes tuning and mono unstable; high-pass the chorus."
+      ],
       "build": {
         "method": "devices",
         "placement": "insert",
-        "devices": [{ "name": "Chorus-Ensemble", "params": { "Mode": "Chorus", "Rate": 0.5, "Amount": 40, "HP On": "On", "HP Freq": 200, "Dry/Wet": 30 } }]
+        "devices": [
+          {
+            "name": "Chorus-Ensemble",
+            "params": {
+              "Mode": "Chorus",
+              "Rate": 0.5,
+              "Amount": 40,
+              "HP On": "On",
+              "HP Freq": 200,
+              "Dry/Wet": 30
+            }
+          }
+        ]
       },
       "availability": "standard",
-      "references": [{ "track": "M83 - Midnight City", "where": "opening synths", "evidence": "A" }]
+      "references": [
+        {
+          "track": "M83 - Midnight City",
+          "where": "opening synths",
+          "evidence": "A"
+        }
+      ]
     },
     {
       "id": "flanger",
       "name": "Flanger",
-      "aliases": ["jet flange"],
+      "aliases": [
+        "jet flange"
+      ],
       "family": "modulation",
       "cue": "A hollow jet-like whoosh with evenly spaced moving comb teeth.",
       "mechanism": "Very short (0.1-10 ms) modulated delay recombined with feedback.",
       "control": "fixed",
       "time_scale": "phrase",
-      "energy": ["accumulate", "destabilise"],
-      "distinguish_from": [{ "id": "phaser", "how": "harmonically spaced comb teeth rather than all-pass notches" }],
+      "energy": [
+        "accumulate",
+        "destabilise"
+      ],
+      "distinguish_from": [
+        {
+          "id": "phaser",
+          "how": "harmonically spaced comb teeth rather than all-pass notches"
+        }
+      ],
       "build": {
         "method": "devices",
         "placement": "insert",
-        "devices": [{ "name": "Phaser-Flanger", "params": { "Mode": "Flanger", "Flanger Time": 2, "Feedback": 40, "Mod Freq": 0.2, "Dry/Wet": 60 } }]
+        "devices": [
+          {
+            "name": "Phaser-Flanger",
+            "params": {
+              "Mode": "Flanger",
+              "Flanger Time": 2,
+              "Feedback": 40,
+              "Mod Freq": 0.2,
+              "Dry/Wet": 60
+            }
+          }
+        ]
       },
       "availability": "standard",
-      "references": [{ "track": "Daft Punk - Robot Rock", "where": "throughout", "evidence": "A" }]
+      "references": [
+        {
+          "track": "Daft Punk - Robot Rock",
+          "where": "throughout",
+          "evidence": "A"
+        }
+      ]
     },
     {
       "id": "phaser",
       "name": "Phaser",
-      "aliases": ["phase shifter"],
+      "aliases": [
+        "phase shifter"
+      ],
       "family": "modulation",
       "cue": "Smooth liquid swirl of moving notches.",
       "mechanism": "Cascaded all-pass filters with an LFO.",
       "control": "fixed",
       "time_scale": "phrase",
-      "energy": ["space"],
+      "energy": [
+        "space"
+      ],
       "build": {
         "method": "devices",
         "placement": "insert",
-        "devices": [{ "name": "Phaser-Flanger", "params": { "Mode": "Phaser", "Notches": 6, "Mod Freq": 0.3, "Feedback": 30, "Dry/Wet": 60 } }]
+        "devices": [
+          {
+            "name": "Phaser-Flanger",
+            "params": {
+              "Mode": "Phaser",
+              "Notches": 6,
+              "Mod Freq": 0.3,
+              "Feedback": 30,
+              "Dry/Wet": 60
+            }
+          }
+        ]
       },
       "availability": "standard",
-      "references": [{ "track": "Jean-Michel Jarre - Oxygene Part IV", "where": "recurring", "evidence": "A" }]
+      "references": [
+        {
+          "track": "Jean-Michel Jarre - Oxygene Part IV",
+          "where": "recurring",
+          "evidence": "A"
+        }
+      ]
     },
     {
       "id": "auto_pan",
       "name": "Tremolo / auto-pan",
-      "aliases": ["tremolo", "amplitude modulation"],
+      "aliases": [
+        "tremolo",
+        "amplitude modulation"
+      ],
       "family": "amplitude",
       "cue": "Volume or stereo position swings back and forth.",
       "mechanism": "LFO on gain or pan, synced or free.",
       "control": "synced",
       "time_scale": "micro",
-      "energy": ["pulse", "space"],
-      "mistakes": ["Hard auto-pan tires headphones and can vanish in mono."],
+      "energy": [
+        "pulse",
+        "space"
+      ],
+      "mistakes": [
+        "Hard auto-pan tires headphones and can vanish in mono."
+      ],
       "build": {
         "method": "devices",
         "placement": "insert",
-        "devices": [{ "name": "Auto Pan-Tremolo", "params": { "Mode": "Panning", "Amount": 50, "Time Mode": "Sync", "Rate": "1/8" } }]
+        "devices": [
+          {
+            "name": "Auto Pan-Tremolo",
+            "params": {
+              "Mode": "Panning",
+              "Amount": 50,
+              "Time Mode": "Synced",
+              "Rate": "1/8"
+            }
+          }
+        ]
       },
       "availability": "standard",
-      "references": [{ "track": "Four Tet - Two Thousand and Seventeen", "where": "throughout", "evidence": "A" }]
+      "references": [
+        {
+          "track": "Four Tet - Two Thousand and Seventeen",
+          "where": "throughout",
+          "evidence": "A"
+        }
+      ]
     },
     {
       "id": "saturation",
       "name": "Saturation / distortion",
-      "aliases": ["overdrive", "clipping", "drive"],
+      "aliases": [
+        "overdrive",
+        "clipping",
+        "drive"
+      ],
       "family": "distortion",
       "cue": "Added harmonics: warmth and density through to fuzz.",
       "mechanism": "Waveshaping; level-match output to the dry signal.",
       "control": "fixed",
       "time_scale": "micro",
-      "energy": ["accumulate"],
-      "params": { "drive": "0.5-3 dB for colour" },
-      "mistakes": ["Louder always seems better: level-match.", "Distorting the sub flattens punch."],
+      "energy": [
+        "accumulate"
+      ],
+      "params": {
+        "drive": "0.5-3 dB for colour"
+      },
+      "mistakes": [
+        "Louder always seems better: level-match.",
+        "Distorting the sub flattens punch."
+      ],
       "build": {
         "method": "devices",
         "placement": "insert",
-        "devices": [{ "name": "Saturator", "params": { "Type": "Analog Clip", "Drive": 3, "Output": -3 } }]
+        "devices": [
+          {
+            "name": "Saturator",
+            "params": {
+              "Type": "Analog Clip",
+              "Drive": 3,
+              "Output": -3
+            }
+          }
+        ]
       },
       "availability": "standard",
-      "references": [{ "track": "Justice - Genesis", "where": "opening onward", "evidence": "A" }]
+      "references": [
+        {
+          "track": "Justice - Genesis",
+          "where": "opening onward",
+          "evidence": "A"
+        }
+      ]
     },
     {
       "id": "bitcrush",
       "name": "Bitcrush / downsample",
-      "aliases": ["decimation", "digital reduction"],
+      "aliases": [
+        "decimation",
+        "digital reduction"
+      ],
       "family": "distortion",
       "cue": "Grainy digital fizz and aliasing; timing unchanged.",
       "mechanism": "Bit-depth reduction plus sample-rate reduction, then filtering.",
       "control": "fixed",
       "time_scale": "micro",
-      "energy": ["destabilise"],
-      "params": { "bits": "4-12", "sample_rate": "2-24 kHz" },
-      "mistakes": ["Very low sample rates alias harshly; filter afterwards."],
+      "energy": [
+        "destabilise"
+      ],
+      "params": {
+        "bits": "4-12",
+        "sample_rate": "2-24 kHz"
+      },
+      "mistakes": [
+        "Very low sample rates alias harshly; filter afterwards."
+      ],
       "build": {
         "method": "devices",
         "placement": "insert",
-        "devices": [{ "name": "Redux", "params": { "Bit Depth": 8, "Sample Rate": 11000, "Post-Filter On": "On", "Dry/Wet": 50 } }]
+        "devices": [
+          {
+            "name": "Redux",
+            "params": {
+              "Bit Depth": 8,
+              "Sample Rate": 11000,
+              "Post-Filter On": "On",
+              "Dry/Wet": 50
+            }
+          }
+        ]
       },
       "availability": "standard",
-      "references": [{ "track": "Aphex Twin - Vordhosbn", "where": "percussion", "evidence": "D" }]
+      "references": [
+        {
+          "track": "Aphex Twin - Vordhosbn",
+          "where": "percussion",
+          "evidence": "D"
+        }
+      ]
     },
     {
       "id": "ring_mod",
       "name": "Ring modulation / frequency shift",
-      "aliases": ["frequency shifter", "metallic"],
+      "aliases": [
+        "frequency shifter",
+        "metallic"
+      ],
       "family": "pitch",
       "cue": "Bells, robots, metallic inharmonic sidebands.",
       "mechanism": "Multiply by a sine carrier, or shift every partial by a fixed number of Hz.",
       "control": "fixed",
       "time_scale": "micro",
-      "energy": ["destabilise"],
-      "mistakes": ["Frequency shifting is not pitch shifting: harmonics stop being harmonic."],
+      "energy": [
+        "destabilise"
+      ],
+      "mistakes": [
+        "Frequency shifting is not pitch shifting: harmonics stop being harmonic."
+      ],
       "build": {
         "method": "devices",
         "placement": "insert",
-        "devices": [{ "name": "Shifter", "params": { "Mode": "Ring", "RM Coarse": 300, "Dry/Wet": 40 } }]
+        "devices": [
+          {
+            "name": "Shifter",
+            "params": {
+              "Mode": "Ring",
+              "RM Coarse": 300,
+              "Dry/Wet": 40
+            }
+          }
+        ]
       },
       "availability": "standard",
-      "references": [{ "track": "Autechre - Gantz Graf", "where": "throughout", "evidence": "A" }]
+      "references": [
+        {
+          "track": "Autechre - Gantz Graf",
+          "where": "throughout",
+          "evidence": "A"
+        }
+      ]
     },
     {
       "id": "granular_stutter",
       "name": "Granular stutter",
-      "aliases": ["grain repeat", "grain cloud"],
+      "aliases": [
+        "grain repeat",
+        "grain cloud"
+      ],
       "family": "time",
       "cue": "Audio breaks into tiny fragments that smear, spray and pitch-shift.",
       "mechanism": "Short grains with independent position, timing and pitch.",
       "control": "probabilistic",
       "time_scale": "micro",
-      "energy": ["destabilise"],
-      "params": { "grain": "5-30 ms for buzz, 30-150 ms for fragments", "spray": "0-100 ms" },
-      "mistakes": ["Randomising every dimension loses pitch and rhythm; constrain one."],
+      "energy": [
+        "destabilise"
+      ],
+      "params": {
+        "grain": "5-30 ms for buzz, 30-150 ms for fragments",
+        "spray": "0-100 ms"
+      },
+      "mistakes": [
+        "Randomising every dimension loses pitch and rhythm; constrain one."
+      ],
       "build": {
         "method": "devices",
         "placement": "insert",
-        "devices": [{ "name": "Grain Delay", "params": { "Frequency": 30, "Spray": 50, "Random": 20, "Pitch": 12, "Feedback": 30, "DryWet": 50 } }]
+        "devices": [
+          {
+            "name": "Grain Delay",
+            "params": {
+              "Frequency": 30,
+              "Spray": 50,
+              "Random": 20,
+              "Pitch": 12,
+              "Feedback": 30,
+              "DryWet": 50
+            }
+          }
+        ]
       },
       "availability": "standard",
-      "references": [{ "track": "Squarepusher - My Red Hot Car", "where": "first 45 s", "evidence": "A" }]
+      "references": [
+        {
+          "track": "Squarepusher - My Red Hot Car",
+          "where": "first 45 s",
+          "evidence": "A"
+        }
+      ]
     },
     {
       "id": "transient_shaping",
       "name": "Transient shaping",
-      "aliases": ["envelope shaping", "transient designer"],
+      "aliases": [
+        "envelope shaping",
+        "transient designer"
+      ],
       "family": "dynamics",
       "cue": "Snappier attack or drier sustain without changing level much.",
       "mechanism": "Attack and sustain adjusted independently of absolute level.",
       "control": "fixed",
       "time_scale": "micro",
-      "energy": ["arrive"],
-      "mistakes": ["Always level-match the comparison."],
+      "energy": [
+        "arrive"
+      ],
+      "mistakes": [
+        "Always level-match the comparison."
+      ],
       "build": {
         "method": "devices",
         "placement": "insert",
-        "devices": [{ "name": "Drum Buss", "params": { "Transients": 0.4, "Drive": 0, "Dry/Wet": 100 } }]
+        "devices": [
+          {
+            "name": "Drum Buss",
+            "params": {
+              "Transients": 0.4,
+              "Drive": 0,
+              "Dry/Wet": 100
+            }
+          }
+        ]
       },
       "availability": "standard",
-      "references": [{ "track": "Squarepusher - My Red Hot Car", "where": "opening", "evidence": "A" }]
+      "references": [
+        {
+          "track": "Squarepusher - My Red Hot Car",
+          "where": "opening",
+          "evidence": "A"
+        }
+      ]
     },
     {
       "id": "resonator",
       "name": "Resonator / comb filter",
-      "aliases": ["Karplus-Strong", "tuned resonance"],
+      "aliases": [
+        "Karplus-Strong",
+        "tuned resonance"
+      ],
       "family": "spectral",
       "cue": "Noise or drums acquire a pitched, ringing note.",
       "mechanism": "Short tuned feedback delays (comb filters) on a transient source.",
       "control": "fixed",
       "time_scale": "micro",
-      "energy": ["space"],
-      "mistakes": ["Near-unity feedback explodes; tune and high-pass the low modes."],
+      "energy": [
+        "space"
+      ],
+      "mistakes": [
+        "Near-unity feedback explodes; tune and high-pass the low modes."
+      ],
       "build": {
         "method": "devices",
         "placement": "insert",
-        "devices": [{ "name": "Resonators", "params": {} }],
+        "devices": [
+          {
+            "name": "Resonators",
+            "params": {}
+          }
+        ],
         "note": "Tune Resonators to the track key by hand or via its pitch parameters after inspecting them."
       },
       "availability": "standard",
-      "references": [{ "track": "Jon Hopkins - Open Eye Signal", "where": "percussion", "evidence": "A" }]
+      "references": [
+        {
+          "track": "Jon Hopkins - Open Eye Signal",
+          "where": "percussion",
+          "evidence": "A"
+        }
+      ]
     },
     {
       "id": "vocoder",
       "name": "Vocoder",
-      "aliases": ["robot voice", "spectral cross-synthesis"],
+      "aliases": [
+        "robot voice",
+        "spectral cross-synthesis"
+      ],
       "family": "spectral",
       "cue": "Speech rhythm and formants drive a synth: pitched robot speech.",
       "mechanism": "Filter-bank envelopes of a modulator applied to a harmonically rich carrier.",
       "control": "fixed",
       "time_scale": "micro",
-      "energy": ["space"],
-      "build": { "method": "unsupported", "note": "Vocoder is available, but choosing its carrier/modulator routing needs Live's UI." },
+      "energy": [
+        "space"
+      ],
+      "build": {
+        "method": "unsupported",
+        "note": "Vocoder is available, but choosing its carrier/modulator routing needs Live's UI."
+      },
       "availability": "standard",
-      "references": [{ "track": "Daft Punk - Around the World", "where": "vocal hook", "evidence": "D" }]
+      "references": [
+        {
+          "track": "Daft Punk - Around the World",
+          "where": "vocal hook",
+          "evidence": "D"
+        }
+      ]
     },
     {
       "id": "spectral_freeze",
       "name": "Spectral freeze",
-      "aliases": ["FFT freeze", "spectral hold"],
+      "aliases": [
+        "FFT freeze",
+        "spectral hold"
+      ],
       "family": "spectral",
       "cue": "An instant of sound is captured and held as a static texture.",
       "mechanism": "Spectral analysis frame sustained.",
       "control": "fixed",
       "time_scale": "phrase",
-      "energy": ["space", "withhold"],
+      "energy": [
+        "space",
+        "withhold"
+      ],
       "build": {
         "method": "devices",
-        "placement": "return",
-        "return_name": "FREEZE",
-        "devices": [{ "name": "Reverb", "params": { "Decay Time": 20000, "Freeze On": "Off", "Dry/Wet": 100 } }],
-        "automation": [{ "device": "Reverb", "parameter": "Freeze On", "curve": "step", "points": [{ "at": 0, "value": "On" }, { "at": 1, "value": "Off" }] }],
-        "note": "Partial: Reverb's Freeze holds the reverb tail, not a spectral frame. Spectral Time is Suite-only."
+        "placement": "insert",
+        "devices": [
+          {
+            "name": "Reverb",
+            "params": {
+              "Decay Time": 20000,
+              "Freeze On": "Off",
+              "Dry/Wet": 60
+            }
+          }
+        ],
+        "automation": [
+          {
+            "device": "Reverb",
+            "parameter": "Freeze On",
+            "curve": "step",
+            "points": [
+              {
+                "at": 0,
+                "value": "On"
+              },
+              {
+                "at": 1,
+                "value": "Off"
+              }
+            ]
+          }
+        ],
+        "note": "Partial: Reverb's Freeze holds the reverb tail, not a spectral frame. Spectral Time is Suite-only. Inserted so Freeze can be automated."
       },
       "availability": "standard",
-      "references": [{ "track": "Ableton Spectral Time demos", "where": "", "evidence": "D" }]
+      "references": [
+        {
+          "track": "Ableton Spectral Time demos",
+          "where": "",
+          "evidence": "D"
+        }
+      ]
     },
     {
       "id": "polymeter_layer",
       "name": "Polymetric layer",
-      "aliases": ["asynchronous loop", "odd-length loop"],
+      "aliases": [
+        "asynchronous loop",
+        "odd-length loop"
+      ],
       "family": "rhythm",
       "cue": "A part realigns with the bar only every few bars, so the groove keeps evolving.",
       "mechanism": "A pattern whose loop length (e.g. 5 or 7 sixteenths) differs from the bar; the composite repeats after the least common multiple.",
       "control": "fixed",
       "time_scale": "macro",
-      "energy": ["pulse"],
-      "params": { "loop": "3, 5, 7 or 11 sixteenths against 16", "rule": "anchor the body, complicate the surface: keep it off the kick and sub" },
-      "build": { "method": "midi", "generator": "polymeterClip" },
+      "energy": [
+        "pulse"
+      ],
+      "params": {
+        "loop": "3, 5, 7 or 11 sixteenths against 16",
+        "rule": "anchor the body, complicate the surface: keep it off the kick and sub"
+      },
+      "build": {
+        "method": "midi",
+        "generator": "polymeterClip"
+      },
       "availability": "standard",
-      "references": [{ "track": "Four Tet - Circling", "where": "", "evidence": "A" }]
+      "references": [
+        {
+          "track": "Four Tet - Circling",
+          "where": "",
+          "evidence": "A"
+        }
+      ]
     }
   ]
 }

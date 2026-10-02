@@ -13,6 +13,11 @@ function client() {
     switch (command) {
       case 'live.get_tempo':
         return { bpm: 124 };
+      case 'live.get_notes':
+        return { notes: [
+          { note_id: 1, pitch: 36, start: 14, duration: 0.25, velocity: 100 },
+          { note_id: 2, pitch: 36, start: 15.5, duration: 0.25, velocity: 100 },
+        ] };
       case 'live.create_midi_track':
         return { track_id: 50 };
       case 'live.create_return_track': {
@@ -131,6 +136,13 @@ describe('applyEffect', () => {
     expect(order.indexOf('live.snapshot_clip')).toBeLessThan(order.indexOf('live.add_notes'));
     const notes = live.calls.find((c) => c.command === 'live.add_notes')!.args.notes as Array<{ start: number }>;
     expect(notes[0]!.start).toBe(60);
+  });
+
+  it('clears the span for a pre-drop silence gap', async () => {
+    const live = client();
+    await applyEffect({ post: live.post }, { effect: 'silence_gap', track_id: 3, start_beat: 15, length_beats: 1 });
+    const tx = live.calls.find((c) => c.command === 'transaction')!.args as { commands: Array<{ args: { note_ids?: number[] } }> };
+    expect(tx.commands[0]!.args.note_ids).toEqual([2]);
   });
 
   it('plans without touching Live on a dry run', async () => {

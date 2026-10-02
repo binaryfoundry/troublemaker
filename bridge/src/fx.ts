@@ -20,6 +20,8 @@ import {
   toNotes,
   type Pattern,
 } from '../../agent/src/patterns.js';
+import { planToCommands, silenceGap } from '../../agent/src/transforms.js';
+import type { Note } from './protocol.js';
 
 export interface LiveClient {
   post(command: string, args?: Record<string, unknown>): Promise<unknown>;
@@ -402,9 +404,21 @@ async function applyGenerator(
       }
       return;
     }
-    case 'silenceGap':
-      warnings.push('Pre-drop silence edits existing notes: use the silenceGap transform on each track clip.');
+    case 'silenceGap': {
+      plan(`clear beats ${options.start}-${options.start + options.length} on track ${options.track_id} slot ${options.clip_slot}`);
+      if (options.dry_run) return;
+      const { notes } = (await client.post('live.get_notes', {
+        track_id: options.track_id,
+        clip_slot: options.clip_slot,
+      })) as { notes: Note[] };
+      const edit = silenceGap(notes, options.start, options.start + options.length);
+      await client.post('live.snapshot_clip', { track_id: options.track_id, clip_slot: options.clip_slot, label: 'before silence gap' })
+        .catch(() => undefined);
+      const commands = planToCommands(options.track_id, options.clip_slot, edit);
+      if (commands.length) await client.post('transaction', { atomic: true, commands });
+      warnings.push(...edit.summary);
       return;
+    }
     default:
       throw new BridgeError('UNSUPPORTED', `No generator '${recipe.generator}' for ${effect.name}.`);
   }
