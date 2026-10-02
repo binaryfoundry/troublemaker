@@ -341,3 +341,65 @@ export function conformToScale(
     events: pattern.events.map((e) => ({ ...e, pitch: snapToScale(e.pitch, root, scale) })),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Borrowing a bassline's feel
+// ---------------------------------------------------------------------------
+
+/** The parts of a bass analysis a pattern needs (see qc/src/bass.ts). */
+export interface BassFeel {
+  steps: Array<{ step: number; levelDb: number; sharedWithKick: boolean; pitch: number | null }>;
+  /** Fraction of each 16th the bass sounds. */
+  gate: number;
+  /** Most common pitch, used for steps without a steady pitch of their own. */
+  rootMidi: number;
+}
+
+export interface BassFeelOptions extends GeneratorOptions {
+  /** Semitones added to every pitch, e.g. +12 when the synth adds a sub-octave. */
+  transpose?: number;
+  /**
+   * Leave the kick's 16ths empty. Without a sidechain this is how a rolling
+   * bass gets out of the kick's way; MIXING.md's House section prefers moving
+   * the bass rhythm before reaching for broad EQ.
+   */
+  skipKickSteps?: boolean;
+  /** Steps quieter than this (dB below the loudest) are left out. */
+  floorDb?: number;
+}
+
+/**
+ * Write a bassline with a reference's rhythm, accents, note length and
+ * pitches, one bar repeated. Pitches are kept literal (transposable), so the
+ * caller decides whether the reference's notes fit the track's key.
+ */
+export function bassFromFeel(feel: BassFeel, options: BassFeelOptions = {}): Pattern {
+  const { length, random } = resolve(options);
+  const perBar = 16;
+  const step = 0.25;
+  const floor = options.floorDb ?? -6;
+  const shift = options.transpose ?? 0;
+  const skipKick = options.skipKickSteps ?? true;
+  const duration = Math.max(0.06, Math.min(0.25, step * feel.gate));
+
+  const events: PatternEvent[] = [];
+  const barCount = Math.round(length / 4);
+  for (let bar = 0; bar < barCount; bar += 1) {
+    for (const s of feel.steps) {
+      if (s.step >= perBar) continue;
+      if (skipKick && s.sharedWithKick) continue;
+      if (s.levelDb < floor) continue;
+      const pitch = (s.pitch ?? feel.rootMidi) + shift;
+      if (pitch < 0 || pitch > 127) continue;
+      // Accent from the reference's level: 0 dB -> 112, -6 dB -> 88.
+      const velocity = 112 + s.levelDb * 4 + (random() * 4 - 2);
+      events.push({
+        beat: round6(bar * 4 + s.step * step),
+        pitch,
+        duration: round6(duration),
+        velocity: clampVelocity(velocity),
+      });
+    }
+  }
+  return { length_beats: length, events };
+}
