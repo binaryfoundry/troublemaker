@@ -66,6 +66,13 @@ describe('bassFromFeel', () => {
     expect(bassFromFeel(feel, { bars: 1, skipKickSteps: false }).events).toHaveLength(16);
   });
 
+  it('can start the kick 16ths late instead of dropping them, like a sidechain gap', () => {
+    const events = bassFromFeel(feel, { bars: 1, skipKickSteps: false, kickDelay: 0.0625 }).events;
+    expect(events[0]!.beat).toBeCloseTo(0.0625, 5);
+    expect(events[0]!.duration).toBeCloseTo(0.23 - 0.0625, 3);
+    expect(events[1]!.beat).toBe(0.25);
+  });
+
   it('repeats the bar across the requested length', () => {
     expect(bassFromFeel(feel, { bars: 4 }).events).toHaveLength(48);
   });

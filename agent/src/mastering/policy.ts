@@ -397,6 +397,11 @@ function truePeakAction(
       );
     case 'off':
       return "Switch the Limiter's True Peak mode on, then re-export and re-measure.";
+    case 'on':
+      return (
+        `True Peak mode is on and still overshoots (dense high-frequency material can). Lower ` +
+        `limiter_ceiling by about ${by} dB and re-measure.`
+      );
     case 'no-limiter':
       return 'There is no limiter at the end of the Master chain. Add one before anything else.';
     default:

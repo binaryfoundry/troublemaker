@@ -65,6 +65,15 @@ describe('policy', () => {
     expect(result.findings.find((f) => f.id === 'true-peak')!.action).toMatch(/Live 11.*0\.7 dB/);
   });
 
+  it('says to lower the ceiling when True Peak mode is on and still overshoots', () => {
+    const result = evaluate({
+      target: analysis({ tp: -0.9 }),
+      profile: techno,
+      chain: { readings: [], limiterTruePeak: 'on' },
+    });
+    expect(result.findings.find((f) => f.id === 'true-peak')!.action).toMatch(/still overshoots.*0\.2 dB/);
+  });
+
   it('targets the reference median +/- 1 LU instead of the profile when references exist', () => {
     const reference = buildReferenceProfile([analysis({ lufs: -10 }), analysis({ lufs: -10 })]);
     const result = evaluate({ target: analysis({ lufs: -8 }), profile: techno, reference });

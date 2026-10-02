@@ -366,6 +366,11 @@ export interface BassFeelOptions extends GeneratorOptions {
   skipKickSteps?: boolean;
   /** Steps quieter than this (dB below the loudest) are left out. */
   floorDb?: number;
+  /**
+   * With skipKickSteps off: start the kick's 16ths this many beats late,
+   * leaving a short gap where a sidechain would duck. 0.0625 is one 64th.
+   */
+  kickDelay?: number;
 }
 
 /**
@@ -393,10 +398,11 @@ export function bassFromFeel(feel: BassFeel, options: BassFeelOptions = {}): Pat
       if (pitch < 0 || pitch > 127) continue;
       // Accent from the reference's level: 0 dB -> 112, -6 dB -> 88.
       const velocity = 112 + s.levelDb * 4 + (random() * 4 - 2);
+      const delay = !skipKick && s.sharedWithKick ? Math.min(options.kickDelay ?? 0, step / 2) : 0;
       events.push({
-        beat: round6(bar * 4 + s.step * step),
+        beat: round6(bar * 4 + s.step * step + delay),
         pitch,
-        duration: round6(duration),
+        duration: round6(Math.max(0.03, duration - delay)),
         velocity: clampVelocity(velocity),
       });
     }
