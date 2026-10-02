@@ -7,6 +7,7 @@ that bite: attribute access on a deleted object raises RuntimeError, and the
 Live 11 note API hands out note objects carrying ids.
 """
 
+import math
 import sys
 import types
 
@@ -84,10 +85,17 @@ class DeviceParameter(LiveObject):
         return "%.2f %s" % (value, self.unit) if self.unit else "%.2f" % (value,)
 
 
+def _fader_display(value):
+    if value <= 0.0:
+        return "-inf dB"
+    return "%.1f dB" % (40.0 * math.log10(value / 0.85))
+
+
 class MixerDevice(LiveObject):
     def __init__(self, parent, send_count=1):
         LiveObject.__init__(self, parent)
-        self.volume = DeviceParameter("Volume", 0.85, 0.0, 1.0, self, unit="dB")
+        # Like Live's fader: 0.85 is 0 dB and the law is not linear in dB.
+        self.volume = DeviceParameter("Volume", 0.85, 0.0, 1.0, self, unit="dB", display=_fader_display)
         self.panning = DeviceParameter("Pan", 0.0, -1.0, 1.0, self)
         self.sends = [
             DeviceParameter("Send %s" % chr(65 + i), 0.0, 0.0, 1.0, self)

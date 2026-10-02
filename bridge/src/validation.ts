@@ -263,11 +263,21 @@ export const schemas = {
 
   // -- mastering (Live side) ---------------------------------------------
   'live.set_device_parameter_display': parameterRef
-    .extend({ target: z.number().finite(), apply: z.boolean().optional() })
+    .extend({
+      device_id: handle.optional(),
+      mixer: z
+        .string()
+        .regex(/^(volume|pan|send:\d+)$/i, "mixer is volume, pan or send:N")
+        .optional(),
+      target: z.number().finite(),
+      apply: z.boolean().optional(),
+    })
     .strict()
     .refine(
-      (v) => v.parameter_id !== undefined || v.parameter_name !== undefined,
-      "Identify the parameter with 'parameter_id' or 'parameter_name'.",
+      (v) =>
+        v.mixer !== undefined ||
+        (v.device_id !== undefined && (v.parameter_id !== undefined || v.parameter_name !== undefined)),
+      "Identify the parameter with device_id plus 'parameter_id' or 'parameter_name', or give mixer.",
     ),
   'live.set_device_parameter_option': parameterRef
     .extend({ option: z.string().min(1), aliases: z.array(z.string()).optional() })

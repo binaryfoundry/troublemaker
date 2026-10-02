@@ -17,5 +17,5 @@
     "sourceMap": true,
     "types": ["node"]
   },
-  "include": ["bridge/src/**/*.ts", "agent/src/**/*.ts", "qc/src/**/*.ts", "bridge/tests/**/*.ts", "qc/tests/**/*.ts"]
+  "include": ["bridge/src/**/*.ts", "agent/src/**/*.ts", "qc/src/**/*.ts", "bridge/tests/**/*.ts", "qc/tests/**/*.ts", "mcp/**/*.ts"]
 }

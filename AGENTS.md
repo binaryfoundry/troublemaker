@@ -19,6 +19,7 @@ expressed as primitive note edits.
 | `bridge/src`                | Validation, transport, snapshots, transactions   | Music theory, genre knowledge            |
 | `agent/src`                 | Theory, patterns, transforms, composition, mastering policy | Network calls, Live API assumptions      |
 | `qc/src`                    | ffmpeg invocation, PCM analysis of exported files | Live calls, mastering judgement          |
+| `mcp`                       | MCP tool schemas and wiring to workflows          | Logic the CLI also needs (put it in `bridge/src/workflows.ts`) |
 
 `agent/src` is pure functions over numbers. It must stay testable with no
 Ableton running.
@@ -104,6 +105,23 @@ operations.
 
 Transform functions take a `seed` and must be reproducible for a given seed.
 A user needs undo-and-retry to converge, which random output prevents.
+
+## MCP server
+
+`mcp/tools.ts` builds the server from an `McpClient` (anything with
+`post(command, args, {dryRun})`), so tests drive it in memory against the
+real bridge and a `FakeLive` (`bridge/tests/mcp.test.ts`). `mcp/server.ts`
+only chooses the client: HTTP to a running bridge, or an in-process one.
+
+- Keep tools few and whole-job. An edit tool snapshots, applies atomically
+  and reads back; do not add tools that let an agent skip those steps.
+- stdout is the protocol. Never write to it from code the server loads; the
+  Logger writes to stderr.
+- A multi-step job the CLI also runs belongs in `bridge/src/workflows.ts`,
+  not in either front end.
+- Mixer faders are not linear in dB. `set_mixer` sets them through
+  `live.set_device_parameter_display` with `mixer: volume | pan | send:N`,
+  which searches the fader's own display.
 
 ## Mastering
 

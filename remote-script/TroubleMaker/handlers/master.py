@@ -121,6 +121,31 @@ def display_range(param):
     return span[2], span[3]
 
 
+class _Mixer(object):
+    name = "Mixer"
+
+
+def _resolve_display_target(ctx, args):
+    """A device parameter, or a mixer fader: volume, pan or send:N.
+
+    Mixer faders are not linear in dB, so "-6 dB" can only be hit by
+    searching the fader's own display, the same way device gains are.
+    """
+    mixer = opt_str(args, "mixer")
+    if mixer:
+        from .automation import _mixer_parameter
+
+        track = lom.resolve_track(ctx, req_int(args, "track_id"))
+        return track, None, _mixer_parameter(track, mixer.strip().lower())
+    return lom.resolve_parameter(
+        ctx,
+        req_int(args, "track_id"),
+        req_int(args, "device_id"),
+        parameter_id=opt_int(args, "parameter_id"),
+        parameter_name=opt_str(args, "parameter_name"),
+    )
+
+
 def set_device_parameter_display(ctx, args):
     """Set a parameter so its *displayed* value equals `target`.
 
@@ -129,18 +154,13 @@ def set_device_parameter_display(ctx, args):
     of every Live gain, time and frequency control). Quantized parameters are
     searched exhaustively.
     """
-    track, device, param = lom.resolve_parameter(
-        ctx,
-        req_int(args, "track_id"),
-        req_int(args, "device_id"),
-        parameter_id=opt_int(args, "parameter_id"),
-        parameter_name=opt_str(args, "parameter_name"),
-    )
+    track, device, param = _resolve_display_target(ctx, args)
+    owner = device if device is not None else _Mixer()
     target = req_float(args, "target")
     if not param.is_enabled:
         raise errors.LiveError(
             "Parameter '%s' on '%s' is not writable right now (automated or macro-mapped)."
-            % (param.name, device.name)
+            % (param.name, owner.name)
         )
 
     span = numeric_span(param)
@@ -200,11 +220,12 @@ def set_device_parameter_display(ctx, args):
         # Conversion only: which native value displays as the target.
         return {
             "track_id": ctx.registry.handle_for(track),
-            "device_id": ctx.registry.handle_for(device),
+            "device_id": ctx.registry.handle_for(device) if device is not None else None,
             "parameter_name": param.name,
             "target": target,
             "native": native,
             "display": lom.safe(lambda: str(param.str_for_value(native)), None),
+            "mixer": opt_str(args, "mixer"),
             "min": float(param.min),
             "max": float(param.max),
         }
@@ -213,15 +234,16 @@ def set_device_parameter_display(ctx, args):
         param.value = native
     except Exception as exc:
         raise errors.LiveError(
-            "Live refused to set '%s' on '%s': %s" % (param.name, device.name, exc)
+            "Live refused to set '%s' on '%s': %s" % (param.name, owner.name, exc)
         )
 
     after = lom.serialize_parameter(ctx, param)
     achieved = _display_number(param, float(param.value))
     return {
         "track_id": ctx.registry.handle_for(track),
-        "device_id": ctx.registry.handle_for(device),
-        "device_name": device.name,
+        "device_id": ctx.registry.handle_for(device) if device is not None else None,
+        "mixer": opt_str(args, "mixer"),
+        "device_name": owner.name,
         "parameter_name": param.name,
         "target": target,
         "achieved": achieved,

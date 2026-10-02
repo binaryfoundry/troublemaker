@@ -117,6 +117,40 @@ curl -X POST http://127.0.0.1:8765/command \
   -d '{"command":"live.set_tempo","args":{"bpm":126}}'
 ```
 
+## MCP server (Claude Code and other agents)
+
+`mcp/server.ts` serves the project to any MCP client over stdio. The
+repository's `.mcp.json` registers it, so Claude Code opened in this folder
+offers the `troublemaker` server. Approve it once, then ask in plain
+language: "make the hats on track 4 more syncopated", "QC the mix against
+melodic techno", "build the arrangement".
+
+```bash
+npm run mcp          # run it by hand (an MCP client normally starts it)
+npm run test:mcp     # read-only smoke test against a running Live
+```
+
+If a bridge is already running it shares that one, so the CLI and the agent
+see the same snapshots. Otherwise it starts its own bridge on port 8765.
+
+| Tool | Job |
+| --- | --- |
+| `live_status`, `get_project`, `get_selection`, `read_clip`, `get_devices` | Read the Set; ids for everything else |
+| `transform_clip` | Syncopate, straighten, thin, densify, humanize, swing, transpose, conform to key, vary, pre-drop gap. Snapshots first, applies atomically, reads back |
+| `write_part`, `write_notes` | Generate kick / hats / kit / bass / chords / build-up / Euclidean / polyrhythm, or a bass copied from a reference track |
+| `restore_snapshot` | Undo any edit by its snapshot id |
+| `set_mixer`, `set_device_parameter`, `insert_device`, `transport` | Faders in dB, parameters by displayed value or option, native devices, playback |
+| `master_chain`, `master_set`, `capture_master`, `qc`, `ab_trial` | MIXING.md mastering: chain build and presets, reasoned changes, capture, QC against references, A/B at matched loudness |
+| `references`, `analyze_bass` | Reference sets and bass profiles |
+| `effects`, `apply_effect`, `identify_effect` | The EFFECTS.md codex: look up, build, identify by ear |
+| `arrangement` | Plan from a style template, lay Session loops onto the Arrangement |
+| `bridge_command` | Any validated bridge command or transaction, with dry run |
+
+The agent prompts (`system`, `music-editing`, `composition`, `effects`,
+`mastering`) are MCP prompts, and they are also exposed as resources, along
+with the effects codex, style templates, reference sets and the command
+catalogue.
+
 ## Mixing and mastering
 
 The mastering tools follow [MIXING.md](MIXING.md): measurement first,
@@ -202,6 +236,8 @@ is no authentication because there is no remote surface to authenticate.
 ```
 remote-script/TroubleMaker/   Live-side endpoint (Python 3.7, no music logic)
 bridge/src/                   validation, transport, snapshots, transactions, CLI
+bridge/src/workflows.ts       multi-step jobs shared by the CLI and MCP server
+mcp/                          MCP server (stdio): tools, prompts, resources
 bridge/src/mastering/         master-chain roles, safe ranges, decision log
 qc/src/                       offline audio QC: ffmpeg loudness + PCM analysis
 bridge/tests/                 unit, protocol and golden musical tests
@@ -248,7 +284,7 @@ Live's shared undo stack.
 ## Testing
 
 ```bash
-npm run test:all     # 294 TypeScript + 105 Python tests, no Ableton required
+npm run test:all     # 303 TypeScript + 107 Python tests, no Ableton required
 npm test             # TypeScript only
 npm run test:python  # Live-side handlers only
 npm run typecheck

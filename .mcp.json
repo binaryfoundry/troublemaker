@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "troublemaker": {
+      "command": "node",
+      "args": ["--import", "tsx", "mcp/server.ts"]
+    }
+  }
+}

@@ -591,6 +591,18 @@ class TestMaster(HandlerTestCase):
         self.assertEqual(error["code"], "INVALID_ARGUMENT")
         self.assertEqual(error["display_max"], 0.0)
 
+    def test_sets_a_mixer_fader_by_its_displayed_db(self):
+        track = self.call("live.get_tracks")["tracks"][0]["track_id"]
+        result = self.call("live.set_device_parameter_display", track_id=track, mixer="volume", target=-6.0)
+        self.assertAlmostEqual(result["achieved"], -6.0, delta=0.05)
+        self.assertIsNone(result["device_id"])
+        self.assertEqual(result["device_name"], "Mixer")
+
+    def test_refuses_an_unknown_mixer_target(self):
+        track = self.call("live.get_tracks")["tracks"][0]["track_id"]
+        error = self.fail_call("live.set_device_parameter_display", track_id=track, mixer="send:9", target=-6.0)
+        self.assertEqual(error["code"], "INVALID_ARGUMENT")
+
     def test_refuses_a_non_numeric_display(self):
         error = self.fail_call("live.set_device_parameter_display", track_id=self.master,
                                device_id=self.devices["EQ Eight"], parameter_name="1 Filter On A",

@@ -15,24 +15,9 @@ import { compareFiles, runAb } from '../../qc/src/ab.js';
 import { analyzeBass, formatBassProfile } from '../../qc/src/bass.js';
 import { applyEffect, findEffect, loadCodex } from './fx.js';
 import { identifyEffect } from '../../qc/src/identify.js';
-import {
-  arrangementCommands,
-  checkArrangement,
-  formatPlan,
-  planArrangement,
-  styleNames,
-  type RoleSource,
-} from '../../agent/src/arrangement.js';
-import { inferTrackRole } from '../../agent/src/composition.js';
-import {
-  genreSummary,
-  loadReferenceSets,
-  profileForGenre,
-  referencesForSet,
-  scanLibrary,
-  selectReferences,
-  type LibraryEntry,
-} from '../../qc/src/library.js';
+import { checkArrangement, formatPlan, planArrangement, styleNames } from '../../agent/src/arrangement.js';
+import { genreSummary, loadReferenceSets, scanLibrary } from '../../qc/src/library.js';
+import { buildArrangement, resolveReferenceFiles, type ResolvedReferences } from './workflows.js';
 import { PROFILES } from '../../agent/src/mastering/profiles.js';
 import type { ChainState, Decision } from '../../agent/src/mastering/policy.js';
 
@@ -367,58 +352,29 @@ async function main(argv: string[]): Promise<number> {
   }
 }
 
-interface ResolvedReferences {
-  files: string[];
-  profile: string | null;
-  describe: string[];
-}
-
 /** Turn --ref / --refs <set> / --refs-dir into files, a profile hint and notes. */
 async function resolveReferences(
   args: string[],
   options: { exclude?: string[] } = {},
 ): Promise<ResolvedReferences> {
-  const explicit = takeOption(args, '--ref');
+  const files = takeOption(args, '--ref');
   const [set] = takeOption(args, '--refs');
   const [dir] = takeOption(args, '--refs-dir');
   const [genre] = takeOption(args, '--genre');
   const [bpmText] = takeOption(args, '--bpm');
   const allowLossy = takeFlag(args, '--allow-lossy');
-  if (!set && !dir) return { files: explicit, profile: null, describe: [] };
-
-  let bpm = bpmText ? parseNumber('--bpm', bpmText) : undefined;
-  if (bpm === undefined) {
-    try {
-      bpm = ((await post('live.get_tempo')) as { bpm: number }).bpm;
-    } catch {
-      // Live not reachable: choose without a tempo preference.
-    }
-  }
-
-  let picked: LibraryEntry[];
-  let profile: string | null = null;
-  let notes: string[];
-  let label: string;
-  if (set) {
-    const result = await referencesForSet(set, { bpm, exclude: options.exclude });
-    picked = result.references;
-    profile = result.profile;
-    notes = result.notes;
-    label = `set '${result.set}'`;
-  } else {
-    const index = await scanLibrary(dir!);
-    const result = selectReferences(index, { genre, bpm, allowLossy, exclude: options.exclude });
-    picked = result.references;
-    profile = profileForGenre(genre);
-    notes = result.notes;
-    label = genre ? `'${genre}' in ${dir}` : dir!;
-  }
-  const describe = [
-    `References (${label}${bpm !== undefined ? `, near ${bpm} BPM` : ''}):`,
-    ...picked.map((e) => `  ${String(e.bpm ?? '?').padStart(3)} BPM  ${e.artist} - ${e.title}`),
-    ...notes.map((n) => `  note: ${n}`),
-  ];
-  return { files: [...explicit, ...picked.map((e) => e.path)], profile, describe };
+  return resolveReferenceFiles(
+    { post },
+    {
+      files,
+      set,
+      dir,
+      genre,
+      bpm: bpmText ? parseNumber('--bpm', bpmText) : undefined,
+      allowLossy,
+      exclude: options.exclude,
+    },
+  );
 }
 
 async function refs(argv: string[]): Promise<number> {
@@ -746,54 +702,19 @@ async function arrangement(argv: string[]): Promise<number> {
   }
   if (sub !== 'build') throw new Error('Unknown arrangement subcommand. Try: plan, build.');
 
-  // Map tracks to roles: explicit --map role=track_id first, then by name,
+  // Map tracks to roles: explicit --map role=track_id, otherwise by name,
   // using each track's slot-0 loop as its material.
-  const { tracks } = (await post('live.get_tracks')) as {
-    tracks: Array<{ track_id: number; name: string; type: string }>;
-  };
-  const explicit = new Map<string, number>();
+  const map: Record<string, number> = {};
   for (const pair of (mapText ?? '').split(',').filter(Boolean)) {
     const [role, id] = pair.split('=');
-    explicit.set(role!.trim(), parseInteger('--map', id));
+    map[role!.trim()] = parseInteger('--map', id);
   }
-  const candidates: Array<{ role: string; track_id: number }> = explicit.size
-    ? [...explicit].map(([role, track_id]) => ({ role, track_id }))
-    : tracks.map((t) => ({ role: inferTrackRole(t.name).role, track_id: t.track_id }));
-  const sources: Record<string, RoleSource> = {};
-  for (const { role, track_id } of candidates) {
-    const track = { track_id };
-    if (role === 'unknown' || sources[role]) continue;
-    try {
-      const clip = (await post('live.get_clip', { track_id: track.track_id, clip_slot: 0 })) as { length_beats: number };
-      sources[role === 'snare' ? 'clap' : role] = { track_id: track.track_id, clip_slot: 0, length_beats: clip.length_beats };
-    } catch {
-      // No loop in slot 0: this track does not take part.
-    }
-  }
-  const roles = Object.keys(sources);
-  if (!roles.length) throw new Error('No tracks with a recognisable role name (kick, bass, hats, chords, lead...) and a clip in slot 0.');
-  const plan = planArrangement(style, { roles });
-  const commands = arrangementCommands(plan, sources);
-  process.stdout.write(`${formatPlan(plan, checkArrangement(plan))}\n\nRoles: ${roles.map((r) => `${r} -> track ${sources[r]!.track_id}`).join(', ')}\n`);
-  if (dryRun) {
-    process.stdout.write(`[dry run] ${commands.length} clip placements.\n`);
-    return 0;
-  }
-  const caps = (await post('live.get_capabilities')) as { arrangement_placement?: boolean };
-  if (!caps.arrangement_placement) throw new Error('This Live version cannot place clips in the Arrangement via the API.');
-  // Never stack a second arrangement on top of an existing one silently.
-  const involved = [...new Set(Object.values(sources).map((s) => s.track_id))];
-  for (const trackId of involved) {
-    const { clips } = (await post('live.get_arrangement_clips', { track_id: trackId })) as { clips: unknown[] };
-    if (clips.length && !replace) {
-      throw new Error(
-        `Track ${trackId} already has ${clips.length} Arrangement clips. Pass --replace to clear them first.`,
-      );
-    }
-    if (clips.length && replace) await post('live.clear_arrangement', { track_id: trackId });
-  }
-  for (const command of commands) await post(command.command, command.args);
-  process.stdout.write(`Placed ${commands.length} clips on the Arrangement.\n`);
+  const built = await buildArrangement({ post }, { style, map, replace, dryRun });
+  const roles = Object.entries(built.roles).map(([r, id]) => `${r} -> track ${id}`).join(', ');
+  process.stdout.write(`${formatPlan(built.plan, built.findings)}\n\nRoles: ${roles}\n`);
+  process.stdout.write(
+    built.dryRun ? '[dry run] nothing placed.\n' : `Placed ${built.placed} clips on the Arrangement.\n`,
+  );
   return 0;
 }
 
