@@ -27,6 +27,9 @@ reports a success it did not achieve.
 | Undo        | Live undo/redo, plus bridge-side clip snapshots                    |
 | Batching    | transactions, optionally atomic with rollback                      |
 | Dry run     | validate and report any command without applying it                |
+| Mastering   | Master-chain roles with safe ranges, display-unit writes, decision log, checkpoints |
+| QC          | offline loudness, true peak, spectrum, stereo and integrity of exported files |
+| Meters      | Live's display meters per track (a clipping probe, not loudness)  |
 
 ## Not supported
 
@@ -35,7 +38,9 @@ reports a success it did not achieve.
 | Arrangement editing    | Live exposes no reliable API for it. Session clips only.  |
 | Audio clip editing     | Out of scope for version 1.                               |
 | Warping                | Out of scope for version 1.                               |
-| Device loading         | Needs browser automation the Live API does not expose.    |
+| Device loading         | Live 11 has no API for it. **Live 12.3+**: native devices via `live.insert_device` / `master build`, detected automatically. |
+| Export / render        | No API in any Live version. The user exports; QC measures the file. |
+| Live loudness metering | Live exposes display meters only. Loudness comes from QC on the export. |
 | Preset loading         | Same.                                                     |
 | Return track creation  | Not exposed. Returns can be read and their sends written. |
 | Routing, sidechain     | Not exposed.                                              |
@@ -52,6 +57,11 @@ reports a success it did not achieve.
 
 **Max for Live** is unavailable in Intro, which is why the Live-side endpoint
 is a Remote Script. Nothing in the command surface depends on Max.
+
+**Limiter True Peak mode** is not present in Live 11's Limiter.
+`master.inspect_chain` reports `limiter_true_peak: unavailable`, and QC enforces
+the true-peak ceiling by measuring the exported file. Live 12's Limiter is
+detected and reported as `on` or `off`.
 
 **Note ids** need Live 11 or newer (`get_notes_extended`). Without them,
 `live.update_notes` returns `UNSUPPORTED` and directs the caller to read,

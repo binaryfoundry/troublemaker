@@ -271,6 +271,8 @@ def serialize_parameter(ctx, param):
         "max": maximum,
         "is_quantized": safe(lambda: bool(param.is_quantized), False),
         "display_value": safe(lambda: str(param.str_for_value(param.value)), None),
+        "display_min": safe(lambda: str(param.str_for_value(param.min)), None),
+        "display_max": safe(lambda: str(param.str_for_value(param.max)), None),
     }
 
 

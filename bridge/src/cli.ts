@@ -6,7 +6,12 @@
  * Live, so the CLI and an agent can both be connected at once.
  */
 
+import { writeFileSync } from 'node:fs';
+
 import { COMMANDS } from './commands/registry.js';
+import { runQc } from '../../qc/src/run.js';
+import { PROFILES } from '../../agent/src/mastering/profiles.js';
+import type { ChainState, Decision } from '../../agent/src/mastering/policy.js';
 
 const DEFAULT_BASE = `http://127.0.0.1:${process.env.TROUBLEMAKER_PORT ?? 8765}`;
 
@@ -81,6 +86,31 @@ Usage:
   ableton-agent commands                    The full command catalogue
   ableton-agent raw <command> [json]        Any command, with JSON arguments
   ableton-agent selftest                    Round-trip check against Live
+
+Mastering QC (runs locally on exported files; no bridge needed):
+  ableton-agent qc <master.wav> [options]
+      --ref <file>             reference master (repeat for 3-5 references)
+      --profile <name>         ${Object.keys(PROFILES).join(' | ')} (default techno)
+      --section <start:dur>    comparable section in seconds (default: loudest 30 s)
+      --sample-rate <hz>       required delivery sample rate
+      --bit-depth <bits>       required delivery bit depth
+      --chain                  also apply master-chain rules (needs the bridge)
+      --json <out.json>        write the full result as JSON
+  Exit code: 0 PASS, 1 REVIEW, 2 FAIL.
+
+Master chain (through the bridge):
+  ableton-agent master chain                       Roles, values, safe ranges
+  ableton-agent master set <role> <value> --reason "<why>"
+      [--mix-repair] [--allow-widen] [--override]
+  ableton-agent master decisions [role]           Logged changes
+  ableton-agent master reset [label]              Start a new job's decision log
+  ableton-agent master checkpoint <label>         Save the whole chain
+  ableton-agent master restore <checkpoint_id>    Restore it
+  ableton-agent master build [--preset clean | --no-preset]
+                                                   Insert the chain and dial it in (Live 12.3+)
+  ableton-agent master preset <name>              Apply a starting preset (clean)
+  ableton-agent master meters [seconds]           Live's display meters
+  Every master subcommand takes --track <id> to work on a track other than Master.
 
 Options:
   --dry-run    With 'raw': report the operation without applying it.
@@ -237,9 +267,191 @@ async function main(argv: string[]): Promise<number> {
     case 'selftest':
       return selftest();
 
+    case 'qc':
+      return qc(rest);
+
+    case 'master':
+      return master(rest);
+
     default:
       process.stderr.write(`Unknown command '${command}'.\n\n${USAGE}`);
       return 2;
+  }
+}
+
+function takeFlag(args: string[], name: string): boolean {
+  const index = args.indexOf(name);
+  if (index < 0) return false;
+  args.splice(index, 1);
+  return true;
+}
+
+function takeOption(args: string[], name: string): string[] {
+  const values: string[] = [];
+  for (let index = args.indexOf(name); index >= 0; index = args.indexOf(name)) {
+    const value = args[index + 1];
+    if (value === undefined || value.startsWith('--')) throw new Error(`${name} needs a value.`);
+    values.push(value);
+    args.splice(index, 2);
+  }
+  return values;
+}
+
+async function qc(argv: string[]): Promise<number> {
+  const args = [...argv];
+  const references = takeOption(args, '--ref');
+  const [profile] = takeOption(args, '--profile');
+  const [section] = takeOption(args, '--section');
+  const [sampleRate] = takeOption(args, '--sample-rate');
+  const [bitDepth] = takeOption(args, '--bit-depth');
+  const [jsonOut] = takeOption(args, '--json');
+  const withChain = takeFlag(args, '--chain');
+  const [target, ...extra] = args;
+  if (!target) throw new Error("'qc' needs a file to analyse.");
+  if (extra.length) throw new Error(`Unexpected arguments: ${extra.join(' ')}`);
+
+  let parsedSection: { start: number; duration: number } | undefined;
+  if (section) {
+    const [start, duration] = section.split(':').map(Number);
+    if (!Number.isFinite(start) || !Number.isFinite(duration) || duration! <= 0) {
+      throw new Error('--section takes start:duration in seconds, e.g. 96:30.');
+    }
+    parsedSection = { start: start!, duration: duration! };
+  }
+
+  let chain: ChainState | undefined;
+  let decisions: Decision[] | undefined;
+  if (withChain) {
+    const inspection = (await post('master.inspect_chain')) as {
+      readings: ChainState['readings'];
+      limiter_true_peak: ChainState['limiterTruePeak'];
+    };
+    chain = { readings: inspection.readings, limiterTruePeak: inspection.limiter_true_peak };
+    decisions = ((await post('master.decisions')) as { decisions: Decision[] }).decisions;
+  }
+
+  if (references.length && references.length < 3) {
+    process.stderr.write('Note: MIXING.md recommends 3-5 references; one record can mislead.\n');
+  }
+  const started = Date.now();
+  const result = await runQc({
+    target,
+    references,
+    profile,
+    section: parsedSection,
+    delivery: {
+      sampleRate: sampleRate ? parseInteger('--sample-rate', sampleRate) : undefined,
+      bitDepth: bitDepth ? parseInteger('--bit-depth', bitDepth) : undefined,
+    },
+    chain,
+    decisions,
+  });
+  process.stdout.write(
+    `${result.report}\n\n(analysed in ${((Date.now() - started) / 1000).toFixed(1)} s)\n`,
+  );
+  if (jsonOut) {
+    const { shortTermSeries: _series, ...analysis } = result.analysis;
+    writeFileSync(
+      jsonOut,
+      JSON.stringify({ ...result, analysis, report: result.report.split('\n') }, null, 2),
+      'utf8',
+    );
+    process.stdout.write(`Wrote ${jsonOut}\n`);
+  }
+  return result.evaluation.verdict === 'FAIL' ? 2 : result.evaluation.verdict === 'REVIEW' ? 1 : 0;
+}
+
+async function master(argv: string[]): Promise<number> {
+  const args = [...argv];
+  const [trackOption] = takeOption(args, '--track');
+  const track = trackOption ? { track_id: parseInteger('--track', trackOption) } : {};
+  const [sub, ...rest] = args;
+  switch (sub) {
+    case 'chain': {
+      const chain = (await post('master.inspect_chain', track)) as {
+        devices: Array<{ name: string; class_name: string }>;
+        roles: Record<
+          string,
+          { display: string | null; range: [number, number] | null; unit: string | null; options: string[] | null }
+        >;
+        limiter_true_peak: string;
+        warnings: string[];
+      };
+      process.stdout.write(
+        `Master chain: ${chain.devices.map((d) => d.name).join(' -> ') || '(empty)'}\n\n`,
+      );
+      for (const [role, info] of Object.entries(chain.roles)) {
+        const allowed = info.range
+          ? `safe ${info.range[0]}..${info.range[1]} ${info.unit}`
+          : `one of ${info.options!.join(' | ')}`;
+        process.stdout.write(`  ${role.padEnd(18)} ${String(info.display ?? '?').padEnd(14)} ${allowed}\n`);
+      }
+      process.stdout.write(`\nLimiter True Peak mode: ${chain.limiter_true_peak}\n`);
+      for (const warning of chain.warnings) process.stdout.write(`  ! ${warning}\n`);
+      return 0;
+    }
+    case 'set': {
+      const options = [...rest];
+      const [reason] = takeOption(options, '--reason');
+      const mixRepair = takeFlag(options, '--mix-repair');
+      const allowWiden = takeFlag(options, '--allow-widen');
+      const override = takeFlag(options, '--override');
+      const [role, value] = options;
+      if (!role || value === undefined) {
+        throw new Error('Usage: master set <role> <value> --reason "<why>"');
+      }
+      if (!reason) throw new Error('Every master change needs --reason "<why>" for the audit trail.');
+      const numeric = Number(value);
+      const result = (await post('master.set', {
+        ...track,
+        role,
+        value: Number.isFinite(numeric) && value.trim() !== '' ? numeric : value,
+        reason,
+        ...(mixRepair ? { mix_repair: true } : {}),
+        ...(allowWiden ? { allow_widen: true } : {}),
+        ...(override ? { override: true } : {}),
+      })) as { display_before: string; display_after: string; warnings: string[] };
+      process.stdout.write(`${role}: ${result.display_before} -> ${result.display_after}\n`);
+      for (const warning of result.warnings) process.stdout.write(`  ${warning}\n`);
+      return 0;
+    }
+    case 'decisions':
+      print(await post('master.decisions', rest[0] ? { role: rest[0] } : {}));
+      return 0;
+    case 'reset':
+      print(await post('master.reset_decisions', rest[0] ? { label: rest[0] } : {}));
+      return 0;
+    case 'checkpoint':
+      if (!rest[0]) throw new Error('master checkpoint needs a label.');
+      print(await post('master.checkpoint', { ...track, label: rest.join(' ') }));
+      return 0;
+    case 'restore':
+      if (!rest[0]) throw new Error('master restore needs a checkpoint id.');
+      print(await post('master.restore_checkpoint', { checkpoint_id: rest[0] }));
+      return 0;
+    case 'build': {
+      const options = [...rest];
+      const noPreset = takeFlag(options, '--no-preset');
+      const [preset] = takeOption(options, '--preset');
+      print(await post('master.build_chain', { ...track, preset: noPreset ? null : (preset ?? 'clean') }));
+      return 0;
+    }
+    case 'preset':
+      if (!rest[0]) throw new Error('master preset needs a preset name, e.g. clean.');
+      print(await post('master.apply_preset', { ...track, preset: rest[0] }));
+      return 0;
+    case 'meters':
+      print(
+        await post('master.meters', {
+          ...track,
+          ...(rest[0] ? { seconds: parseNumber('seconds', rest[0]) } : {}),
+        }),
+      );
+      return 0;
+    default:
+      throw new Error(
+        'Unknown master subcommand. Try: chain, set, decisions, reset, checkpoint, restore, build, preset, meters.',
+      );
   }
 }
 

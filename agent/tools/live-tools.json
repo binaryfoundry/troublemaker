@@ -4,14 +4,21 @@
     "type": "http",
     "url": "http://127.0.0.1:8765/command",
     "method": "POST",
-    "body": { "command": "<tool name>", "args": "<tool arguments>" }
+    "body": {
+      "command": "<tool name>",
+      "args": "<tool arguments>"
+    }
   },
   "tools": [
     {
       "name": "get_capabilities",
       "command": "live.get_capabilities",
       "description": "Returns which Live operations this installation actually supports. Call this once at the start of a session. Never assume a capability that is not listed here.",
-      "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
     },
     {
       "name": "get_project_state",
@@ -20,8 +27,14 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "include_devices": { "type": "boolean", "default": true },
-          "include_return_tracks": { "type": "boolean", "default": false }
+          "include_devices": {
+            "type": "boolean",
+            "default": true
+          },
+          "include_return_tracks": {
+            "type": "boolean",
+            "default": false
+          }
         },
         "additionalProperties": false
       }
@@ -30,19 +43,31 @@
       "name": "get_selected_clip",
       "command": "live.get_selected_clip",
       "description": "The clip the user currently has highlighted in Live's Session view. Use this to resolve 'this clip', 'the selected clip' or an unqualified 'it'. Returns track_id and clip_slot for subsequent calls.",
-      "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
     },
     {
       "name": "get_selected_track",
       "command": "live.get_selected_track",
       "description": "The track the user currently has selected, with its clips and devices. Resolves 'this track'.",
-      "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
     },
     {
       "name": "get_selected_device",
       "command": "live.get_selected_device",
       "description": "The device the user currently has selected, with all of its parameters. Resolves 'this device' and 'this synth'.",
-      "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
     },
     {
       "name": "get_clip_notes",
@@ -51,12 +76,26 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "track_id": { "type": "integer", "description": "From get_project_state, never guessed." },
-          "clip_slot": { "type": "integer" },
-          "from_time": { "type": "number", "description": "Optional beat window start." },
-          "time_span": { "type": "number", "description": "Optional beat window length." }
+          "track_id": {
+            "type": "integer",
+            "description": "From get_project_state, never guessed."
+          },
+          "clip_slot": {
+            "type": "integer"
+          },
+          "from_time": {
+            "type": "number",
+            "description": "Optional beat window start."
+          },
+          "time_span": {
+            "type": "number",
+            "description": "Optional beat window length."
+          }
         },
-        "required": ["track_id", "clip_slot"],
+        "required": [
+          "track_id",
+          "clip_slot"
+        ],
         "additionalProperties": false
       }
     },
@@ -67,26 +106,54 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "track_id": { "type": "integer" },
-          "clip_slot": { "type": "integer" },
+          "track_id": {
+            "type": "integer"
+          },
+          "clip_slot": {
+            "type": "integer"
+          },
           "updates": {
             "type": "array",
             "description": "One entry per note to change. Each needs note_id plus at least one property.",
             "items": {
               "type": "object",
               "properties": {
-                "note_id": { "type": "integer" },
-                "pitch": { "type": "integer", "minimum": 0, "maximum": 127 },
-                "start": { "type": "number", "minimum": 0 },
-                "duration": { "type": "number", "exclusiveMinimum": 0 },
-                "velocity": { "type": "number", "minimum": 0, "maximum": 127 },
-                "mute": { "type": "boolean" }
+                "note_id": {
+                  "type": "integer"
+                },
+                "pitch": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 127
+                },
+                "start": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "duration": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "velocity": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 127
+                },
+                "mute": {
+                  "type": "boolean"
+                }
               },
-              "required": ["note_id"]
+              "required": [
+                "note_id"
+              ]
             }
           }
         },
-        "required": ["track_id", "clip_slot", "updates"],
+        "required": [
+          "track_id",
+          "clip_slot",
+          "updates"
+        ],
         "additionalProperties": false
       }
     },
@@ -97,23 +164,50 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "track_id": { "type": "integer" },
-          "clip_slot": { "type": "integer" },
+          "track_id": {
+            "type": "integer"
+          },
+          "clip_slot": {
+            "type": "integer"
+          },
           "notes": {
             "type": "array",
             "items": {
               "type": "object",
               "properties": {
-                "pitch": { "type": "integer", "minimum": 0, "maximum": 127 },
-                "start": { "type": "number", "minimum": 0, "description": "Beats from clip start, zero-based." },
-                "duration": { "type": "number", "exclusiveMinimum": 0 },
-                "velocity": { "type": "number", "minimum": 0, "maximum": 127 }
+                "pitch": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 127
+                },
+                "start": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Beats from clip start, zero-based."
+                },
+                "duration": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "velocity": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 127
+                }
               },
-              "required": ["pitch", "start", "duration"]
+              "required": [
+                "pitch",
+                "start",
+                "duration"
+              ]
             }
           }
         },
-        "required": ["track_id", "clip_slot", "notes"],
+        "required": [
+          "track_id",
+          "clip_slot",
+          "notes"
+        ],
         "additionalProperties": false
       }
     },
@@ -124,13 +218,29 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "track_id": { "type": "integer" },
-          "clip_slot": { "type": "integer" },
-          "note_ids": { "type": "array", "items": { "type": "integer" } },
-          "from_time": { "type": "number" },
-          "time_span": { "type": "number" }
+          "track_id": {
+            "type": "integer"
+          },
+          "clip_slot": {
+            "type": "integer"
+          },
+          "note_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "from_time": {
+            "type": "number"
+          },
+          "time_span": {
+            "type": "number"
+          }
         },
-        "required": ["track_id", "clip_slot"],
+        "required": [
+          "track_id",
+          "clip_slot"
+        ],
         "additionalProperties": false
       }
     },
@@ -141,11 +251,24 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "track_id": { "type": "integer" },
-          "clip_slot": { "type": "integer" },
-          "notes": { "type": "array", "items": { "type": "object" } }
+          "track_id": {
+            "type": "integer"
+          },
+          "clip_slot": {
+            "type": "integer"
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
         },
-        "required": ["track_id", "clip_slot", "notes"],
+        "required": [
+          "track_id",
+          "clip_slot",
+          "notes"
+        ],
         "additionalProperties": false
       }
     },
@@ -156,13 +279,30 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "track_id": { "type": "integer" },
-          "clip_slot": { "type": "integer" },
-          "length_beats": { "type": "number", "exclusiveMinimum": 0, "description": "16 beats = 4 bars in 4/4." },
-          "name": { "type": "string" },
-          "replace_existing": { "type": "boolean", "default": false }
+          "track_id": {
+            "type": "integer"
+          },
+          "clip_slot": {
+            "type": "integer"
+          },
+          "length_beats": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "16 beats = 4 bars in 4/4."
+          },
+          "name": {
+            "type": "string"
+          },
+          "replace_existing": {
+            "type": "boolean",
+            "default": false
+          }
         },
-        "required": ["track_id", "clip_slot", "length_beats"],
+        "required": [
+          "track_id",
+          "clip_slot",
+          "length_beats"
+        ],
         "additionalProperties": false
       }
     },
@@ -173,14 +313,32 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "track_id": { "type": "integer" },
-          "clip_slot": { "type": "integer" },
-          "start": { "type": "number", "minimum": 0 },
-          "length": { "type": "number", "exclusiveMinimum": 0 },
-          "end": { "type": "number" },
-          "looping": { "type": "boolean", "default": true }
+          "track_id": {
+            "type": "integer"
+          },
+          "clip_slot": {
+            "type": "integer"
+          },
+          "start": {
+            "type": "number",
+            "minimum": 0
+          },
+          "length": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "end": {
+            "type": "number"
+          },
+          "looping": {
+            "type": "boolean",
+            "default": true
+          }
         },
-        "required": ["track_id", "clip_slot"],
+        "required": [
+          "track_id",
+          "clip_slot"
+        ],
         "additionalProperties": false
       }
     },
@@ -191,11 +349,20 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "track_id": { "type": "integer" },
-          "clip_slot": { "type": "integer" },
-          "label": { "type": "string" }
+          "track_id": {
+            "type": "integer"
+          },
+          "clip_slot": {
+            "type": "integer"
+          },
+          "label": {
+            "type": "string"
+          }
         },
-        "required": ["track_id", "clip_slot"],
+        "required": [
+          "track_id",
+          "clip_slot"
+        ],
         "additionalProperties": false
       }
     },
@@ -205,8 +372,14 @@
       "description": "Restores a clip from a snapshot_id returned by snapshot_clip.",
       "parameters": {
         "type": "object",
-        "properties": { "snapshot_id": { "type": "string" } },
-        "required": ["snapshot_id"],
+        "properties": {
+          "snapshot_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot_id"
+        ],
         "additionalProperties": false
       }
     },
@@ -216,7 +389,11 @@
       "description": "Lists tracks with their stable track_ids, names and types. Use the ids, never the names, in later calls.",
       "parameters": {
         "type": "object",
-        "properties": { "include_devices": { "type": "boolean" } },
+        "properties": {
+          "include_devices": {
+            "type": "boolean"
+          }
+        },
         "additionalProperties": false
       }
     },
@@ -226,7 +403,14 @@
       "description": "Creates a MIDI track. Live Intro caps a Set at 16 tracks and will refuse beyond that.",
       "parameters": {
         "type": "object",
-        "properties": { "name": { "type": "string" }, "index": { "type": "integer" } },
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "index": {
+            "type": "integer"
+          }
+        },
         "additionalProperties": false
       }
     },
@@ -237,10 +421,17 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "track_id": { "type": "integer" },
-          "device_id": { "type": "integer" }
+          "track_id": {
+            "type": "integer"
+          },
+          "device_id": {
+            "type": "integer"
+          }
         },
-        "required": ["track_id", "device_id"],
+        "required": [
+          "track_id",
+          "device_id"
+        ],
         "additionalProperties": false
       }
     },
@@ -251,14 +442,31 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "track_id": { "type": "integer" },
-          "device_id": { "type": "integer" },
-          "parameter_id": { "type": "integer" },
-          "parameter_name": { "type": "string" },
-          "value": { "type": "number" },
-          "normalized": { "type": "number", "minimum": 0, "maximum": 1 }
+          "track_id": {
+            "type": "integer"
+          },
+          "device_id": {
+            "type": "integer"
+          },
+          "parameter_id": {
+            "type": "integer"
+          },
+          "parameter_name": {
+            "type": "string"
+          },
+          "value": {
+            "type": "number"
+          },
+          "normalized": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
         },
-        "required": ["track_id", "device_id"],
+        "required": [
+          "track_id",
+          "device_id"
+        ],
         "additionalProperties": false
       }
     },
@@ -269,27 +477,56 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "track_id": { "type": "integer" },
-          "clip_slot": { "type": "integer" },
-          "device_id": { "type": "integer" },
-          "parameter_name": { "type": "string" },
-          "parameter_id": { "type": "integer" },
+          "track_id": {
+            "type": "integer"
+          },
+          "clip_slot": {
+            "type": "integer"
+          },
+          "device_id": {
+            "type": "integer"
+          },
+          "parameter_name": {
+            "type": "string"
+          },
+          "parameter_id": {
+            "type": "integer"
+          },
           "points": {
             "type": "array",
             "minItems": 1,
             "items": {
               "type": "object",
               "properties": {
-                "beat": { "type": "number", "minimum": 0 },
-                "normalized": { "type": "number", "minimum": 0, "maximum": 1 },
-                "value": { "type": "number" }
+                "beat": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "normalized": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "value": {
+                  "type": "number"
+                }
               },
-              "required": ["beat"]
+              "required": [
+                "beat"
+              ]
             }
           },
-          "clear_first": { "type": "boolean", "default": true }
+          "clear_first": {
+            "type": "boolean",
+            "default": true
+          }
         },
-        "required": ["track_id", "clip_slot", "device_id", "points"],
+        "required": [
+          "track_id",
+          "clip_slot",
+          "device_id",
+          "points"
+        ],
         "additionalProperties": false
       }
     },
@@ -299,8 +536,16 @@
       "description": "Sets the Live Set tempo in BPM.",
       "parameters": {
         "type": "object",
-        "properties": { "bpm": { "type": "number", "minimum": 20, "maximum": 999 } },
-        "required": ["bpm"],
+        "properties": {
+          "bpm": {
+            "type": "number",
+            "minimum": 20,
+            "maximum": 999
+          }
+        },
+        "required": [
+          "bpm"
+        ],
         "additionalProperties": false
       }
     },
@@ -311,11 +556,21 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "track_id": { "type": "integer" },
-          "normalized": { "type": "number", "minimum": 0, "maximum": 1 },
-          "value": { "type": "number" }
+          "track_id": {
+            "type": "integer"
+          },
+          "normalized": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "value": {
+            "type": "number"
+          }
         },
-        "required": ["track_id"],
+        "required": [
+          "track_id"
+        ],
         "additionalProperties": false
       }
     },
@@ -326,11 +581,23 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "track_id": { "type": "integer" },
-          "send_index": { "type": "integer", "minimum": 0 },
-          "normalized": { "type": "number", "minimum": 0, "maximum": 1 }
+          "track_id": {
+            "type": "integer"
+          },
+          "send_index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "normalized": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
         },
-        "required": ["track_id", "send_index"],
+        "required": [
+          "track_id",
+          "send_index"
+        ],
         "additionalProperties": false
       }
     },
@@ -340,8 +607,18 @@
       "description": "Launches a clip so the user can hear an edit.",
       "parameters": {
         "type": "object",
-        "properties": { "track_id": { "type": "integer" }, "clip_slot": { "type": "integer" } },
-        "required": ["track_id", "clip_slot"],
+        "properties": {
+          "track_id": {
+            "type": "integer"
+          },
+          "clip_slot": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "track_id",
+          "clip_slot"
+        ],
         "additionalProperties": false
       }
     },
@@ -357,17 +634,132 @@
             "items": {
               "type": "object",
               "properties": {
-                "command": { "type": "string" },
-                "args": { "type": "object" }
+                "command": {
+                  "type": "string"
+                },
+                "args": {
+                  "type": "object"
+                }
               },
-              "required": ["command"]
+              "required": [
+                "command"
+              ]
             }
           },
-          "atomic": { "type": "boolean", "default": false }
+          "atomic": {
+            "type": "boolean",
+            "default": false
+          }
         },
-        "required": ["commands"],
+        "required": [
+          "commands"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "inspect_master_chain",
+      "command": "master.inspect_chain",
+      "description": "Maps the Master track's devices to mastering roles (input_trim, eq_<n>_gain, glue_*, saturator_*, limiter_gain, limiter_ceiling, ...) with current values, safe ranges, missing roles and whether the Limiter has a True Peak mode. Call before any mastering change.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "set_master_role",
+      "command": "master.set",
+      "description": "Sets one mastering role in engineering units (dB, ms, Hz, %) within its safe range. A reason is required and logged. Returns before/after and threshold warnings. Refuses with STOP_AND_REVIEW after a control reverses direction twice - treat that as a stop signal, not an obstacle.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "value": {
+            "type": "number"
+          },
+          "reason": {
+            "type": "string",
+            "description": "The hypothesis this change tests."
+          },
+          "mix_repair": {
+            "type": "boolean",
+            "description": "Allow EQ up to +/-6 dB. Usually means the mix needs fixing instead."
+          },
+          "allow_widen": {
+            "type": "boolean"
+          },
+          "override": {
+            "type": "boolean",
+            "description": "Only after independent monitoring evidence."
+          }
+        },
+        "required": [
+          "role",
+          "value",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "checkpoint_master",
+      "command": "master.checkpoint",
+      "description": "Saves every Master-chain parameter so the chain can be restored exactly. Take one before a series of changes.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "label"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "restore_master",
+      "command": "master.restore_checkpoint",
+      "description": "Restores the Master chain from a checkpoint_id.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "checkpoint_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "checkpoint_id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "master_decisions",
+      "command": "master.decisions",
+      "description": "The logged history of master changes, with reasons. Use it to avoid re-trying a change that already failed.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string"
+          }
+        },
         "additionalProperties": false
       }
     }
-  ]
+  ],
+  "qc": {
+    "$comment": "QC runs locally on exported files, not through the bridge. The agent invokes it as a CLI.",
+    "command": "npm run cli -- qc <file> --ref <ref> [--ref <ref>...] --profile <deep|house|techno|dnb|club-pcm|distribution> [--chain] [--json out.json]",
+    "exit_codes": {
+      "0": "PASS",
+      "1": "REVIEW",
+      "2": "FAIL"
+    }
+  }
 }

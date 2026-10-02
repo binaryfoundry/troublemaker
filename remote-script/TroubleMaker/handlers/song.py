@@ -29,6 +29,15 @@ def _has_clip_automation_api():
         return False
 
 
+def _has_device_insertion():
+    try:
+        import Live
+
+        return hasattr(Live.Track.Track, "insert_device")
+    except Exception:
+        return False
+
+
 def ping(ctx, args):
     """Cheap liveness probe. The bridge heartbeat uses this."""
     return {
@@ -64,6 +73,8 @@ def get_capabilities(ctx, args):
         "note_probability": extended_notes,
         "device_parameters": True,
         "device_loading": False,
+        # Live 12.3+: native devices can be inserted through the API.
+        "device_insertion": _has_device_insertion(),
         "clip_automation": _has_clip_automation_api(),
         "arrangement_editing": False,
         "audio_warping": False,

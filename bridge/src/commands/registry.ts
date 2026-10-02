@@ -106,6 +106,67 @@ const SUMMARIES: Record<CommandName, { summary: string; mutates?: boolean; bridg
   'live.select_track': { summary: "Move Live's selection to a track.", mutates: true },
   'live.select_clip_slot': { summary: "Move Live's selection to a clip slot.", mutates: true },
 
+  'live.set_device_parameter_display': {
+    summary:
+      'Set a parameter by its displayed value (e.g. -1.0 dB, 30 ms, 1.2 kHz), independent of the ' +
+      "device's internal scaling.",
+    mutates: true,
+  },
+  'live.set_device_parameter_option': {
+    summary: "Set a parameter to a named state, e.g. Limiter Mode 'True Peak' or Saturator Type 'Analog Clip'.",
+    mutates: true,
+  },
+  'live.insert_device': {
+    summary: 'Insert a native device (Live 12.3+ only; UNSUPPORTED on earlier versions).',
+    mutates: true,
+  },
+  'live.get_meters': { summary: "A track's output display meters (not loudness)." },
+
+  'master.inspect_chain': {
+    summary:
+      'Map the Master chain to mastering roles with current values, safe ranges, missing roles ' +
+      'and whether the Limiter has a True Peak mode.',
+    bridgeSide: true,
+  },
+  'master.set': {
+    summary:
+      'Set a mastering role in engineering units, within its safe range, with a required reason. ' +
+      'Read back, logged, and refused after repeated reversals.',
+    mutates: true,
+    bridgeSide: true,
+  },
+  'master.apply_preset': {
+    summary: "Apply a named starting preset to the chain ('clean' = MIXING.md's Club Master - Clean).",
+    mutates: true,
+    bridgeSide: true,
+  },
+  'master.decisions': { summary: 'The logged history of master changes.', bridgeSide: true },
+  'master.reset_decisions': {
+    summary: 'Archive the decision log to start a new mastering job.',
+    bridgeSide: true,
+  },
+  'master.checkpoint': {
+    summary: 'Save every Master-chain parameter so the chain can be restored exactly.',
+    bridgeSide: true,
+  },
+  'master.restore_checkpoint': {
+    summary: 'Restore the Master chain from a checkpoint.',
+    mutates: true,
+    bridgeSide: true,
+  },
+  'master.list_checkpoints': { summary: 'Checkpoints held this bridge session.', bridgeSide: true },
+  'master.build_chain': {
+    summary:
+      "Insert the missing template devices and apply the 'clean' preset (Live 12.3+; explains the " +
+      'manual steps otherwise).',
+    mutates: true,
+    bridgeSide: true,
+  },
+  'master.meters': {
+    summary: "Sample Live's Master display meters for a few seconds (not loudness).",
+    bridgeSide: true,
+  },
+
   'live.snapshot_clip': {
     summary: 'Store a clip (notes, loop, name) in bridge memory so an edit can be undone.',
     bridgeSide: true,

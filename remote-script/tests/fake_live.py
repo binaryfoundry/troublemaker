@@ -45,8 +45,10 @@ _pointers = _pointer_source()
 
 
 class DeviceParameter(LiveObject):
-    def __init__(self, name, value, minimum, maximum, parent=None, quantized=False, unit=""):
+    def __init__(self, name, value, minimum, maximum, parent=None, quantized=False, unit="",
+                 display=None):
         LiveObject.__init__(self, parent)
+        self._display = display
         self._name = name
         self._value = float(value)
         self.min = float(minimum)
@@ -77,6 +79,8 @@ class DeviceParameter(LiveObject):
         self._value = float(new_value)
 
     def str_for_value(self, value):
+        if self._display is not None:
+            return self._display(value)
         return "%.2f %s" % (value, self.unit) if self.unit else "%.2f" % (value,)
 
 
@@ -120,6 +124,72 @@ def auto_filter(parent=None):
         ],
         parent,
     )
+
+
+def _db_display(lo, hi):
+    """Normalized 0..1 native value shown as a linear dB range - the way
+    many Live parameters store values internally."""
+    return lambda v: "%.1f dB" % (lo + (hi - lo) * v)
+
+
+def _hz_display(lo, hi):
+    def show(v):
+        hz = lo * (hi / lo) ** v
+        return "%.2f kHz" % (hz / 1000.0) if hz >= 1000 else "%.1f Hz" % (hz,)
+    return show
+
+
+def _ms_display(lo, hi):
+    return lambda v: "%.2f ms" % (lo * (hi / lo) ** v)
+
+
+def master_chain():
+    """Utility -> EQ Eight -> Glue -> Saturator -> Limiter, Live 11 style:
+    the Limiter has no True Peak mode."""
+    utility = Device("Utility", "StereoGain", [
+        DeviceParameter("Device On", 1.0, 0.0, 1.0, quantized=True),
+        DeviceParameter("Gain", 0.5, 0.0, 1.0, display=_db_display(-35.0, 35.0)),
+        DeviceParameter("Stereo Width", 0.25, 0.0, 1.0,
+                        display=lambda v: "%.0f %%" % (v * 400.0)),
+    ])
+    eq_params = [DeviceParameter("Device On", 1.0, 0.0, 1.0, quantized=True)]
+    for band in range(1, 9):
+        eq_params.append(DeviceParameter("%d Filter On A" % band, 0.0, 0.0, 1.0, quantized=True,
+                                         display=lambda v: "On" if v else "Off"))
+        eq_params.append(DeviceParameter("%d Frequency A" % band, 0.5, 0.0, 1.0,
+                                         display=_hz_display(10.0, 22000.0)))
+        eq_params.append(DeviceParameter("%d Gain A" % band, 0.0, -15.0, 15.0, unit="dB"))
+    eq = Device("EQ Eight", "Eq8", eq_params)
+    glue = Device("Glue Compressor", "GlueCompressor", [
+        DeviceParameter("Device On", 1.0, 0.0, 1.0, quantized=True),
+        DeviceParameter("Threshold", 1.0, 0.0, 1.0, display=_db_display(-40.0, 0.0)),
+        DeviceParameter("Ratio", 0.0, 0.0, 2.0, quantized=True,
+                        display=lambda v: ["2", "4", "10"][int(round(v))]),
+        DeviceParameter("Attack", 3.0, 0.0, 5.0, quantized=True,
+                        display=lambda v: ["0.01 ms", "0.1 ms", "0.3 ms", "1.00 ms", "3.00 ms",
+                                           "10.0 ms"][int(round(v))] if v < 5 else "30.0 ms"),
+        DeviceParameter("Range", 1.0, 0.0, 1.0, display=_db_display(-70.0, 0.0)),
+        # Live 12 shows release as bare seconds and 'A' (auto) at the top.
+        DeviceParameter("Release", 0.5, 0.0, 1.0,
+                        display=lambda v: "A" if v > 0.95 else ("%.1f" % (0.1 + v * 1.1)).lstrip("0")),
+        DeviceParameter("Makeup", 0.0, 0.0, 1.0, display=_db_display(0.0, 20.0)),
+        DeviceParameter("Dry/Wet", 1.0, 0.0, 1.0, display=lambda v: "%.0f %%" % (v * 100)),
+    ])
+    saturator = Device("Saturator", "Saturator", [
+        DeviceParameter("Device On", 1.0, 0.0, 1.0, quantized=True),
+        DeviceParameter("Drive", 0.0, -36.0, 36.0, unit="dB"),
+        DeviceParameter("Output", 0.0, -36.0, 0.0, unit="dB"),
+        DeviceParameter("Dry/Wet", 1.0, 0.0, 1.0, display=lambda v: "%.0f %%" % (v * 100)),
+    ])
+    limiter = Device("Limiter", "Limiter", [
+        DeviceParameter("Mode", 0.0, 0.0, 1.0, quantized=True,
+                        display=lambda v: "True Peak" if v >= 0.5 else "Standard"),
+        DeviceParameter("Device On", 1.0, 0.0, 1.0, quantized=True),
+        DeviceParameter("Gain", 0.0, 0.0, 1.0, display=_db_display(0.0, 24.0)),
+        DeviceParameter("Ceiling", 1.0, 0.0, 1.0, display=_db_display(-24.0, 0.0)),
+        DeviceParameter("Release", 0.5, 0.0, 1.0, display=_ms_display(1.0, 3000.0)),
+    ])
+    return [utility, eq, glue, saturator, limiter]
 
 
 # ---------------------------------------------------------------------------
@@ -309,6 +379,9 @@ class Track(LiveObject):
         self.mute = False
         self.solo = False
         self.arm = False
+        self.output_meter_left = 0.42
+        self.output_meter_right = 0.40
+        self.output_meter_level = 0.42
         self.is_grouped = False
         self.color_index = 1
         self.view = TrackView(self)
@@ -384,7 +457,8 @@ class Song(LiveObject):
         audio = Track("Vocal", is_midi=False, parent=self)
         self.tracks = [drums, bass, audio]
         self.return_tracks = [Track("A Reverb", is_midi=False, slots=0, parent=self)]
-        self.master_track = Track("Master", is_midi=False, slots=0, parent=self)
+        self.master_track = Track("Master", is_midi=False, slots=0, parent=self,
+                                  devices=master_chain())
         self.scenes = [Scene("Intro", self), Scene("Drop", self)]
         self.view = SongView(self)
 
@@ -509,8 +583,13 @@ def install_stubs():
     application_module = types.ModuleType("Live.Application")
     application_module.get_application = lambda: _Application()
 
+    track_module = types.ModuleType("Live.Track")
+    track_module.Track = Track
+
     live.Clip = clip_module
     live.Application = application_module
+    live.Track = track_module
+    sys.modules["Live.Track"] = track_module
 
     sys.modules["Live"] = live
     sys.modules["Live.Clip"] = clip_module

@@ -17,7 +17,8 @@ expressed as primitive note edits.
 | --------------------------- | ----------------------------------------------- | --------------------------------------- |
 | `remote-script/TroubleMaker` | Live API calls, object resolution, serialization | Music theory, LLM calls, large state     |
 | `bridge/src`                | Validation, transport, snapshots, transactions   | Music theory, genre knowledge            |
-| `agent/src`                 | Theory, patterns, transforms, composition        | Network calls, Live API assumptions      |
+| `agent/src`                 | Theory, patterns, transforms, composition, mastering policy | Network calls, Live API assumptions      |
+| `qc/src`                    | ffmpeg invocation, PCM analysis of exported files | Live calls, mastering judgement          |
 
 `agent/src` is pure functions over numbers. It must stay testable with no
 Ableton running.
@@ -103,6 +104,31 @@ operations.
 
 Transform functions take a `seed` and must be reproducible for a given seed.
 A user needs undo-and-retry to converge, which random output prevents.
+
+## Mastering
+
+Rules from `MIXING.md` live in `agent/src/mastering/policy.ts` as pure checks
+over measurements; thresholds are in `profiles.ts`. Master-chain roles and
+their safe ranges are in `bridge/src/mastering/roles.ts`.
+
+**Write by display value, not native value.** Live stores many parameters
+normalised (0-1) and the scaling differs per device and per Live version.
+`live.set_device_parameter_display` binary-searches for the native value whose
+*displayed* value matches, so safe ranges can be written in dB/ms/Hz and stay
+valid across an upgrade.
+
+**Adding a role:** add a `RoleSpec` to `ROLES` with candidate parameter names
+for both Live 11 and 12 devices, a hard range in engineering units, and a
+test in `bridge/tests/mastering-chain.test.ts`.
+
+**Adding a QC rule:** add it to `evaluate()` with a test in
+`bridge/tests/mastering-policy.test.ts`. Every finding needs an `action`, and
+the action for a mix-level problem should say so rather than suggest master
+processing.
+
+**Version-dependent features are detected, never assumed.** Device insertion
+checks `hasattr(Track, 'insert_device')`; True Peak mode is detected from the
+Limiter's parameters. Keep it that way, so upgrading Live needs no code change.
 
 ## Gotchas
 

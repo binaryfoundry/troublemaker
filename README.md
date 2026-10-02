@@ -44,8 +44,10 @@ rather than with a Set, and it needs no device on a track.
 
 ## Requirements
 
-- Ableton Live 11 (any edition; built and tested against **11 Intro**)
+- Ableton Live 11 or 12 (tested on **11 Intro** and **12.4.6 Standard**). Live
+  12.3+ is needed for the agent to build the mastering chain itself.
 - Node.js 18 or newer
+- ffmpeg on PATH, for mastering QC
 - No Python install needed — the Remote Script runs on Live's embedded
   Python 3.7
 
@@ -115,6 +117,32 @@ curl -X POST http://127.0.0.1:8765/command \
   -d '{"command":"live.set_tempo","args":{"bpm":126}}'
 ```
 
+## Mixing and mastering
+
+The mastering tools follow [MIXING.md](MIXING.md): measurement first,
+loudness as a limit rather than a goal, references compared drop to drop at
+matched loudness, small changes that are always read back, and a willingness
+to conclude "fix it in the mix".
+
+```bash
+# Measure an exported master against 3-5 references (no Live needed)
+npm run cli -- qc master.wav --ref a.wav --ref b.wav --ref c.wav --profile techno
+
+# Live 12.3+: the agent builds and dials in the chain itself
+npm run cli -- master build
+
+# Adjust the Master chain by role, within safe ranges, with a logged reason
+npm run cli -- master chain
+npm run cli -- master checkpoint "before limiter work"
+npm run cli -- master set limiter_ceiling -1.5 --reason "true peak 0.4 dB over"
+```
+
+`qc` prints a PASS / REVIEW / FAIL report covering loudness against the
+reference median, true peak, clipping, tonal balance by band, low-end mono
+compatibility and the master-chain rules. See
+[docs/mastering.md](docs/mastering.md) for the workflow, the template chain to
+put on Master, and what changes when you upgrade to Live 12.
+
 ## HTTP API
 
 | Route            | Purpose                                            |
@@ -136,14 +164,18 @@ is no authentication because there is no remote surface to authenticate.
 ```
 remote-script/TroubleMaker/   Live-side endpoint (Python 3.7, no music logic)
 bridge/src/                   validation, transport, snapshots, transactions, CLI
+bridge/src/mastering/         master-chain roles, safe ranges, decision log
+qc/src/                       offline audio QC: ffmpeg loudness + PCM analysis
 bridge/tests/                 unit, protocol and golden musical tests
 agent/src/                    music theory, pattern generation, transforms
+agent/src/mastering/          profiles, reference median, QC policy, reports
 agent/prompts/                system prompt and music-editing guide
 agent/tools/                  LLM tool definitions
 schemas/                      command, response and project-state JSON Schema
 devices/                      semantic hints for common Live devices
 examples/                     worked command payloads
 docs/capabilities.md          what is supported, and what is not
+docs/mastering.md             mastering workflow and Live 12 upgrade notes
 ```
 
 ## Design rules
@@ -177,7 +209,7 @@ Live's shared undo stack.
 ## Testing
 
 ```bash
-npm run test:all     # 116 TypeScript + 67 Python tests, no Ableton required
+npm run test:all     # 188 TypeScript + 86 Python tests, no Ableton required
 npm test             # TypeScript only
 npm run test:python  # Live-side handlers only
 npm run typecheck

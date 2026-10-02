@@ -1,941 +1,1217 @@
-# Codex-Driven Local Audio Production for Ableton Live
+# Designing a Codex Agent for Expert Electronic-Music Mixing and Mastering in Ableton Live
 
 ## Executive summary
 
-The strongest design is **not** to ask Codex to behave like a text-to-audio model. It should act as the **creative director, programmer and control plane** for a collection of local audio engines that it can inspect, configure and run. Codex can work against code and tools on the local machine, while OpenAI explicitly recommends sandboxing local execution, resource limits and command filtering. A Codex local workflow executes the actual commands and files on the user's machine; this should be distinguished from claiming that the Codex model itself is an offline local model. citeturn18search0turn18search1
+A capable Codex mixing/mastering agent for Ableton Live should **not** be designed as a model that simply moves knobs until a requested LUFS number is reached. It should be built as a measurement-driven audio-engineering system in which Codex performs diagnosis, planning, controlled parameter changes, A/B comparison, rendering, objective quality control and—at defined checkpoints—asks for or respects human artistic judgement. OpenAI's current Agents SDK is well suited to this orchestration model because it supports typed tools, persistent run state, MCP integrations, guardrails, human review, tracing and evaluation; current Codex also has computer-use capability for applications that do not expose a complete API. citeturn21search1turn21search2turn21search5
 
-For the stated goal—house, deep house and melodic techno that does **not** have the homogenised character often associated with prompt-to-music generation—the recommended hierarchy is:
+For Ableton Live itself, the best control architecture is **Max for Live + the Live Object Model as the deterministic control plane**, with OSC or UDP between the agent process and a Max for Live bridge. Max for Live can query, observe and modify a Live Set through `live.path`, `live.object`, `live.observer`, `live.remote~`, or JavaScript's Live API object. Ableton's current Live Object Model documentation, referring to Live 12.3.5 at the time of this research, exposes tracks, mixer parameters, clips, devices, plug-ins, racks, transport and many other objects. citeturn17search2turn17search4
 
-| Priority | Objective | Recommended decision |
+There is, however, an important automation boundary. Since Live 12.3, the LOM can programmatically insert **native Live devices**, but Cycling '74 explicitly states that `insert_device` currently does **not** insert Max for Live devices or third-party plug-ins. The documented `Song` interface also provides no public save, render or Export Audio function. The robust design is therefore **template-first**: third-party plug-ins and Max devices are loaded in advance, with important controls exposed as rack macros or plug-in parameters; the agent manipulates those existing devices through the API. File export, loading arbitrary third-party plug-ins, saving and a few other operations should be delegated to Codex computer use/OS UI automation or to a supervised operator. citeturn17search0turn17search1turn21search1
+
+The other central conclusion is that **there is no standards-defined "club LUFS" target**. ITU-R BS.1770 defines methods for measuring programme loudness and true peaks; EBU R128's -23 LUFS convention is a broadcast recommendation, not a dance-music mastering target. A club's acoustic SPL depends on playback gain, system processing, loudspeaker/subwoofer deployment, room acoustics and the sound engineer—not simply on a file's LUFS measurement. Professional mastering practice is correspondingly context-dependent: in a recent AES survey, Bob Katz described a usual digital-distribution practice around -14 LUFS/-1 dBTP while also reporting client-requested masters as loud as -8 LUFS. citeturn18search2turn18search5turn18search9
+
+For an electronic-music agent, the correct policy is therefore:
+
+> **Use loudness as a constraint and reference metric, not as the optimisation objective.**
+
+The agent should infer its working envelope from several **lossless, genre- and era-relevant reference masters**, then optimise for kick/sub separation, low-frequency consistency, transient integrity, tonal balance, mono compatibility, stereo stability and lack of objectionable limiter distortion. Ian Shepherd similarly recommends measuring comparable reference songs and level-matching them rather than pursuing a single loudness number; he also advises treating roughly 3–4 dB of limiter gain reduction as a point beyond which the audible side-effects deserve particular scrutiny. citeturn16search1turn16search5
+
+For club translation specifically, the agent should be unusually conservative about uncontrolled sub energy and stereo phase, while **not relying on the old myth that very low frequencies are inherently non-directional**. AES research has shown directional discrimination with pink-noise stimuli centred as low as 31.5 Hz and pure tones from 63.5 Hz; other AES work demonstrates that standing waves and sound-system geometry materially affect low-frequency perception. Mono-compatible bass is useful because it improves robustness and headroom across different playback systems, not because listeners categorically cannot localise bass. citeturn19search6turn19search9turn19search30
+
+A good automated mastering system should normally create at least two deliverables: a **24-bit PCM club/reference master with healthy true-peak margin**, and, where required, a **distribution master with a conservative -1 dBTP ceiling** to accommodate downstream encoding/sample-rate conversion. True peak is distinct from sample peak because reconstructed signals can exceed the largest stored sample; ITU and AES work formalise this issue, and Ian Dash's AES tutorial specifically addresses true-peak metering. citeturn18search9turn19search0turn19search2
+
+The recommended high-level mastering topology is:
+
+```mermaid
+flowchart LR
+    A[Mix / Stems] --> B[Integrity & File QC]
+    B --> C[Reference Analysis]
+    C --> D[Tonal & Sub Correction]
+    D --> E[Gentle Bus Dynamics]
+    E --> F[Optional Saturation / Peak Shaping]
+    F --> G[True-Peak Limiting]
+    G --> H[Loudness / Spectrum / Phase QC]
+    H --> I{Pass?}
+    I -->|No| C
+    I -->|Yes| J[24-bit Club PCM]
+    I -->|Yes| K[-1 dBTP Distribution Master]
+    I -->|Yes| L[32-bit Float Archive / Premaster]
+```
+
+The guiding philosophy is the one seen repeatedly in credible mastering practice: **excellent monitoring, small deliberate changes, level-matched comparison and preservation of punch beat heroic correction**. Bob Katz's mastering room is designed around calibrated, extended-bandwidth monitoring and low-frequency accuracy, while mastering engineer Matt Colton similarly emphasises reliable monitoring and preservation of transients rather than indiscriminate loudness. citeturn16search2turn16search3
+
+
+## System objectives, scope and agent architecture
+
+The agent should be defined as an **electronic-music mix/master engineer operating Ableton Live**, rather than as a generic DAW automation bot. Its expertise should encompass house, techno and drum & bass initially, with an extensible genre profile for garage, dubstep, breaks, jungle, trance, electro and related bass-heavy music. Genre knowledge should affect its priors—typical rhythmic architecture, transient density, kick/sub relationships and expected master density—but should never become a rigid preset that overrides measurement.
+
+Its primary objective should be:
+
+**Given an Ableton Set, stereo premaster or aligned set of stems, produce the best-sounding technically valid mix/master for the requested artistic and playback context while preserving musical intent and documenting every material intervention.**
+
+That decomposes into six objectives:
+
+| Objective | What the agent should optimise | What it must not do |
 |---|---|---|
-| **Highest** | Preserve a tangible human/sample origin | Generate primarily by slicing, analysing, recombining, granulating and transforming cleared real recordings rather than synthesising everything from latent noise. |
-| **Highest** | Keep all audio generation local | Codex invokes local DSP/ML processes; raw source audio need not be sent to a cloud audio generator. |
-| **Highest** | Make every change editable | Mixing/mastering should result in Live devices, automation and parameters wherever possible—not merely a baked AI waveform. |
-| **High** | Strong provenance | Every generated sample gets parent-source hashes, recipe, random seed, model version and licence metadata. |
-| **High** | Reliable Ableton integration | Use a Max for Live bridge and the Live Object Model; Live's API can create tracks and clips, query devices and set automatable parameters. citeturn18search2turn26search0turn26search1turn26search3 |
-| **High** | Club optimisation without destroying dynamics | Reference-match the mix/master and enforce true-peak, spectral, phase and low-end QA rather than blindly chasing a fixed LUFS number. ITU-R BS.1770 defines loudness/true-peak measurement, but does not define a "club loudness". citeturn24search0turn24search8 |
-| **Later** | Neural sample resynthesis | Add DDSP and, where licensing permits, RAVE after the deterministic corpus engine is working. DDSP provides differentiable synthesis/effects; RAVE was designed for high-quality 48 kHz neural audio and reports 20× real-time inference on a laptop CPU in the original paper. citeturn19search0turn19search1 |
+| Musical balance | Hierarchy of kick, bass, drums, musical elements, vocals and FX | Flatten everything merely to maximise LUFS |
+| Club translation | Stable sub energy, punch, mono compatibility and non-fatiguing spectral balance | Assume one PA, crossover or room represents every club |
+| Technical compliance | File integrity, bit depth, true peak, sample rate, channel configuration | Confuse broadcast/streaming targets with club requirements |
+| Repeatability | State snapshots, deterministic tools and reproducible renders | Depend entirely on mouse coordinates or undocumented GUI state |
+| Explainability | Log diagnosis → action → measurement → result | Make hidden destructive processing changes |
+| Artistic safety | Preserve transients, depth, groove and intentional distortion | "Fix" deliberate artistic characteristics merely because they differ from a generic reference |
 
-**The key recommendation is therefore a hybrid system:** start with **FluCoMa-style corpus manipulation + granular/concatenative synthesis**, add sample-conditioned DSP and resynthesis, and only then add neural latent generation. FluCoMa was specifically developed for manipulating large sound corpora, including descriptor-based browsing, component replacement and hybridisation by concatenation, and it has a Max implementation under a permissive BSD-3-Clause licence. citeturn19search3turn19search7turn17search15turn17search22
+The distinction between **analysis**, **processing**, and **validation** should be explicit. Mixing decisions are hypotheses: for example, "the drop loses impact because bass energy from 45–80 Hz masks the kick". The agent then performs the smallest reasonable intervention, renders or measures it, compares the result with the unprocessed version at equal perceived loudness, and retains the intervention only if the evidence supports it.
 
-That approach also has a provenance advantage. With concatenative/granular synthesis the system can say, for example, **"the attack came from source A frames 83,200–91,412 and the body from source B frames 210,112–267,994"**. Once source audio is learned into an autoencoder such as RAVE, exact per-sample attribution is generally no longer available; provenance becomes corpus/model-level rather than an exact reconstruction of the output's ancestry. This distinction should be reflected in the product design.
+### Recommended control architecture
 
-For mixing and mastering, I would **not train an end-to-end neural network to output "the mastered song" for the first version**. Codex should analyse the Set, infer roles such as kick/bass/percussion/music/FX, compare the track against several local reference masters, and then build an ordinary editable Live chain with EQ Eight, compressors, Glue Compressor, Utility, optional Roar/Multiband Dynamics and Limiter. Ableton documents EQ Eight as an eight-band parametric EQ, Glue Compressor as suitable for group/Main-bus cohesion, Multiband Dynamics as a mastering-oriented dynamics processor, Roar as a multistage saturation device, and Limiter as a mastering-quality processor. citeturn27search0turn27search5
+Codex should run outside Live as the planning and reasoning layer. The OpenAI Agents SDK is particularly appropriate when the application owner wants typed tool calls, custom storage, direct control over tool implementations, tracing, evaluation and guardrails. citeturn21search2turn21search5
 
-The most useful MVP therefore looks like this:
+```mermaid
+flowchart TB
+    U[Producer / Engineer] --> C[Codex Electronic-Music Agent]
 
-**Prompt → Codex → structured JSON → local audio/sample engine → generated WAV → Live audio clip → editable Live mix chain → reference analysis → mastered club WAV → automated QA → human approval.**
+    C --> P[Planning & Genre Knowledge]
+    C --> T[Typed DAW Tool Layer]
+    C --> Q[Offline Audio QC]
+    C --> S[Session / Decision Store]
 
-No Serum is required. No external text-to-audio service is required. The "sound generator" is predominantly **your own or properly licensed real recordings transformed locally**.
+    T --> OSC[OSC / UDP]
+    OSC --> M4L[Max for Live Bridge]
+    M4L --> LOM[Live Object Model]
+    LOM --> LIVE[Ableton Live]
 
-Hardware was not specified. A CPU-only machine can comfortably support the deterministic MVP and audio analysis; RAVE's original paper demonstrates faster-than-real-time CPU inference, although training is a different matter. Current RAVE documentation lists minimum training GPU-memory figures ranging from 8 GB for v1/v2_small, 16 GB for v2, 18 GB for the discrete configuration and 32 GB for v3. citeturn19search0turn21view0
+    LIVE --> N[Native Live Devices]
+    LIVE --> PL[Pre-loaded VST3 / AU / M4L]
+    LIVE --> AUDIO[Clips / Stems / References]
 
-My engineering estimate is **six to nine engineer-weeks for a genuinely useful MVP** with one developer who already knows Python/TypeScript and Max, and around **twelve to eighteen engineer-weeks for a robust producer-facing beta** with provenance, reference matching, comprehensive tests and neural back-ends. Those are project estimates rather than vendor claims.
+    C --> GUI[Codex Computer Use / OS Automation]
+    GUI --> LIVE
 
-## Architecture and required components
+    LIVE --> RENDER[Rendered WAV]
+    RENDER --> Q
+    Q --> METRICS[LUFS / TP / Spectrum / Phase / Crest]
+    METRICS --> C
+```
 
-The architecture should deliberately separate the **reasoning plane**, **audio plane** and **DAW-control plane**. This prevents an LLM error from becoming an unrestricted file-system or Live-control operation and makes individual audio engines replaceable.
+Max for Live is well suited to the bridge because the Live API can get and set properties, observe changes and call functions throughout the current Set. Signal-rate parameter control is possible through `live.remote~`. citeturn17search2 MIDI remote mapping remains a useful fallback for pre-defined controls, while Ableton also supports custom Remote Scripts; Live 11 and later use Python 3 for such scripts, although Ableton does not provide support for third-party custom scripts, making them a secondary rather than primary integration path. citeturn13search3turn15search20
+
+An OSC/UDP bridge is preferable to making MIDI the core protocol. MIDI CC is useful for exposed macros but has relatively crude native value resolution and weak semantic addressing; a Max bridge can instead expose commands such as:
+
+```text
+/live/set/inspect
+/live/track/7/volume -4.25
+/live/track/7/device/2/parameter/6 0.384
+/live/master/rack/ClubMaster/macro/Glue 0.31
+/live/reference/select 2
+/live/qc/request 16bars
+/live/checkpoint/create pre_master_A
+```
+
+Cycling '74 directly supports OSC-oriented Max networking and UDP communication, so the bridge need not rely on a proprietary communications mechanism. citeturn13search2turn13search7
+
+### Typed tools the agent should expose
+
+Rather than letting the language model manufacture arbitrary Live paths, expose a small stable tool vocabulary:
+
+```text
+inspect_session()
+inspect_track(track_id)
+inspect_device(track_id, device_id)
+read_parameter(...)
+set_parameter(..., value, ramp_ms, expected_old_value)
+set_mixer_value(...)
+insert_native_device(...)
+import_audio_file(path, track, arrangement_position)
+set_clip_warping(...)
+create_automation(...)
+capture_meter_snapshot(duration)
+capture_spectrum_snapshot(duration)
+select_reference(reference_id)
+checkpoint(label)
+restore_checkpoint(label)
+analyse_audio_file(path)
+render_via_ui(render_spec)
+verify_render(path, render_spec)
+compare_versions(path_a, path_b, loudness_match=True)
+```
+
+Every **write** operation should return the parameter's previous value and its confirmed new value. This matters because model-generated automation without a read-back step is unsafe: the requested value may be clipped to a legal range, mapped non-linearly, or addressed to the wrong device after the session structure changes.
+
+The tool system should also encode *semantic* rather than only numerical intent. For example:
+
+```json
+{
+  "action": "set_parameter",
+  "target": {
+    "track": "BASS",
+    "device": "Bass Sidechain",
+    "parameter": "Threshold"
+  },
+  "value_db": -18.5,
+  "ramp_ms": 250,
+  "reason": "Reduce kick/bass overlap; target 3 dB maximum GR on drop",
+  "rollback_if": {
+    "max_gain_reduction_db": 5.0
+  }
+}
+```
+
+That creates an audit trail and allows an evaluation layer to reject nonsensical actions before Live receives them.
+
+### The crucial API boundary
+
+The present Live API has enough control for serious work, but not enough for a completely clean headless Ableton mastering server. Cycling '74 documents `insert_device` for tracks and rack chains, available since Live 12.3, but explicitly limits it to native Live devices; Max for Live and plug-in insertion are not currently supported. citeturn17search0turn17search7
+
+Similarly, the documented `Song` functions include transport, track and scene operations, duplication, cue navigation, undo/redo and related set manipulation, but no render/export or save method. It is therefore reasonable to infer that those operations must presently happen outside the public LOM. citeturn17search1
+
+This suggests a hierarchy of control:
+
+**Deterministic:** Live API/M4L → native devices and already-present plug-ins.
+
+**Semi-deterministic:** MIDI mappings or a Python Remote Script.
+
+**Fallback:** Codex computer use to navigate the browser, load an untemplated plug-in, save a Set or operate Export Audio.
+
+Current Codex computer use can see, click and type in desktop applications, providing a viable fallback where APIs are absent. citeturn21search1 It should nevertheless be the *last* layer, not the main control mechanism: a mastering agent that relies on pixel coordinates for a limiter ceiling is inherently more brittle than one setting a named parameter and verifying the returned value.
+
+### Plug-in hosting and automation
+
+Ableton should remain the actual plug-in host. Live supports common plug-in formats including VST and VST3, with Audio Units on macOS; the agent's job is to control plug-ins hosted in Live, not re-host them in the Codex process. citeturn2search0turn15search21
+
+For reliable third-party processing:
+
+1. Create a **Mastering Tools.adg** rack containing the approved plug-ins.
+2. Save their initial states in the Rack; Ableton notes that putting a plug-in inside a Rack is the appropriate way to retain plug-in parameter values in a preset. citeturn2search5
+3. Map only the controls the agent is allowed to adjust to Rack macros.
+4. Define safe ranges in the external agent schema.
+5. Let the agent manipulate those macros rather than hundreds of vendor-specific parameters.
+6. Store a plug-in/vendor/version fingerprint with each session manifest.
+
+Ableton Audio Effect Racks support serial and parallel chains, macro mapping and Macro Variations, which makes them particularly effective as an abstraction layer between the agent and arbitrary processing chains. citeturn1search3
+
+Automation should use ordinary Live automation for musical/time-varying changes and `live.remote~` only when real-time control is required. Ableton exposes most mixer/device controls to automation, while the Max API provides signal-rate remote parameter control when necessary. citeturn1search6turn17search2 The mastering agent should strongly prefer **static master settings** unless a section-specific problem demonstrably calls for automation; continually changing master EQ or limiting makes QC and recall substantially harder.
+
+### Session recall, stems and file I/O
+
+Session recall should have two levels:
+
+**The `.als` Set** is the authoritative DAW state.
+
+**An agent manifest** is the reproducibility/audit state.
+
+A useful manifest might look like:
+
+```yaml
+project:
+  id: night_train_mix_v17
+  live_version: 12.3.5
+  sample_rate: 48000
+  tempo: 174
+  genre_profile: drum_and_bass
+
+inputs:
+  source_mode: stems
+  stems:
+    - kick.wav
+    - snare.wav
+    - drums.wav
+    - sub.wav
+    - bass_mids.wav
+    - music.wav
+    - vox_fx.wav
+
+reference_set:
+  - ref_01.wav
+  - ref_02.wav
+  - ref_03.wav
+
+master_state:
+  chain: ClubMaster_Clean_v4
+  target_profile: modern_dnb
+  parameters:
+    trim_db: -2.1
+    side_low_cut_hz: 82
+    glue_max_gr_db: 1.4
+    saturation_drive_db: 1.8
+    limiter_ceiling_dbtp: -1.0
+
+qc:
+  integrated_lufs: -6.8
+  max_true_peak_dbtp: -1.0
+  max_limiter_gr_db: 3.1
+  mono_review: pass
+  low_end_review: pass
+
+provenance:
+  parent_checkpoint: mix_v16
+  human_approval: final_A
+```
+
+The agent should resolve Live objects afresh after loading a Set rather than depending permanently on transient object IDs. Human-readable track/device names plus structural paths and secondary fingerprints are safer.
+
+The Live API can create audio clips from file paths and inspect Arrangement clips, making controlled stem insertion feasible. citeturn17search0turn17search8 Incoming stems should have identical start points, lengths where possible, sample rates and intended polarity. Warping should normally be disabled on already aligned production stems unless tempo manipulation is intentional. Ableton's own Audio Fact Sheet recommends avoiding unnecessary real-time sample-rate conversion and notes that playback/rendering at mismatched sample rates is non-neutral; for high-integrity transfer work, matching source and project rates is preferable. citeturn17search3
+
+Live now also includes stem-separation functionality, but an agent should treat separated stems as a **repair/fallback source**, not as equivalent to original multitrack exports. citeturn15search27
+
+### Batch mastering
+
+A production-ready batch system should therefore operate as:
 
 ```mermaid
 flowchart TD
-    U[Producer prompt] --> C[Codex / LLM agent]
-
-    C -->|Structured JSON only| S[Local command server]
-
-    S --> P[Policy + schema validator]
-    P --> T[Transaction / undo manager]
-
-    T --> G[Local sample-generation engine]
-    T --> A[Audio analysis + QA engine]
-    T --> M[Mix / mastering optimiser]
-    T --> B[Max for Live bridge]
-
-    G --> AS[(Immutable audio asset store)]
-    G --> PR[(Provenance database)]
-    A --> DB[(Analysis / reference database)]
-    M --> B
-
-    B --> N[Node for Max / Max dictionary layer]
-    N --> L[Live API / Live Object Model]
-    L --> LIVE[Ableton Live]
-
-    AS -->|absolute WAV path| L
-    LIVE -->|track, clip, device state| B
-    B --> S
-
-    LIVE --> R[Local render]
-    R --> A
-    A --> C
+    A[Job Manifest] --> B[Load Mastering Template]
+    B --> C[Import Mix]
+    C --> D[Verify SR / Channels / Duration]
+    D --> E[Analyse Source]
+    E --> F[Choose Reference Profile]
+    F --> G[Set Preloaded Chain]
+    G --> H[Iterative Master + QC]
+    H --> I{QC passes?}
+    I -->|No| G
+    I -->|Yes| J[Export through UI layer]
+    J --> K[Offline file analysis]
+    K --> L{Render verified?}
+    L -->|No| J
+    L -->|Yes| M[Write WAV + JSON Report]
 ```
 
-Ableton officially exposes the Live Object Model through Max for Live. It includes Songs, tracks, scenes, clip slots, clips, devices, device parameters and mixer objects; operations include querying, setting properties, calling functions and observing properties. citeturn18search2turn17search28 Cycling '74's current LOM documentation, which presently refers to Live 12.4.5, exposes functions such as `Song.create_audio_track`, `Song.create_midi_track`, `ClipSlot.create_audio_clip(path)` and arrangement-track `create_audio_clip(file_path, position)`. This means the bridge can take a local WAV generated by the sample engine and place it directly in Session or Arrangement View without screen automation. citeturn26search0turn26search1turn26search2turn26search3
+Do not let batch mode silently "fix" a track that lies far outside the learned profile. If the system detects, for example, a 10 dB sub excess, severe clipping at source, missing channels, broken stem alignment, or the need for more than modest master-bus correction, its correct action is **return to mix / flag for review**, not force the material through a mastering preset.
 
-The bridge should use ordinary `live.path` / `live.object` / `live.observer` calls for state changes. Live API calls run on Live's main thread and are automatically deferred, so the system should **not** use the LOM as a high-rate message transport. For genuinely real-time parameter movement, `live.remote~` exists, but Cycling '74 explicitly notes that it does not create Live undo steps; that makes it appropriate for transient real-time control, but a poor canonical mechanism for state that needs transactional undo. citeturn17search19turn17search29
 
-**Codex/LLM agent.** Codex should never manipulate raw Ableton state from natural language directly. Its job is to call high-level capabilities such as `generate_sample_from_sources`, `create_midi_clip`, `apply_mix_chain`, `analyse_mix`, `master_track` and `render_for_club`. OpenAI's guidance for local-shell agent execution explicitly recommends sandboxing/containerisation, resource limits, command filtering and logging. citeturn18search1turn18search5
+## Electronic-music mixing workflows for club translation
 
-A useful design consequence is that Codex can reason over **compact metadata** rather than needing the audio itself in model context:
+The agent should view club-oriented mixing as a problem of **energy allocation over frequency, time and stereo space**. This is particularly important because sound-reinforcement low-frequency performance varies dramatically across venues. AES work on large-scale reinforcement shows how subwoofer placement, orientation and calibration affect low-frequency coverage throughout an audience area. citeturn19search1turn19search4 A mix that succeeds only at one studio listening position is therefore not truly "club translated".
 
-```text
-Track: Bass
-Role confidence: bass 0.94
-Peak: -7.2 dBFS
-Integrated loudness: -20.1 LUFS
-F0 median: 49 Hz
-Energy 25-60 Hz: -14.8 dB rel.
-Energy 60-120 Hz: -9.1 dB rel.
-Stereo side/mid below 100 Hz: -17.4 dB
-Masking conflict with Kick: 0.71
-Current devices:
-  Utility
-  EQ Eight
-  Compressor
-```
+### Universal Ableton mixing workflow
 
-Codex can use that to decide *what* should change, while deterministic local code performs the measurement and DSP.
+Before applying genre-specific logic, the agent should perform the same structural pass on every project.
 
-**Local command server.** I recommend Python for the central daemon because most audio/ML tooling is already Python-accessible. FastAPI or an equivalent small HTTP/WebSocket stack is sufficient. Bind it to `127.0.0.1` by default, require a session token, expose an explicit action registry rather than arbitrary shell execution, and give audio workers their own process pool.
+**First, organise the Set.** A recommended Ableton hierarchy is:
 
-**Max for Live bridge.** A small `.amxd` device can relay Live state/actions to the server. `node.script` is particularly useful because Cycling '74 defines it as a mechanism for controlling a **local Node.js process from Max**, and its `max-api` module can translate Max dictionaries to JSON and maintain persistent state. citeturn18search3turn18search7
-
-The bridge's API should be intentionally thin:
-
-```text
-get_live_version
-get_song_state
-get_tracks
-get_track
-get_clip
-get_devices
-get_device_parameters
-create_audio_track
-create_midi_track
-create_audio_clip
-create_midi_clip
-set_notes
-set_device_parameter
-set_track_volume
-set_track_pan
-set_send
-fire_clip
-stop_clip
-set_tempo
-render_request
-```
-
-Current Live APIs expose device identities, automatable device parameters, latency and parameter values; the API can also create audio clips from absolute file paths, which is exactly what a local sample generator needs. citeturn26search0turn26search6turn26search8
-
-**Audio asset store and provenance database.** Generated files should be immutable and content-addressed:
-
-```text
-project/
-  sources/
-  generated/
-    sha256/
-  renders/
-  models/
-  references/
-  provenance.sqlite
-  transactions.sqlite
-  analysis.sqlite
-```
-
-Never overwrite a generated sample. A new process or model setting creates a new hash. Ableton clips then reference those immutable files.
-
-**Audio analysis service.** Keep this outside Live so automated tests do not depend upon UI state. At minimum it should calculate loudness/true peak to ITU-R BS.1770, spectral-band statistics, crest factor, DC offset, clipping, low-band mid/side balance and mono-fold behaviour. ITU-R BS.1770-5 is the current in-force recommendation defining loudness and true-peak measurement; true peaks may occur between discrete samples, which is why an ordinary sample-peak check is not sufficient. citeturn24search0turn24search8
-
-## Local sample generation from real sources
-
-The sample engine should have **two modes of creativity** rather than treating every sound as an ML problem.
-
-The first mode, which should ship first, is **traceable corpus synthesis**. Analyse every real recording into transient/steady-state regions, derive descriptors, search the corpus for compatible material, then compose a new waveform from those pieces. FluCoMa is unusually well matched to this because its project explicitly targets descriptor-based exploration, signal decomposition, machine learning and hybridisation by concatenation of sound corpora. citeturn19search3turn19search7
-
-A practical one-shot pipeline would be:
-
-```text
-source recordings
-    ↓
-remove silence / reject corrupt files
-    ↓
-transient + novelty segmentation
-    ↓
-per-segment descriptors
-    ↓
-feature normalisation
-    ↓
-nearest-neighbour / stochastic retrieval
-    ↓
-attack selection + body selection + tail selection
-    ↓
-micro time/pitch/envelope transformation
-    ↓
-granular/crossfade reconstruction
-    ↓
-optional analogue-style DSP
-    ↓
-quality checks
-    ↓
-generated WAV + provenance graph
-```
-
-Descriptors worth storing include duration, RMS/loudness, zero-crossing rate, onset strength, spectral centroid, spectral roll-off, spectral flatness, MFCC-like timbre coefficients, estimated pitch where meaningful, transientness and decay characteristics. For drum synthesis, the retrieval distance can change with the segment: transient similarity is weighted heavily for the attack; spectral envelope and decay dominate the body/tail.
-
-Feature normalisation matters when computing nearest-neighbour distance because features on numerically larger ranges would otherwise dominate the distance. FluCoMa's learning materials explicitly discuss scaling before similarity measurement, and its dataset/search tooling supports nearest-neighbour corpus lookup. citeturn16search0turn16search9
-
-For example, a generated deep-house kick could be created from a cleared recording of an acoustic floor-tom attack, the low-frequency body of a recorded drum-machine kick, and a short room tail, with sub-cycle phase alignment and an envelope designed around the desired BPM. That still produces a new sample, but the timbral "matter" is substantially derived from actual recordings rather than a generic oscillator preset.
-
-| Approach | What it does | Real-source fidelity | Provenance quality | Local compute | Best use here | Recommendation |
-|---|---|---:|---:|---:|---|---|
-| **Segment concatenation** | Reassembles analysed pieces of recordings | Very high | **Excellent**: exact source segments | Very low | Kicks, percussion, foley, impacts | **Ship first**. FluCoMa explicitly supports corpus hybridisation/concatenation. citeturn19search7 |
-| **Granular resynthesis** | Overlap-adds short grains with local time/pitch/position variation | High | **Excellent–good** | Low | Hats, shakers, textures, atmospheres, vocal fragments | **Ship first** alongside concatenation. |
-| **Descriptor morphing + DSP** | Picks related real samples then changes envelope, pitch, filter, saturation etc. | High | Excellent | Low | Club drums, bass hits, FX | **Ship first**. |
-| **DDSP-style resynthesis** | Neural controls drive interpretable harmonic/noise/filter/reverb DSP | Medium–high for suitable signals | Corpus/model level | Moderate | Pitched bass, plucks, tonal resynthesis | **Second wave**. DDSP combines neural networks with differentiable synthesis/effects. citeturn19search1 |
-| **RAVE autoencoder** | Encodes waveform into a learned latent space and decodes/transforms it | High when well trained | Corpus/model level | Low–moderate inference; substantial training | Percussion, texture, broadband timbre transfer | **Excellent technically, licence/hardware review required**. citeturn19search0turn21view0 |
-| **NSynth** | WaveNet autoencoder embeds sounds for interpolation/resynthesis | Historically important | Corpus/model level | Heavy/legacy | Research/reference | **Do not choose for a new 2026 implementation**: the Magenta repository is archived and the original NSynth training workflow was extremely expensive. citeturn19search2turn19search6 |
-
-**DDSP is especially interesting for bass/pluck material.** Its library contains differentiable synthesis, effects and losses, including harmonic synthesis, filtered noise and trainable reverb; the project is Apache-2.0 licensed. citeturn19search1 Rather than asking it to invent a finished kick or song, a sample-derived encoder can estimate time-varying pitch/loudness/timbre controls from one of your recordings and then resynthesise or morph them. This makes it much more controllable than an unrestricted text-to-audio generator.
-
-**RAVE is the stronger neural candidate for broadband material.** The original IRCAM/Sorbonne paper introduced a waveform VAE capable of 48 kHz output and reported approximately 20× real-time synthesis on a standard laptop CPU. RAVE provides latent-space manipulation and timbre transfer rather than requiring the input to fit a harmonic oscillator model. citeturn19search0turn19search8 The current implementation can export a trained model as streaming TorchScript and the authors document loading those models in Max/Pure Data via `nn~`; `nn~` in turn interfaces TorchScript neural models with Max. citeturn20search1turn20search2
-
-Its training requirements are important:
-
-| Hardware available | Realistic sample-generation strategy |
-|---|---|
-| **Modern CPU, 16 GB RAM** | Corpus segmentation, granular/concatenative synthesis, DSP and analysis. RAVE inference may be viable, but do not plan on serious custom RAVE training. |
-| **Modern CPU, 32 GB RAM** | Preferred CPU-only production box; enough headroom for Live, corpus indexes, parallel renders and offline analysis. |
-| **NVIDIA GPU with ~8 GB VRAM** | Current RAVE docs list v1 and `v2_small` at an 8 GB minimum; `v2_small` is explicitly positioned for timbre transfer of stationary signals. citeturn21view0 |
-| **NVIDIA GPU with ~16 GB VRAM** | RAVE v2 reaches its documented minimum; this is the sensible neural-development tier. citeturn21view0 |
-| **~18–24 GB VRAM** | RAVE's discrete configuration clears its documented 18 GB minimum; considerably more experimentation becomes practical. citeturn21view0 |
-| **32 GB+ VRAM** | RAVE v3 reaches its stated minimum; the repository describes v3 as adding a descriptive discriminator and Adaptive Instance Normalisation for style transfer. citeturn21view0 |
-| **Apple Silicon** | Excellent for the deterministic/DSP engine and general local workflow. Test RAVE inference on the actual machine; `nn~` supports CPU operation, while RAVE documentation still describes its GPU option as experimental in the Max context. citeturn20search1turn20search2 |
-
-The RAM recommendations above, other than the published RAVE VRAM minima, are engineering recommendations rather than model requirements.
-
-There is also a significant **licensing reason not to make RAVE the foundation of the commercial MVP**. ACIDS/IRCAM projects and model releases have used Creative Commons non-commercial terms in this ecosystem; a current issue against `nn~` specifically flags its CC BY-NC 4.0 licence and notes that the same issue applies to RAVE. A commercial system should therefore treat RAVE/`nn~` licensing as a formal go/no-go review rather than assuming "source available" equals commercially unrestricted. citeturn28search1turn28search3
-
-By comparison, FluCoMa's Max project is BSD-3-Clause and DDSP is Apache-2.0, making them much cleaner starting points for a product intended to release commercial music. citeturn17search15turn17search22turn19search1
-
-A useful library stack is therefore:
-
-| Library/model | Role | Licence/status | Recommendation |
-|---|---|---|---|
-| **FluCoMa / flucoma-max** | Segmentation, descriptors, dataset indexing, decomposition, corpus retrieval | BSD-3-Clause; open source. citeturn17search15turn17search22 | **Core MVP** |
-| **Custom NumPy/SciPy audio engine** | Crossfades, envelopes, resampling, granular reconstruction, phase work | Depends on dependencies | **Core MVP** |
-| **DDSP** | Neural/physical resynthesis and differentiable DSP | Apache-2.0. citeturn19search1 | **Preferred neural experiment** |
-| **RAVE** | Broadband VAE resynthesis/timbre transfer | Check commercial licence before adoption; `nn~` ecosystem currently carries NC concerns. citeturn28search1turn28search3 | Research/optional |
-| **nn~** | Host TorchScript models in Max | Useful for RAVE integration; licence needs review for commercial deployment. citeturn20search2turn28search1 | Optional |
-| **NSynth** | Legacy autoencoder/interpolation | Magenta repository archived; historical training was computationally extreme. citeturn19search2turn19search6 | **Do not build around it** |
-| **dasp-pytorch** | Differentiable EQ, dynamics, distortion, stereo and reverb | Apache-2.0; CPU/GPU. citeturn20search3turn20search4 | Strong for future auto-mix optimisation |
-| **Spotify Pedalboard** | Offline DSP/plugin hosting from Python | GPLv3; supports VST3/AU and built-in audio effects. citeturn17search0 | Useful prototype/QA tool; assess GPL implications |
-| **pyloudnorm / libebur128** | Local standards-based loudness measurement | Lightweight open-source metering implementations | Core QA candidate |
-| **Essentia** | General music-information retrieval | AGPL-licensed open-source audio/MIR toolkit | Useful, but assess AGPL implications for a closed commercial product |
-
-A particularly good creative rule is to expose an **"AI amount"** or, preferably, **"source distance"** control. At `0`, output stays close to selected source segments. At increasing values the engine can allow progressively farther nearest neighbours, stronger grain rearrangement and ultimately latent resynthesis. This makes "don't make it sound AI" an explicit product constraint rather than just prompt wording.
-
-## Automated mixing, mastering and club targets
-
-The system should separate **mix decisions** from **mastering decisions**. Trying to correct a kick/bass arrangement conflict with a final limiter is exactly the kind of automation that produces flat, synthetic-sounding masters.
-
-The mix analyser should first infer structural roles:
-
-```text
-Kick
-Sub/bass
-Percussion
-Drum tops
-Lead/pluck
-Pads/harmony
-Vocals
-FX/atmosphere
-Returns
-Main
-```
-
-It then builds a masking/conflict graph. If the kick and bass overlap strongly in the same sub region, the agent should decide which is intended to be the lowest-frequency anchor, then choose among arrangement edits, envelope shortening, EQ, phase/timing changes or sidechain dynamics rather than automatically carving an arbitrary static EQ hole.
-
-The automated loop should be:
-
-```text
-inspect Live Set
-  → render/analyse stems
-  → classify track roles
-  → analyse reference tracks
-  → establish reference-relative targets
-  → propose gain/EQ/dynamics changes
-  → create editable Live chain
-  → render preview
-  → objective QA
-  → level-matched reference comparison
-  → iterate within limits
-  → human approval
-```
-
-The **reference-track system is more important than a universal genre preset**. The producer should keep perhaps three to five lawfully obtained WAV references for each target aesthetic: deep house, house, melodic techno, and perhaps separate "warm", "dark", "big-room" and "minimal" profiles. The engine analyses them locally and derives median spectral, loudness and dynamic descriptors. This is more robust than trying to encode the entire genre into one master curve.
-
-There is no authoritative standards body prescribing a particular LUFS value for a house or techno club master. ITU-R BS.1770 defines how loudness and true peak are measured; EBU R128's −23 LUFS target is explicitly a broadcast normalisation recommendation, not a dance-music mastering target. AES streaming recommendations similarly focus on distribution loudness and avoiding unnecessary degradation from excessive limiting. citeturn24search0turn24search1turn24search2turn24search10
-
-Accordingly, the following should be treated as **initial engineering profiles for the agent, not standards**:
-
-| Profile | Proposed starting LUFS-I window | True-peak ceiling | System behaviour |
-|---|---:|---:|---|
-| **Deep house** | **−10 to −8 LUFS-I** | **≤ −1.0 dBTP** | Bias towards punch, depth, longer decays and less continuous limiting. |
-| **House** | **−9 to −7 LUFS-I** | **≤ −1.0 dBTP** | Moderate/high density while preserving kick/transient definition. |
-| **Melodic techno** | **−9 to −6.5 LUFS-I** | **≤ −1.0 dBTP** | Permit more density, but reject audible pumping or flattened drops. |
-| **Reference-matched** | Median reference LUFS ± roughly 1 LU | **≤ −1.0 dBTP by default** | Preferred mode. Target the actual selected references rather than the genre label. |
-
-The −1 dBTP ceiling is a conservative default rather than a club loudness rule. EBU R128 specifies no more than −1 dBTP for its production context, and ITU-R BS.1770 explains why true peaks can exceed sample peaks. citeturn24search0turn24search5 A `club_only_aggressive` profile could permit a different ceiling after deliberate testing, but the default should remain distribution-safe.
-
-The automation should also **refuse to optimise only for integrated LUFS**. A loud master can score well on LUFS while having poor transient definition, excessive high-frequency distortion or serious kick/sub cancellation. The AES's streaming guidance expressly warns against excessive peak limiting that degrades audio quality. citeturn24search2turn24search10
-
-A useful objective QA profile is:
-
-| Measurement | Default engineering gate |
-|---|---|
-| Integrated loudness | Inside chosen genre/reference window |
-| True peak | ≤ −1.0 dBTP |
-| Digital clipping | Zero unclipped over-range samples in final PCM render |
-| Limiter gain reduction | Warning if sustained reduction regularly exceeds roughly 4 dB; hard review before pushing towards 6 dB |
-| Spectral balance | Median deviation from selected references should generally remain within about ±2 dB in broad bands from ~40 Hz–16 kHz unless deliberately overridden |
-| Subsonics | Flag material with disproportionate energy below ~25–30 Hz |
-| Low-frequency stereo | Flag strong Side energy below ~100–120 Hz and test mono fold-down |
-| Mono compatibility | Flag significant low-band loss/cancellation on L+R fold-down |
-| DC offset | Near zero; failure if material contains a meaningful DC component |
-| Stem reconstruction | Sum of exported stems should reproduce the expected main mix within the defined routing/tolerance model |
-| Silence/tails | No unintended truncation; no unexpectedly long reverb tail |
-| File integrity | Expected channels, bit depth, sample rate, duration and metadata |
-
-The limiter figures are deliberately conservative. Ableton itself notes that roughly 6 dB or more of limiter gain reduction may produce the wanted loudness but can significantly alter the sound and destroy dynamic structure. citeturn27search5 The agent should therefore respond to excessive limiting by reopening the **mix**: lower conflicting buses, tame isolated peaks, change low-frequency envelopes or introduce controlled saturation/soft clipping earlier.
-
-For club low end, the key is not "everything below 120 Hz must always be mono". It is **predictable summation and phase behaviour**. Bass management systems commonly route low-frequency content to subwoofers, making phase and crossover alignment particularly important. The QA engine should therefore inspect Mid/Side energy and the difference between stereo and mono-folded low bands rather than imposing a naïve stereo-width rule.
-
-A practical house/deep-house mix recipe is:
-
-| Area | Initial automated chain | What Codex is solving |
+| Group | Contents | Primary agent concern |
 |---|---|---|
-| **Kick** | Utility/gain → corrective EQ → optional subtle saturation/clip | Remove unusable subsonics, control resonances, establish fundamental/attack relationship |
-| **Bass** | EQ → optional saturation → kick-keyed Compressor → Utility | Keep the low foundation consistent and create temporal room for the kick |
-| **Drum bus** | EQ Eight → optional Roar/Saturator → Glue Compressor | Cohesion and peak management without erasing transient hierarchy |
-| **Percussion/tops** | EQ → transient-aware compression only when required → width | Prevent brittle high-frequency buildup and maintain motion |
-| **Music bus** | Broad corrective EQ → optional compression → width management | Keep pads/plucks out of the sub region and preserve midrange depth |
-| **FX/returns** | EQ before/after reverb or delay → level automation | Prevent reverb lows and high-frequency tails accumulating into the master |
-| **Main premaster** | Utility → broad EQ → optional Glue → optional very light saturation | Macro tonal/dynamic shaping |
-| **Master** | Corrective EQ if required → optional gentle glue/saturation → conditional multiband → Limiter → external QA meter | Reach reference density without fixing arrangement problems at the limiter |
+| KICK | Main kick, layers | Transient and fundamental |
+| DRUMS | Snare/clap, hats, percussion, break layers | Crest factor and mid/high density |
+| BASS | SUB + BASS MID + bass FX | Phase, masking and low-frequency width |
+| MUSIC | Synths, keys, pads, leads | Midrange occupancy |
+| VOX | Vocals / spoken samples | Intelligibility and harshness |
+| FX | Risers, impacts, noise | Peak and width management |
+| RETURNS | Room, long verb, delay, parallel processing | Low-frequency accumulation |
+| REF | Lossless reference tracks | Must bypass master processing |
+| MAIN | Mastering / monitoring chain | Conservative mix-bus treatment |
 
-All of those can be implemented using native Live devices. EQ Eight supports stereo, L/R and M/S processing; Glue Compressor provides external sidechain facilities; Multiband Dynamics offers three-band dynamics; Roar provides saturation with serial, parallel, multiband and mid/side possibilities; Limiter is intended for final peak control. citeturn27search0turn27search1
+Ableton's Group Tracks, routing, sends and returns support this hierarchical workflow directly. citeturn3search4
 
-The mix engine should avoid adding Multiband Dynamics simply because a preset says "mastering". It should only instantiate it when analysis identifies a time-varying band-specific problem that a broad EQ cannot solve.
+**Second, establish the static mix before mastering.** Live has large internal processing headroom and 64-bit summing at mix points, so a mystical requirement that the premaster "must peak at exactly -6 dBFS" has no technical basis. The real requirements are that the premaster is not already unintentionally clipped/limited and that the engineer leaves convenient operational margin. citeturn17search3 A useful agent preference is approximately -6 to -3 dBFS sample-peak during mixdown, but this should be treated as workflow headroom, **not** a mastering standard.
 
-| Tool family | Advantages | Limitations | Role |
-|---|---|---|---|
-| **Native Live devices** | Already editable in the Set; parameters exposed through Live; no third-party dependency | Parameter optimisation is effectively black-box from Python | **Default production path**. citeturn26search6turn26search8turn27search0 |
-| **Custom Max for Live analyser/controller** | Exact integration with Live; can show agent decisions and confidence | Requires Max development | **Strongly recommended** |
-| **FluCoMa in Max** | Corpus analysis and ML directly in the Max ecosystem | Not a turnkey mastering system | Sample engine + analysis. citeturn17search22turn19search7 |
-| **dasp-pytorch** | Differentiable EQ, compression, distortion, stereo and reverb on CPU/GPU; Apache-2.0 | Effects will not sound numerically identical to every Live device | Offline optimisation/surrogate mastering research. citeturn20search3 |
-| **Pedalboard** | Offline Python audio effects and VST3/AU hosting | GPLv3 implications; not your canonical Ableton state | Rendering/tests/prototyping. citeturn17search0 |
-| **Standards-based loudness libraries** | Deterministic, testable measurements outside the DAW | Measurement only | **Mandatory QA layer** |
+**Third, diagnose low-end conflicts by time as well as spectrum.** Kick and bass can occupy similar frequencies if their envelopes are separated; conversely, two nominally different fundamentals can still interact badly if tails overlap. The agent should examine:
 
-An interesting later-stage option is to optimise a differentiable chain in `dasp-pytorch` against a spectral/dynamic/reference loss, then use the resulting values as a **proposal** for analogous Live settings. Its project explicitly supports differentiable dynamics, EQ, distortion, stereo processing and reverb and is Apache-2.0 licensed. citeturn20search3turn20search4 This would let the ML component solve *parameters* while Live remains the editable source of truth.
+- kick fundamental and its tail;
+- sub fundamental and harmonics;
+- relative phase during kick/sub overlap;
+- level envelope over at least several bars;
+- energy below approximately 30–35 Hz;
+- side-channel low-frequency energy;
+- bus/limiter gain reduction when the two coincide.
 
-## Command protocol and Ableton integration
+**Fourth, treat high-pass filtering as surgery, not housekeeping.** Automatically high-passing every non-bass track often strips body without solving the actual low-frequency problem. Remove low material when it is noise, rumble, unwanted reverb or genuinely competing energy.
 
-The command protocol should be a versioned JSON RPC-style envelope. The language model should never generate direct `live.object` instructions as its primary interface; those belong in the M4L adapter.
+**Fifth, make the low end robust rather than dogmatically mono.** A sensible default is to concentrate core sub information towards the Mid channel somewhere around 70–120 Hz while allowing upper harmonics to widen. The frequency should be learned from the actual bass and references. AES findings showing low-frequency localisation down into the 31.5–63.5 Hz region are a useful warning against the simplistic "humans cannot localise bass" explanation. citeturn19search6turn19search30
 
-Every mutating request should contain a unique request identifier, optimistic state version, dry-run/preview support, deterministic random seed where relevant and a request to create an undo transaction. This mirrors OpenAI's recommendation to put strict control around local execution rather than forwarding unrestricted model-generated shell activity. citeturn18search1
+EQ Eight directly supports Mid/Side operation and can therefore be used to attenuate unwanted low Side information without collapsing the entire signal to mono. citeturn4view0
 
-A canonical envelope can look like:
+### House
 
-```json
-{
-  "protocol": "codex-live/1.0",
-  "request_id": "req_01K6XCBJZT7M1Y1A",
-  "project_id": "project_nightdrive",
-  "action": "action_name",
-  "expected_state_version": 42,
-  "mode": "commit",
-  "seed": 172904,
-  "params": {},
-  "safety": {
-    "create_undo_point": true,
-    "max_runtime_seconds": 120,
-    "max_generated_files": 16,
-    "allow_network": false
-  }
-}
-```
+For conventional four-on-the-floor house, the agent's first priority is the **kick/bass groove relationship**.
 
-**Composition action.** A composition command should describe musical intent in data rather than asking the Max bridge to interpret prose:
+A useful starting procedure is:
 
-```json
-{
-  "protocol": "codex-live/1.0",
-  "request_id": "req_compose_001",
-  "project_id": "project_nightdrive",
-  "action": "create_midi_clip",
-  "expected_state_version": 42,
-  "mode": "commit",
-  "seed": 84721,
-  "params": {
-    "track": {
-      "name": "Bass",
-      "create_if_missing": true
-    },
-    "location": {
-      "view": "arrangement",
-      "start_beat": 0,
-      "length_beats": 32
-    },
-    "musical_context": {
-      "tempo_bpm": 124,
-      "key": "F minor",
-      "style": "deep_house",
-      "role": "sub_bass"
-    },
-    "notes": [
-      {
-        "pitch": 41,
-        "start": 0.75,
-        "duration": 0.22,
-        "velocity": 104
-      },
-      {
-        "pitch": 41,
-        "start": 1.75,
-        "duration": 0.22,
-        "velocity": 96
-      },
-      {
-        "pitch": 44,
-        "start": 2.75,
-        "duration": 0.18,
-        "velocity": 91
-      }
-    ]
-  },
-  "safety": {
-    "create_undo_point": true,
-    "allow_network": false
-  }
-}
-```
+1. Solo kick and bass, then reintroduce the rest of the mix.
+2. Identify whether the kick or bass is intended to own the lowest fundamental region.
+3. If their envelopes conflict, shorten one, move the bass rhythm, or use side-chain gain reduction before reaching for broad master EQ.
+4. Use Live Compressor/Glue or an approved third-party side-chain processor on the bass.
+5. Start with approximately **2:1–4:1 ratio**, tune threshold for roughly **2–5 dB of momentary reduction**, and set release roughly **80–180 ms** as a *starting range*, then synchronise by ear with the actual groove.
+6. Check whether the bass returns naturally between four-on-the-floor kicks; a visible pumping envelope that fights the bass line is a failure.
+7. Keep kick and foundational sub comparatively stable in the stereo image and derive width from upper bass harmonics, percussion, reverbs and musical parts.
+8. Bypass and loudness-match the side-chain version. Retain it only if groove and apparent impact improve.
 
-Live's current object model exposes track and MIDI-clip creation, so the M4L adapter can translate this into supported LOM operations rather than resorting to keyboard/mouse automation. citeturn26search1turn26search3
+Those values are proposed starting points, not published standards.
 
-**`generate_sample_from_sources`.** This should be the flagship command:
+For drum-bus processing, a good native starting point is **Glue Compressor, 2:1, 10–30 ms attack, Auto or rhythmically appropriate release, 0.5–2 dB maximum regular gain reduction**. Glue Compressor is explicitly intended for bus-like processing and provides attack/release control, Range and optional oversampling. Its Soft Clip stage is a deliberate coloration rather than a transparent safety limiter and should therefore be used intentionally. citeturn4view1
 
-```json
-{
-  "protocol": "codex-live/1.0",
-  "request_id": "req_sample_018",
-  "project_id": "project_nightdrive",
-  "action": "generate_sample_from_sources",
-  "expected_state_version": 43,
-  "mode": "commit",
-  "seed": 9928171,
-  "params": {
-    "sources": [
-      {
-        "source_id": "src_tom_room_0042",
-        "role": "attack",
-        "max_contribution_ms": 80
-      },
-      {
-        "source_id": "src_kick_analogue_0117",
-        "role": "body"
-      },
-      {
-        "source_id": "src_room_tail_0029",
-        "role": "tail",
-        "max_contribution_ms": 180
-      }
-    ],
-    "method": "concat_granular",
-    "target": {
-      "type": "kick",
-      "genre": "deep_house",
-      "duration_ms": 510,
-      "fundamental_hz": 49,
-      "transient_character": 0.72,
-      "decay_character": 0.46,
-      "source_distance": 0.32
-    },
-    "processing": {
-      "phase_align_segments": true,
-      "crossfade_ms": 4,
-      "remove_dc": true,
-      "normalise_mode": "peak_safe",
-      "peak_dbfs": -3
-    },
-    "variations": 6,
-    "output": {
-      "sample_rate": 48000,
-      "bit_depth": 24,
-      "channels": 1,
-      "directory": "generated/kicks"
-    },
-    "provenance": {
-      "require_derivative_rights": true,
-      "require_ml_training_rights": false,
-      "reject_unknown_licence": true,
-      "record_source_segments": true
-    },
-    "ableton": {
-      "create_audio_track_if_needed": true,
-      "target_track": "Generated Kicks",
-      "insert_best_variation_in_session_slot": 0
-    }
-  },
-  "safety": {
-    "create_undo_point": true,
-    "max_runtime_seconds": 60,
-    "max_generated_files": 6,
-    "allow_network": false
-  }
-}
-```
+House frequently benefits more from **space around the kick** than from making the kick itself dramatically louder. The agent should therefore look at sustained synth/pad lows, reverb returns and stereo bass layers when the drop feels weak.
 
-Changing `method` to `"rave_reconstruction"` or `"ddsp_resynthesis"` should automatically change the provenance test to `require_ml_training_rights: true`. This matters because licences may permit using a sample in a composition without granting permission to use it as model-training material.
+### Techno
 
-The resulting WAV can then be inserted into Live using `ClipSlot.create_audio_clip` or the arrangement `Track.create_audio_clip`, both of which accept local audio-file paths. citeturn26search0turn26search1
+In techno, a common difficulty is that the "bass" is not a single bass track. Kick tails, reverberated kick rumble, drones, toms and bass synths may collectively create the low-frequency bed.
 
-**`apply_mix_chain`.**
-
-```json
-{
-  "protocol": "codex-live/1.0",
-  "request_id": "req_mix_021",
-  "project_id": "project_nightdrive",
-  "action": "apply_mix_chain",
-  "expected_state_version": 44,
-  "mode": "preview_then_commit",
-  "params": {
-    "target": {
-      "type": "track",
-      "name": "Bass"
-    },
-    "analysis_snapshot": "analysis_8ab47",
-    "intent": {
-      "role": "sub_bass",
-      "preserve_transients": true,
-      "priority": "kick_bass_separation"
-    },
-    "chain": [
-      {
-        "device": "EQ Eight",
-        "purpose": "remove_subsonic_and_control_masking",
-        "parameters": {
-          "band_1_type": "high_pass",
-          "band_1_frequency_hz": 27,
-          "band_3_frequency_hz": 74,
-          "band_3_gain_db": -1.7,
-          "band_3_q": 1.1
-        }
-      },
-      {
-        "device": "Compressor",
-        "purpose": "kick_sidechain",
-        "sidechain_track": "Kick",
-        "parameters": {
-          "ratio": 3.0,
-          "attack_ms": 2.5,
-          "release_ms": 105,
-          "target_peak_gain_reduction_db": 3.0
-        }
-      },
-      {
-        "device": "Utility",
-        "purpose": "low_frequency_width_control",
-        "parameters": {
-          "width_percent": 92
-        }
-      }
-    ],
-    "validation": {
-      "rerender_seconds": 32,
-      "compare_against_reference_profile": "deep_house_warm_v3",
-      "reject_if_true_peak_increase_db_gt": 3
-    }
-  },
-  "safety": {
-    "create_undo_point": true,
-    "allow_network": false
-  }
-}
-```
-
-The precise Live parameter values must be resolved through the device's exposed `DeviceParameter` objects rather than assuming that UI labels always correspond to fixed indices. Live exposes the device's parameter collection and whether a parameter is currently enabled for modification. citeturn26search6turn26search8
-
-**`master_track`.**
-
-```json
-{
-  "protocol": "codex-live/1.0",
-  "request_id": "req_master_009",
-  "project_id": "project_nightdrive",
-  "action": "master_track",
-  "expected_state_version": 45,
-  "mode": "preview_then_commit",
-  "params": {
-    "input": {
-      "source": "live_main",
-      "analysis_snapshot": "analysis_premaster_113"
-    },
-    "profile": "melodic_techno_club",
-    "references": [
-      "ref_mt_001",
-      "ref_mt_004",
-      "ref_mt_009"
-    ],
-    "targets": {
-      "integrated_lufs": {
-        "min": -9.0,
-        "max": -6.5,
-        "preference": "match_reference_median"
-      },
-      "max_true_peak_dbtp": -1.0,
-      "preserve_transients": true,
-      "max_sustained_limiter_reduction_db": 4.0,
-      "spectral_match": {
-        "enabled": true,
-        "max_broadband_deviation_db": 2.0
-      },
-      "low_frequency": {
-        "subsonic_warning_below_hz": 27,
-        "mono_compatibility_check_below_hz": 110
-      }
-    },
-    "allowed_processors": [
-      "EQ Eight",
-      "Glue Compressor",
-      "Roar",
-      "Multiband Dynamics",
-      "Limiter",
-      "Utility"
-    ],
-    "rules": {
-      "multiband_only_if_problem_detected": true,
-      "prefer_mix_revision_over_heavy_limiting": true,
-      "no_destructive_bounce": true
-    }
-  },
-  "safety": {
-    "create_undo_point": true,
-    "allow_network": false
-  }
-}
-```
-
-**`render_for_club`.** The 48 kHz / 24-bit settings below are an example profile, not a universal club standard; the system should preserve the project rate or conform to the actual playback/label specification when one is supplied.
-
-```json
-{
-  "protocol": "codex-live/1.0",
-  "request_id": "req_render_037",
-  "project_id": "project_nightdrive",
-  "action": "render_for_club",
-  "expected_state_version": 46,
-  "mode": "commit",
-  "params": {
-    "source": "main",
-    "range": "full_arrangement",
-    "format": {
-      "container": "wav",
-      "codec": "pcm",
-      "sample_rate": 48000,
-      "bit_depth": 24,
-      "channels": 2,
-      "normalise": false
-    },
-    "post_render_qa": {
-      "measure_bs1770": true,
-      "max_true_peak_dbtp": -1.0,
-      "detect_clipped_samples": true,
-      "detect_dc": true,
-      "spectral_analysis": true,
-      "mono_fold_check": true,
-      "low_band_side_check": true,
-      "compare_references": true
-    },
-    "artifacts": {
-      "write_analysis_json": true,
-      "write_provenance_manifest": true,
-      "write_mastering_report": true
-    }
-  },
-  "safety": {
-    "create_undo_point": false,
-    "allow_network": false
-  }
-}
-```
-
-**`undo`.**
-
-```json
-{
-  "protocol": "codex-live/1.0",
-  "request_id": "req_undo_006",
-  "project_id": "project_nightdrive",
-  "action": "undo",
-  "expected_state_version": 47,
-  "mode": "commit",
-  "params": {
-    "transaction_id": "txn_master_009",
-    "strategy": "restore_exact_pre_transaction_state",
-    "generated_asset_policy": "unlink_if_unreferenced"
-  },
-  "safety": {
-    "allow_network": false
-  }
-}
-```
-
-The response envelope should return enough evidence for Codex to reason about the result:
-
-```json
-{
-  "request_id": "req_master_009",
-  "status": "ok",
-  "transaction_id": "txn_master_009",
-  "previous_state_version": 45,
-  "state_version": 46,
-  "artifacts": [
-    {
-      "type": "analysis",
-      "id": "analysis_master_114"
-    }
-  ],
-  "metrics": {
-    "integrated_lufs": -7.8,
-    "max_true_peak_dbtp": -1.02,
-    "loudness_range_lu": 4.3,
-    "max_limiter_reduction_db": 3.4
-  },
-  "warnings": [
-    {
-      "code": "LOW_BAND_STEREO",
-      "severity": "info",
-      "message": "Side energy at 85-105 Hz is above the project reference median."
-    }
-  ]
-}
-```
-
-One very important protocol rule is **idempotency**. Sending `req_master_009` twice must not instantiate two mastering chains. The server should return the stored result for a previously committed request ID. `expected_state_version` should also reject an action if the human has edited Live since Codex inspected it, preventing an agent from applying a stale decision over newer work.
-
-## Provenance, licensing, safety and testing
-
-The source-sample policy is arguably as important as the synthesis algorithm. A producer may have permission to put a commercial sample in a song while **not** having permission to use it to train a generative model.
-
-Splice is a particularly clear example. Its current Terms prohibit using Splice Sounds as source or training material for generative or other AI models. This means an owned/downloaded Splice sample **must not** simply be added to a RAVE/DDSP training corpus because it is royalty-free for normal production purposes. citeturn23search4
-
-Ableton's own EULA similarly distinguishes using included materials in original compositions from creating new sound packs/sample libraries. It allows materials to contribute to original compositions subject to its conditions, while prohibiting reformatting, filtering, re-synthesising or otherwise altering those materials for standalone commercial sampling products or sample libraries without permission. citeturn23search1 That makes Live's factory/Packs content unsuitable as the automatic default corpus for a commercial "new sample generator" unless the relevant rights are specifically cleared.
-
-For a serious commercial system, the preferred source hierarchy is therefore:
-
-**own field/studio recordings → commissioned recordings with explicit derivative/ML terms → CC0/public-domain material with provenance → CC BY where obligations are manageable → separately negotiated commercial libraries expressly allowing ML/resynthesis.**
-
-Creative Commons confirms that CC BY permits adaptation and commercial reuse with attribution; CC BY-SA adds share-alike; NC licences restrict use to non-commercial purposes; and ND licences prohibit sharing adaptations. CC0 places material into the public-domain framework without those conditions. citeturn23search2turn23search6
-
-Freesound can be useful, but its own FAQ stresses that sounds carry different Creative Commons licences, some prohibit commercial use, many require attribution, and user uploads may occasionally contain material the uploader did not actually have the right to upload. A `freesound` origin field therefore cannot itself count as clearance. citeturn23search3
-
-The provenance database should record, for every source:
-
-```json
-{
-  "source_id": "src_0000042",
-  "sha256": "9dba...",
-  "original_filename": "warehouse_tom_03.wav",
-  "creator": "User",
-  "acquisition_type": "own_recording",
-  "acquisition_date": "2026-10-02",
-  "source_url": null,
-  "licence_id": "OWNED",
-  "licence_snapshot_hash": "lic_79a...",
-  "evidence_path": "rights/src_0000042/",
-  "rights": {
-    "commercial_music": true,
-    "derivative_audio": true,
-    "ml_training": true,
-    "generated_sample_redistribution": true
-  },
-  "attribution_required": false,
-  "performer_release": "not_applicable"
-}
-```
-
-A generated output needs a second record:
-
-```json
-{
-  "asset_id": "gen_kick_b42f",
-  "sha256": "b42f...",
-  "generator": "concat_granular/1.3.0",
-  "seed": 9928171,
-  "parents": [
-    {
-      "source_id": "src_tom_room_0042",
-      "start_frame": 83200,
-      "end_frame": 91412,
-      "role": "attack"
-    },
-    {
-      "source_id": "src_kick_analogue_0117",
-      "start_frame": 210112,
-      "end_frame": 267994,
-      "role": "body"
-    }
-  ],
-  "processing_recipe_hash": "recipe_8c7...",
-  "model_hash": null,
-  "created_at": "2026-10-02T14:21:16Z",
-  "approved_for_commercial_release": true
-}
-```
-
-For a RAVE or DDSP output, `parents` becomes a **training-corpus manifest plus conditioning inputs/model hash** rather than pretending that a particular output sample maps exactly to particular training frames.
-
-This is not a substitute for legal advice; sample-library and model licences can change, and commercial release should always use the terms that applied to the acquired material and actual intended exploitation.
-
-**Undo and safety should operate independently of Live's own undo history.** This matters because some real-time Live mechanisms do not create undo entries; Cycling '74 specifically documents this behaviour for `live.remote~`. citeturn17search19 The application's transaction database should therefore capture the before-state of every parameter or object the agent changes.
-
-A transaction record should hold:
-
-```text
-transaction_id
-request_id
-timestamp
-pre_state_hash
-post_state_hash
-expected_live_state_version
-objects_created
-objects_deleted
-parameters_before
-parameters_after
-files_created
-files_referenced
-random_seed
-command_payload_hash
-inverse_operations
-```
-
-High-impact transformations should default to **non-destructive topology**: duplicate a clip, create a new track/chain, or create a new generated asset rather than replacing the producer's only copy. `undo` restores parameter values and topology, and generated files are merely unlinked; immutable audio is only garbage-collected after verifying that no Live Set or transaction references it.
-
-Codex's operating permissions should be split into `inspect`, `preview`, `apply`, `render` and `destructive_admin`. A normal music-making session should not expose `destructive_admin`. OpenAI's local-shell guidance recommends precisely this style of sandboxing, resource limits and high-risk-command scrutiny. citeturn18search1turn18search5
-
-Testing needs four layers.
-
-| Layer | Test | Acceptance idea |
-|---|---|---|
-| **Protocol** | JSON Schema, invalid field handling, duplicate request ID, stale version | Invalid requests never reach Max; replays are idempotent |
-| **DSP** | Impulse, sine, noise, silence and known WAV fixtures | Deterministic output within numeric tolerance; no NaN/Inf/DC surprises |
-| **Live integration** | Create/delete track, insert audio, create MIDI, set parameters, reload Set | State returned by Live equals expected committed state |
-| **Audio/production** | Loudness, TP, spectral, phase, stem sum, references, listening | Objective gates pass and human blind comparison does not reveal systematic degradation |
-
-For generated samples, automated QA should catch empty files, clipped output, unusually high DC, broken transients, obvious discontinuities/clicks, pitch mistakes where pitch was specified and suspicious near-duplicates. A corpus generator should additionally calculate similarity against each source; if output is nearly identical to a single parent, it can reject it as insufficiently transformed where the intended licence/workflow requires meaningful transformation.
-
-For mixing/mastering, each candidate revision should produce an analysis JSON that includes at least integrated and short-term loudness, true peak, loudness range, spectral-band energy, peak/RMS or crest statistics, low-band Mid/Side ratio and mono-fold delta. Loudness and true-peak measurements should follow ITU-R BS.1770 rather than an ad-hoc meter. citeturn24search0turn24search8
-
-**Reference comparisons must be level-matched.** Otherwise a louder candidate tends to confound an evaluation of tonal balance and quality. The system should temporarily normalise candidate and reference to the same comparison loudness for A/B listening, even though their release masters remain at their original levels.
-
-Club testing should use versioned renders and a fixed test sheet. At minimum, audition the build on accurate nearfields, headphones, a small consumer speaker, mono, a sub-equipped monitoring system and eventually a known club PA. Record observations for kick/sub relationship, perceived impact, vocal/lead presence, harshness, stereo stability at different positions, limiter pumping and whether the breakdown/drop contrast survives a large system.
-
-The actual club PA test should not just ask **"is it loud enough?"**. A useful form is:
-
-| Question | Score |
-|---|---:|
-| Kick remains distinct from bass | 1–5 |
-| Sub is powerful without hanging over the next kick | 1–5 |
-| Drop feels materially bigger than breakdown | 1–5 |
-| Hats/leads remain comfortable at realistic playback level | 1–5 |
-| Stereo elements survive central/side listening positions | 1–5 |
-| Mono fold does not destroy groove or bass | 1–5 |
-| Master sounds as finished as the reference set when level-matched | 1–5 |
-
-The system should keep those human results against the master transaction ID. Over time, the user's own approved/rejected masters become more useful than generic genre assumptions: Codex can learn rules such as *"this producer consistently rejects masters where melodic-techno limiter reduction exceeds 3 dB during the drop"* without needing to train a new waveform-generation model.
-
-## Implementation roadmap, resources and key references
-
-The recommended build sequence deliberately delays custom neural synthesis. A deterministic corpus engine will already deliver the core artistic benefit—new sounds made from genuine recordings—while being dramatically easier to debug, clear and reproduce. RAVE and DDSP then become optional **new timbral engines behind the same `generate_sample_from_sources` protocol**, rather than architectural dependencies.
+A useful Ableton rumble workflow is:
 
 ```mermaid
-gantt
-    title Suggested development timeline
-    dateFormat  YYYY-MM-DD
-
-    section Foundation
-    Protocol, asset model, provenance       :a1, 2026-10-05, 10d
-    Local command server and sandbox        :a2, 2026-10-05, 14d
-
-    section Ableton
-    Max for Live bridge                     :b1, after a1, 14d
-    Track, clip and parameter operations     :b2, after b1, 10d
-
-    section Sample engine
-    Segmentation and descriptors            :c1, after a1, 14d
-    Corpus retrieval and granular synthesis :c2, after c1, 14d
-    Live sample insertion                    :c3, after b2, 7d
-
-    section Mixing
-    Analysis and reference profiles         :d1, after a2, 14d
-    Editable auto-mix chains                :d2, after d1, 14d
-    Mastering and QA                        :d3, after d2, 14d
-
-    section Hardening
-    Transactions and comprehensive undo     :e1, after b2, 14d
-    Listening tests and club validation     :e2, after d3, 14d
-
-    section Neural optional
-    DDSP prototype                          :f1, after c2, 14d
-    RAVE evaluation and licence review      :f2, after c2, 21d
+flowchart LR
+    K[Kick] --> S[Send]
+    S --> R[Reverb / Delay]
+    R --> E[EQ]
+    E --> D[Saturation]
+    D --> SC[Kick-sidechain dynamics]
+    SC --> B[Rumble Return]
 ```
 
-The dates in that diagram are illustrative rather than commitments; sequencing is more important than calendar date.
+The agent should remove reverb energy that is not musically useful, control the rumble's decay so that successive kicks do not produce uncontrolled accumulation, and side-chain or shape the return where necessary. It should evaluate the **kick + rumble together** rather than optimising each in isolation.
 
-| Phase | Deliverable | Estimated engineering effort |
-|---|---|---:|
-| Foundation | JSON schemas, local server, asset/provenance DB, permissions | 1–2 weeks |
-| Ableton bridge | Read Live state; create tracks/clips; edit parameters | 2–3 weeks |
-| Real-sample generator | Segmentation, descriptors, search, concatenation/granular engine | 2–3 weeks |
-| Mix analyser | Stem/reference measurements and role classification | 1–2 weeks |
-| Auto-mix | Native Live chain construction and preview loop | 2–3 weeks |
-| Mastering/QA | Reference matching, BS.1770 measurements, render checks | 2–3 weeks |
-| Production hardening | Undo, state conflicts, crash recovery, test fixtures | 2–3 weeks |
-| Neural extension | DDSP and/or RAVE prototype | 2–6+ additional weeks |
+For dense techno, the most frequent mastering mistake is attempting to obtain all "power" with broadband limiting. The agent should first search for density problems in the mix: sustained mid-bass, stacked distorted layers, long reverbs and constant high-frequency noise. A less crowded arrangement often becomes louder more gracefully than an unchanged mix fed another 4 dB into a limiter. Practitioner discussion in professional mastering forums repeatedly reflects this point: very loud numerical readings are not themselves evidence of a better club master, and dynamically healthier masters can sound larger when comparisons are level-matched. Such forum evidence should be treated as practitioner experience rather than a formal standard. citeturn16search0turn16search4
 
-Work can overlap, which is why the proposed **MVP is roughly six to nine engineer-weeks rather than the sum of every row**. A robust beta with all hardening and club testing is more realistically in the twelve-to-eighteen engineer-week range. Custom neural training can expand considerably depending on corpus size, hardware and how much model tuning is needed.
+The techno agent should pay special attention to approximately the **upper-mid/presence region** at realistic monitoring levels. Material that seems exciting at bedroom level can become fatiguing once reproduced loudly. The correct response is not a blanket fixed-frequency cut; it is to find whether distortion, hats, rides, synth resonance or limiting is responsible.
 
-For staffing, the efficient combination is **one audio-capable software engineer** comfortable with Python, TypeScript/JavaScript and Max, plus a producer/mix engineer for perhaps one or two focused evaluation sessions per week. A dedicated ML engineer is only necessary when custom neural training moves beyond experimentation.
+### Drum & bass
 
-The recommended MVP acceptance test is deliberately concrete:
+Drum & bass has a particularly demanding interaction between **fast transient drums and sustained low-frequency material**. The agent should therefore separate analysis into at least:
 
-> From a natural-language prompt, Codex selects only cleared real source recordings, generates six novel percussion/kick variants locally, records exact provenance, places the selected sample in Ableton, creates or edits the relevant MIDI/audio clips, builds an editable kick/bass mix chain, creates an editable Main mastering chain, renders a 24-bit WAV, returns LUFS/true-peak/spectral/mono QA results, and can reverse every DAW modification through one transaction-level `undo` without destroying the source or generated audio.
+- Kick
+- Snare
+- Break/percussion bus
+- Sub
+- Bass mids
+- Music/vocals
+- FX
 
-That MVP proves every important architectural assumption while avoiding the highest-risk piece—custom neural generation.
+If sub and distorted bass are one printed sound, it can still use M/S and spectral measurements, but having separate sub and mid-bass components gives the agent substantially more control.
 
-The recommended development order is consequently:
+A practical DnB workflow is:
 
-**FluCoMa/corpus DSP → Ableton bridge → provenance → editable auto-mix → mastering/QA → DDSP → optional RAVE.**
+1. Make the **sub understandable without the bass mids**.
+2. Verify that kick and sub do not create a large low-frequency spike when coincident.
+3. Check snare peak level and crest factor before master limiting.
+4. Control pathological drum peaks on the drum bus—often through small amounts of saturation/clipping—rather than asking the final limiter to remove every transient.
+5. Recombine sub and bass mids and check mono.
+6. Only then determine master density.
 
-That order is technically conservative but artistically aligned with the original requirement. The system will begin by treating **real recorded audio as the raw material**, with Codex deciding how to search, combine and process it. Neural resynthesis is then available when it genuinely produces a useful sound, instead of becoming the default aesthetic.
+For very loud DnB, staged peak control usually performs better than one stage doing all the work. For example, 1–2 dB of deliberate peak rounding at a drum/bass or premaster stage followed by 1–3 dB of true-peak limiting may retain more shape than 5 dB of continual final limiting. This is a workflow heuristic rather than an absolute rule; Ian Shepherd similarly advocates distributing gain control across stages rather than forcing a limiter into excessive reduction. citeturn16search1
 
-The principal primary references for implementation are:
+Live's Saturator is useful here because it offers Analog Clip, Digital Clip, Soft Sine and other waveshaping modes, has a high-quality mode to reduce aliasing, and permits reduced saturation of low frequencies—valuable when upper bass/drum peaks need shaping without unnecessarily distorting the core sub. citeturn15search0
 
-| Reference | Why it matters |
+A good agent policy is:
+
+> **If the limiter is reacting mainly to sub rather than audible attack, fix the low-end envelope before increasing limiter input.**
+
+This principle generalises across all three genres.
+
+
+## Mastering chain, loudness, metering and club-master preparation
+
+### There is no universal club loudness standard
+
+The agent's most important mastering rule should be to reject the premise that a track must equal a fixed LUFS number merely because it is intended for a club.
+
+LUFS measurement is based on the ITU-R BS.1770 family of algorithms and is valuable because peak level alone is a poor description of perceived programme loudness. AES educational material demonstrates that two signals with virtually the same peak level can differ substantially in LUFS after heavy dynamics processing. citeturn18search5turn18search9
+
+But a club is not a loudness-normalised broadcast channel. PA gain and venue processing determine acoustic level. Sound-reinforcement research also shows that subwoofer configuration and audience position alter low-frequency coverage, further weakening the idea of a single file-level number guaranteeing club impact. citeturn19search1
+
+Accordingly, these are **recommended agent operating envelopes**, not standards:
+
+| Profile | Proposed starting envelope, LUFS-I | Preferred true-peak ceiling | Agent interpretation |
+|---|---:|---:|---|
+| Dynamic/deep electronic | about -11 to -8 | -1.0 dBTP | Preserve depth; do not densify merely because commercial tracks can be louder |
+| House | about -9 to -6.5 | -1.0 dBTP distribution; up to roughly -0.5 dBTP dedicated PCM only | Calibrate to subgenre reference set |
+| Techno | about -9 to -6 | same | Density varies enormously; reference matching essential |
+| Drum & bass / bass music | about -8 to -5.5 | same | Very loud masters possible, but reject audible drum/sub collapse |
+| Streaming/distribution | **No universal mastering target** | ordinarily ≤ -1 dBTP is prudent | Platform normalisation is playback policy, not a creative master target |
+| Broadcast EBU R128 | -23 LUFS | -1 dBTP in relevant R128 workflows | **Not a club-music target** |
+
+The electronic ranges above are **this report's proposed QC bands**, not values mandated by AES, ITU, Ableton or a streaming service. Their purpose is to catch obviously anomalous outputs while leaving the final loudness reference-led. Professional practice itself spans a wide range: Bob Katz told the AES that his usual digital-distribution specification is -14 LUFS/-1 dBTP but that he has delivered -8 LUFS work at client request. citeturn18search2
+
+A substantially better automatic target calculation is:
+
+\[
+L_\text{working} =
+\operatorname{median}
+(L_\text{ref1},L_\text{ref2},...,L_\text{refN})
+\]
+
+and then constrain the agent initially to approximately:
+
+\[
+L_\text{working} \pm 1 \text{ LU}
+\]
+
+while preserving the option to stay **quieter** if reaching that range audibly damages the track.
+
+Measure both whole-track integrated loudness and a defined comparable section—typically an 8–32-bar peak/drop section—because arrangement strongly influences integrated LUFS.
+
+### Recommended Ableton-native mastering chain
+
+A clean native chain is:
+
+```text
+Utility
+  ↓
+EQ Eight
+  ↓
+Glue Compressor
+  ↓
+Saturator (optional)
+  ↓
+Limiter in True Peak mode
+  ↓
+Metering / QC
+```
+
+These devices are all native, which is especially useful for automation because current `insert_device` support covers native Live devices. citeturn17search0
+
+**Utility — gain staging and sanity control**
+
+Start with no processing other than enough trim to give the downstream chain convenient operating margin. Utility can control gain, stereo width and channel/phase functions; 0% Width produces mono while values above 100% increase width. citeturn15search0
+
+Do **not** use master-width expansion by default. Width greater than 100% should require a positive A/B result and a mono-compatibility pass.
+
+**EQ Eight — corrective tonal work**
+
+Recommended agent defaults:
+
+| Parameter | Starting value | Rule |
+|---|---:|---|
+| HP filter | Off | Engage only for unwanted infra/rumble |
+| HP frequency when required | roughly 18–25 Hz | Start gentle, usually 12 dB/oct |
+| Broad tonal correction | normally within ±0.5–1.5 dB | Larger correction should trigger mix-review warning |
+| Low Side attenuation | optional around 70–120 Hz | Only if stereo low-end instability is measured |
+| Oversampling | On for final-quality work | Prioritise fidelity over CPU in mastering |
+
+EQ Eight supports stereo, left/right and Mid/Side processing as well as multiple cut slopes and oversampling. citeturn4view0
+
+A 20 Hz high-pass should **not** be permanently enabled just because a track is electronic. Low fundamentals, filter movement and phase response differ from record to record. The agent should turn it on when it solves an observed problem.
+
+**Glue Compressor — small-scale envelope cohesion**
+
+Good default:
+
+```text
+Ratio:       2:1
+Attack:      30 ms
+Release:     Auto
+Range:       2 dB
+Dry/Wet:     100%
+Soft Clip:   Off
+Oversample:  On
+Target GR:   0.5–1.5 dB typical
+```
+
+For material requiring firmer drum cohesion, test 10 ms attack. If kick/snare impact decreases, return to 30 ms or bypass. Glue offers Range, Auto release, Dry/Wet, soft clipping and oversampling, so it can be tightly constrained by the agent. citeturn4view1
+
+The agent should not regard "compressor active" as synonymous with "better". If level-matched bypass wins, remove it.
+
+**Saturator — optional peak conditioning**
+
+Good conservative starting point:
+
+```text
+Curve:        Analog Clip
+Drive:        +1 to +2 dB
+Output:       inverse-match Drive approximately
+Hi-Quality:   On
+Pre-DC:       On if DC offset is present
+Amt Lo:       neutral or slightly reduced
+Dry/Wet:      100%, unless explicitly used in parallel
+```
+
+Saturator's current Live implementation offers Analog Clip and several other shaping curves, separate low/high saturation weighting, high-quality mode and a Pre-DC filter. citeturn15search0
+
+The agent should gain-match before judging saturation. An improvement that disappears after level matching was mostly a loudness preference.
+
+**Limiter — final peak management**
+
+Current Live's Limiter provides several lookahead values and includes a **True Peak** ceiling mode designed to prevent inter-sample peaks; Ableton recommends placing it at the end of a processing chain when it is being used to prevent output clipping. citeturn4view2turn4view3
+
+Recommended clean starting state:
+
+```text
+Mode:          True Peak
+Ceiling:       -1.0 dBTP
+Lookahead:     3 ms
+Stereo Link:   high / conservative
+Input/Gain:    raise until target/reference balance reached
+```
+
+Test 6 ms when 3 ms gives audible transient or low-frequency distortion. Test shorter lookahead when transient character is being softened, but re-run true-peak and distortion QC.
+
+For distribution, **-1 dBTP** is a strong default. True-peak headroom protects against peaks that occur between stored samples and against some downstream processing/encoding conditions; both ITU-R BS.1770 and AES literature address this distinction. citeturn18search9turn19search0 Ian Shepherd likewise recommends -1 dBTP as a practical final limiter setting for material likely to undergo lossy/data-reduced distribution. citeturn16search1
+
+For a dedicated, unencoded club PCM version, an engineer may choose a ceiling closer to approximately -0.5 dBTP, but the agent should only do so when there is a reason. The extra half decibel is rarely worth sacrificing decode/playback safety. Maintaining -1 dBTP for both club and distribution masters is entirely defensible.
+
+The agent should create a warning at **3 dB sustained/regular limiter reduction** and a strong review condition by approximately **4 dB**. That threshold follows Ian Shepherd's practical guidance rather than a formal standard. citeturn16search1
+
+### Third-party limiter comparison
+
+| Limiter | Particularly useful capabilities | Best agent role | Automation caveat |
+|---|---|---|---|
+| **Ableton Live Limiter** | Native integration, True Peak mode, multiple lookaheads, stereo/M/S-related routing options | Default deterministic final limiter | Native, so current LOM can insert it programmatically. citeturn4view2turn17search0 |
+| **FabFilter Pro-L 2** | True-peak limiting and metering, integrated loudness meter, multiple algorithms, oversampling and dither; its Aggressive algorithm is explicitly positioned for EDM/dance | Excellent general/EDM reference limiter and automated meter | Pre-load in Rack; current LOM cannot insert plug-ins. citeturn20search0turn20search1 |
+| **iZotope Ozone 12 Maximizer** | IRC 5 uses a four-band multiband limiting architecture | Useful when broadband limiter pumping is the limiting factor | More parameters and greater potential for over-processing; pre-load. citeturn20search16turn20search17 |
+| **Sonnox Oxford Limiter** | Dedicated true-peak control plus Enhance and dithering capabilities | Strong mastering option where low-end/transient behaviour is preferred | Pre-load; expose only safe controls. citeturn20search18turn20search28 |
+
+Matt Colton reports using the Oxford Limiter specifically because he values retaining transients and punch while obtaining requested loudness, illustrating why the agent should choose limiters by audible behaviour rather than brand-independent numerical output alone. citeturn16search3
+
+FabFilter explicitly describes Pro-L 2's Aggressive style as useful for EDM/dance and Modern as its general transparent option. It also supports true-peak limiting, BS.1770-compatible metering and oversampling, which makes **Modern versus Aggressive at equal output loudness** an excellent automated A/B test for house, techno and DnB. citeturn20search0turn20search2
+
+### Compressor comparison
+
+| Compressor | Character / facilities | Suggested electronic-music role |
+|---|---|---|
+| **Ableton Glue Compressor** | Bus-oriented model; Range, Auto release, Dry/Wet, optional soft clipping and oversampling | First-choice native mix/master glue; extremely automation-friendly. citeturn4view1 |
+| **FabFilter Pro-C 2** | Multiple compression styles, extensive timing/side-chain control, oversampling and M/S facilities | Precision side-chain duties, flexible master-bus alternatives and genre-dependent pumping. citeturn12search0 |
+| **TDR Kotelnikov GE** | High-fidelity wide-band processor with independent treatment of peak/RMS behaviour, side-chain filtering and stereo-oriented controls | Transparent stereo-bus/master dynamics where coloration is unwanted. citeturn20search15turn20search20 |
+
+The agent should A/B compressors on **equal output loudness**, record maximum and average gain reduction, and reject a compressor if the principal improvement is merely increased level.
+
+### True peak, stereo width and sub management
+
+The club-master policy should be:
+
+**True peak:** Measure it, even for PCM. Sample peak alone cannot show all reconstructed peaks. citeturn19search0turn19search2
+
+**Sub:** Look for needless energy below the meaningful range of the composition, but never blindly high-pass because "clubs cannot play below 30 Hz". Sound systems vary, and modern reinforcement can reproduce substantial low-frequency extension. AES sound-reinforcement literature demonstrates that LF performance is fundamentally deployment-dependent. citeturn19search1
+
+**Stereo:** Prefer stable Mid-channel fundamentals with width above the deepest bass where musically appropriate. Use correlation/mono tests, but remember that positive correlation is not itself proof of a good stereo image.
+
+**Dynamics:** Avoid allowing a sustained sub note to force broadband attenuation of hats, vocals and synths. Fix the bass envelope or use a more suitable staged/dynamic process first.
+
+**EQ:** Broad mastering EQ should normally be subtle. A recurring 3–5 dB tonal repair is evidence that the mix should probably be revised.
+
+### Dither and file preparation
+
+Ableton's export documentation and Audio Fact Sheet make the core rule straightforward: 32-bit rendering is appropriate when further processing will follow; when rendering to a lower fixed bit depth, dither is appropriate, and repeated dithering should be avoided. Ableton's triangular dither is the conservative/default choice where no specific noise-shaping strategy is required. citeturn2search2turn2search4turn17search3
+
+Recommended deliverables:
+
+| Deliverable | Format | Dither | Purpose |
+|---|---|---|---|
+| Master archive / further processing | 32-bit float WAV | None | Maximum interchange headroom |
+| Club/DJ master | 24-bit WAV at agreed project/delivery sample rate | Once, at final reduction | Primary uncompressed playback master |
+| Distribution master | 24-bit WAV, ordinarily ≤ -1 dBTP | Once | Distributor/encoding source |
+| 16-bit version if explicitly required | 16-bit PCM | Once at final conversion | Legacy delivery |
+
+Avoid needless sample-rate conversion. Ableton specifically notes that conversion is non-neutral and recommends matching material to the project's operating rate where possible. citeturn17search3
+
+The mastering agent should never apply dither to an intermediate 32-bit float file, reopen it, process it, and dither again.
+
+
+## Reference workflow, monitoring and club-translation verification
+
+### Reference-track workflow
+
+References are more important than a global loudness target because they encode the actual expectations of the chosen subgenre, label, period and production style.
+
+Use **three to five** references rather than one. A single reference can contain an unusual tonal choice that the agent would otherwise mistake for a genre rule.
+
+The Ableton template should contain a `REF` track whose audio bypasses the project's master-processing chain. One practical method is routing it directly to the same hardware output rather than through the processed Main path. The A/B tool should ensure that only one source is active at once and that output gain is controlled.
+
+For each reference:
+
+1. Use a **local lossless source** where possible.
+2. Disable warping unless deliberately needed.
+3. Select comparable musical sections: drop-to-drop, breakdown-to-breakdown.
+4. Measure integrated LUFS, short-term LUFS in the chosen section, true peak, broad spectrum, low-frequency ratio and a peak-to-loudness/dynamic metric.
+5. Turn the louder signal down until comparisons are perceptually fair.
+6. Compare at the same monitoring gain.
+7. Record differences as observations rather than automatic correction instructions.
+
+Ian Shepherd explicitly advocates loading stylistically comparable references, measuring them and level-matching during mastering rather than blindly maximising loudness. citeturn16search5
+
+A reference report might read:
+
+```text
+DROP COMPARISON
+
+Target:
+  LUFS-S       -6.9
+  TP           -1.0 dBTP
+  20-80 Hz     slightly stronger than ref median
+  80-200 Hz    similar
+  2-5 kHz      +1.4 dB vs median
+  Side <100 Hz elevated
+
+References median:
+  LUFS-S       -6.5
+  TP           -0.9 dBTP
+
+Interpretation:
+  Loudness already competitive.
+  Do NOT add limiter gain.
+  Investigate side-bass and 2-5 kHz density.
+```
+
+This is a much better machine instruction than:
+
+> "Make this -6 LUFS."
+
+### Suggested musical references
+
+These are **candidate test records**, not universal tonal targets. The user should substitute records from the precise label/subgenre being targeted and use legitimately obtained lossless versions.
+
+| Area | Candidate references | What to compare |
+|---|---|---|
+| House | Bicep – *Glue*; Disclosure – *When a Fire Starts to Burn* | Low-end balance, percussion depth, ambience |
+| Techno | Jon Hopkins – *Open Eye Signal*; Daniel Avery – *Drone Logic* | Sustained density, kick/bass relationship, high-frequency restraint |
+| Drum & bass | Noisia – *Collider* / *Mantra*; Calibre – *Even If* | Drum/bass separation and contrasting approaches to density |
+| General mastering | Bob Katz's published mastering demonstrations | Level-matched differences between processing approaches; Katz provides mastering demonstrations through his mastering site. citeturn16search2 |
+
+The most useful reference set is not necessarily the most famous one. For an agent mastering minimal dub techno, five recent and sonically respected dub-techno releases are more valuable than a generic collection of festival EDM masters.
+
+### Monitoring hierarchy
+
+Monitoring is the largest uncontrolled variable in an automated mastering system. Bob Katz's mastering environment illustrates the professional ideal: extended low-frequency reproduction, calibrated satellite/sub integration, phase/time alignment and room correction. citeturn16search2 The lesson is not that every producer needs the same hardware; it is that the agent should distrust conclusions made from one imperfect listening system.
+
+Use a **translation ladder**:
+
+| Check | Purpose | Agent decision |
+|---|---|---|
+| Main monitors, normal calibrated level | Tonal balance, depth, transients | Primary judgement |
+| Main monitors, low level | Relative balance and midrange hierarchy | Kick/snare/vocal/music should remain intelligible |
+| Mono on mains | Phase/width compatibility | Flag disappearing bass, synths or reverbs |
+| Quality headphones | Low-end detail, clicks/distortion, stereo extremes | Cross-check room-dependent judgements |
+| Small speaker / restricted-bandwidth monitor | Midrange translation | Determine whether groove survives without sub |
+| Multiple physical room positions | LF modal sensitivity | Do not EQ a master merely to correct one listening node |
+| Proper club/PA line check | End-use test | Final low-frequency and high-SPL translation check |
+
+Mastering engineer Matt Colton has specifically described headphones as a useful reference for tonal balance alongside his mastering monitoring, reinforcing the value of multiple independent playback perspectives. citeturn10search0
+
+Do **not** try to reproduce nightclub SPL for long periods in the production studio. Club translation can be assessed with sensible monitoring and brief controlled PA checks; louder monitoring does not create more reliable information once hearing adaptation/fatigue becomes a factor.
+
+### Room and low-frequency measurement
+
+The agent should support an optional measurement microphone workflow. The objective is not to "master to the room curve"; it is to understand whether a tonal observation is coming from the file or from the room.
+
+Recommended measurements:
+
+**Log swept sine:** approximately 20 Hz–20 kHz, used to observe room/speaker response.
+
+**Focused LF sweep:** approximately 20–200 Hz, useful for identifying strong modal peaks/nulls.
+
+**Multiple microphone positions:** repeat near the normal listening position rather than trusting one point.
+
+**Decay/waterfall information:** useful when a perceived "boomy mix" is actually a long room decay.
+
+**Stepped bass tones:** e.g. 30, 40, 50, 60, 80, 100 Hz at controlled level for subjective calibration.
+
+Room behaviour matters profoundly in this region. AES research on low-frequency localisation and standing waves has shown that room conditions can alter localisation judgement, while sound-reinforcement literature shows substantial position dependence in large audience spaces. citeturn19search33turn19search1
+
+This leads to an important agent rule:
+
+> **Never make a large master-EQ move from a low-frequency observation that occurs only at one listening position.**
+
+### Automated QC metrics
+
+The agent should collect at least:
+
+| Metric | Why |
 |---|---|
-| [OpenAI — Using Codex with your ChatGPT plan](https://help.openai.com/en/articles/11369540-using-codex-with-your-chatgpt-plan) | Current Codex local/cloud workflow distinction. citeturn18search0 |
-| [OpenAI — Local shell](https://developers.openai.com/api/docs/guides/tools-local-shell) | Local execution model and sandbox/security guidance. citeturn18search5 |
-| [Ableton — Max for Live manual](https://www.ableton.com/en/live-manual/12/max-for-live/) | Official Max for Live integration. citeturn18search6 |
-| [Cycling '74 — Live Object Model](https://docs.cycling74.com/apiref/lom/) | Exact programmable Live classes/functions. citeturn26search2 |
-| [Cycling '74 — Node for Max `node.script`](https://docs.cycling74.com/reference/node.script) | Local Node/JSON bridge from Max. citeturn18search3 |
-| [FluCoMa](https://www.flucoma.org/) | Open corpus manipulation, decomposition and machine-learning toolkit. citeturn19search3turn19search7 |
-| [RAVE paper — Caillon & Esling](https://arxiv.org/abs/2111.05011) | Original high-quality real-time neural-audio autoencoder paper. citeturn19search0 |
-| [RAVE implementation](https://github.com/acids-ircam/RAVE) | Current training/export configurations and hardware minima. citeturn21view0 |
-| [DDSP repository](https://github.com/magenta/ddsp) | Apache-licensed differentiable DSP/resynthesis library. citeturn19search1 |
-| [dasp-pytorch](https://github.com/csteinmetz1/dasp-pytorch) | Differentiable mixing/mastering DSP building blocks. citeturn20search3 |
-| [ITU-R BS.1770-5](https://www.itu.int/rec/R-REC-BS.1770-5-202311-I/en) | Authoritative loudness and true-peak algorithms. citeturn24search8 |
-| [EBU R128](https://tech.ebu.ch/publications/r128) | Loudness/true-peak terminology and a useful reminder that distribution targets are context-specific. citeturn24search1 |
-| [Creative Commons licence guide](https://creativecommons.org/share-your-work/cclicenses/) | Distinguishes BY, SA, NC, ND and CC0 rights. citeturn23search6 |
-| [Splice Terms](https://splice.com/terms) | Critical restriction against using downloaded Sounds as AI training/source material. citeturn23search4 |
-| [Ableton EULA](https://www.ableton.com/en/eula/) | Restrictions on repackaging/re-synthesising Ableton materials into standalone sample products. citeturn23search1 |
+| Integrated LUFS | Whole-track programme loudness |
+| Short-term LUFS | Loudest/drop-section density |
+| Maximum true peak | Headroom / downstream safety |
+| Sample peak | Diagnostic comparison with true peak |
+| Peak-to-loudness ratio or equivalent | Broad indication of retained macro/peak dynamics |
+| Long-term spectrum | Tonal comparison against reference median |
+| Sub-band energy | Detect unintended infra/sub excess |
+| Mid/Side energy by band | Detect side-heavy low frequencies |
+| Correlation / mono difference | Stereo robustness |
+| Maximum limiter GR | Detect over-limiting |
+| Clipped-sample count | Catch accidental hard digital clipping |
+| DC estimate | Detect offset problems |
+| Render duration/channels/SR/bit depth | File correctness |
 
-The resulting system is best thought of not as an "AI music generator", but as a **Codex-operated production environment**: the musical raw material remains recordings and samples; generative algorithms create variations and hybrids from them; Live remains the editable DAW; conventional DSP remains visible and adjustable; and every automated decision—from a four-millisecond grain to the final limiter setting—can be inspected, measured, versioned and undone.
+A standards-compatible offline analyser should be used **after export**, rather than trusting only the real-time DAW meter. FFmpeg, for example, implements an `ebur128` analysis path and true-peak processing in its current audio filter code. citeturn15search13turn15search9
+
+The exported file—not the Live meter—is the final artefact. QC it.
+
+### Real club test
+
+For a serious release, take the candidate master and at least one reference to a properly operated PA.
+
+Run this protocol:
+
+1. Confirm that both files are the intended uncompressed masters.
+2. Disable or document any player-side gain normalisation.
+3. Set the reference at a comfortable system level.
+4. Gain-match the candidate by ear/meter rather than assuming identical mixer fader positions mean identical loudness.
+5. Listen first to kick/sub relationship and limiter pumping.
+6. Walk from the centre to side/rear audience positions.
+7. Listen for bass notes whose apparent level changes excessively.
+8. Check whether hats, snares, distorted synths or vocals become aggressive at realistic level.
+9. Compare in mono if the system or test configuration allows it.
+10. Make notes; do not EQ while standing at one anomalous audience point.
+11. Correct at the mix level when the problem originates in an individual component.
+12. Repeat with the same reference.
+
+Large-scale low-frequency coverage is intrinsically position- and array-dependent, according to AES sound-reinforcement research; walking the room is therefore more informative than judging the master from one location. citeturn19search1
+
+
+## Failure modes, fixes and mastering decision rules
+
+The agent should contain an explicit failure-mode library because many poor masters are not caused by insufficient processing; they are caused by treating a **mix problem as a mastering problem**.
+
+| Symptom | Likely causes | Correct agent response |
+|---|---|---|
+| Kick disappears after limiting | Sub/bass triggers limiter; kick too long; transient rounded | Fix kick/sub envelope first; reduce low-end peak; then re-evaluate limiter |
+| Master is loud but sounds small on PA | Excess compression/limiting, low crest factor | Reduce bus/master dynamics and level-match comparison |
+| Sub varies wildly around room | Mix phase/side content plus inevitable room/system behaviour | Check mono/Side LF and multiple room positions; do not compensate one venue node |
+| Drop sounds quieter than breakdown despite higher LUFS | Breakdown too dense/bright; drop transient energy being limited | Examine arrangement and limiter GR, not simply gain |
+| Master sounds harsh at club level | Too much upper-mid/HF energy or clipping/saturation artifacts | Identify source tracks or distortion stage; reduce locally |
+| Bass vanishes in mono | Phase-opposed/stereo low-frequency content | Correct bass source; use M/S low-side attenuation where appropriate |
+| Limiter pumps on every kick | Kick/sub too dominant or release behaviour unsuitable | Mix correction; different limiter style/timing; staged peak control |
+| Loudness will not rise cleanly | Arrangement/mix density rather than limiter deficiency | Reduce masking/density; do not force target |
+| Reference always sounds "better" | It is simply louder in the comparison | Loudness-match first |
+| Agent keeps boosting/cutting same band | Room anomaly or unstable optimiser | Freeze processing and demand independent monitoring evidence |
+| Export clips despite clean sample peaks | Inter-sample/true-peak overs | Enable true-peak limiting/metering and leave margin |
+| File sounds subtly different after export | Sample-rate conversion, warp state, export processing | Verify sample rate and render configuration; run null/comparison test |
+| High end collapses after encoding | Near-zero peak headroom or excessive stereo/high-frequency processing | Use conservative TP ceiling and codec audition |
+| Version recall sounds different | Plug-in/version state not captured | Validate plug-in fingerprints and parameter manifest |
+
+Peak-only thinking is particularly dangerous. AES educational examples show that signals with similar peaks can have dramatically different loudness and compression characteristics, while true-peak literature addresses the further problem of reconstructed peaks that ordinary sample meters miss. citeturn18search5turn19search0
+
+### Rules the agent should refuse to violate
+
+**Never solve a mix problem by default with the master limiter.**
+
+**Never increase loudness without a loudness-matched before/after comparison.**
+
+**Never call -23 LUFS a club target.** That figure belongs to broadcast-oriented EBU R128 practice, not electronic club mastering. citeturn18search9
+
+**Never assume bass below a fixed frequency is unlocalisable.** Empirical AES work contradicts that simplification. citeturn19search6turn19search30
+
+**Never automatically mono everything below 120 Hz.** Mono-compatible foundational bass is often robust, but the crossover is an artistic/system decision.
+
+**Never high-pass at 20/30 Hz merely because a preset says to.**
+
+**Never apply a second dither stage to an already-finalised fixed-bit-depth master.** Ableton advises applying dither when reducing bit depth and avoiding unnecessary repeated dither. citeturn2search4turn17search3
+
+**Never use a stream-normalised reference as a direct loudness target without recovering a meaningful source level.**
+
+**Never permit GUI automation to make a critical processing change without a value/read-back or subsequent audio measurement.**
+
+**Never render a batch without inspecting the resulting files.**
+
+**Never allow the agent's genre prior to overrule the actual music.**
+
+### Stop conditions
+
+The mastering loop should terminate when improvement becomes smaller than uncertainty.
+
+Example:
+
+```text
+PASS when:
+  tonal deviation is within approved reference envelope
+  AND true peak passes delivery profile
+  AND no clipping / file errors
+  AND limiter reduction is within approved range
+  AND mono test passes
+  AND sub-side energy passes
+  AND loudness is competitive enough for the requested context
+  AND A/B preference >= baseline
+
+STOP AND REVIEW when:
+  > 3 dB broad mastering EQ seems necessary
+  OR > 4 dB sustained final limiting is needed
+  OR low-frequency phase cannot be made stable at master level
+  OR source is already audibly clipped
+  OR references disagree materially
+  OR the agent has reversed the same parameter twice
+```
+
+The thresholds are engineering policies, not standards. In particular, the 3–4 dB limiting caution is consistent with Ian Shepherd's practical mastering guidance. citeturn16search1
+
+A mature agent needs the ability to conclude:
+
+> "The best mastering move is no move; revise the bass in the mix."
+
+That is evidence of expertise rather than failure.
+
+
+## Ableton templates, racks, Max for Live devices and the agent runbook
+
+### Electronic-music mixing template
+
+A practical default Ableton Set:
+
+```text
+00 REF
+   Reference A
+   Reference B
+   Reference C
+
+01 KICK
+   Kick Main
+   Kick Layer
+
+02 DRUMS
+   Snare / Clap
+   Hats
+   Percussion
+   Breaks
+   Drum FX
+
+03 BASS
+   Sub
+   Bass Mid
+   Bass FX
+
+04 MUSIC
+   Lead
+   Chords
+   Pads
+   Arp / Sequence
+
+05 VOX
+   Lead Vox / Spoken
+   Vox FX
+
+06 FX
+   Risers
+   Impacts
+   Atmospheres
+
+RETURNS
+   A Short Room
+   B Long Reverb
+   C Tempo Delay
+   D Parallel Drums
+   E Genre-specific Rumble
+
+MAIN
+   Mix Safety Rack
+   Metering
+```
+
+The template should name every important signal path consistently. Agent automation is far safer against `BASS/SUB/Bass Control` than against "Track 24 → Device 6".
+
+### Mastering template
+
+```text
+TRACK 1: SOURCE
+  Utility [source trim]
+  ↓
+
+TRACK 2: REFERENCE
+  Utility [reference matching]
+  Output → hardware directly / bypass master processing
+  ↓
+
+MAIN:
+  [A] Utility
+  [B] EQ Eight
+  [C] Glue Compressor
+  [D] Saturator
+  [E] Limiter — True Peak
+  [F] Spectrum / approved loudness meter
+  [G] M4L Master-QC Bridge
+```
+
+Store at least these Macro Variations:
+
+```text
+CLEAN
+DYNAMIC
+HOUSE_START
+TECHNO_START
+DNB_START
+BYPASS_LEVEL_MATCHED
+```
+
+Macro Variations are a native Rack facility and provide a convenient mechanism for reproducible A/B snapshots. citeturn1search3
+
+### Example rack: `Club Master – Clean`
+
+These settings are intentionally conservative **starting values**, not magic mastering settings.
+
+| Device | Parameter | Initial value |
+|---|---|---:|
+| Utility | Gain | 0 dB; agent trims as required |
+| Utility | Width | 100% |
+| EQ Eight | HP | Off |
+| EQ Eight | Optional HP | 20 Hz / 12 dB octave |
+| EQ Eight | Broad bands | 0 dB |
+| EQ Eight | M/S Side LF control | Off; initialise around 90 Hz only when needed |
+| Glue | Ratio | 2:1 |
+| Glue | Attack | 30 ms |
+| Glue | Release | Auto |
+| Glue | Range | 2 dB |
+| Glue | Soft Clip | Off |
+| Saturator | Curve | Analog Clip |
+| Saturator | Drive | +1 dB |
+| Saturator | Output | -1 dB |
+| Saturator | Hi-Quality | On |
+| Limiter | Mode | True Peak |
+| Limiter | Lookahead | 3 ms |
+| Limiter | Ceiling | -1 dBTP |
+
+EQ Eight's M/S modes, Glue's bus-oriented controls, Saturator's current waveshaping/high-quality facilities and Limiter's True Peak mode are all documented in Live 12. citeturn4view0turn4view1turn15search0turn4view2
+
+Map eight macros:
+
+```text
+1  INPUT TRIM
+2  LOW TILT
+3  HIGH / PRESENCE TILT
+4  SIDE LOW CONTROL
+5  GLUE AMOUNT
+6  SATURATION
+7  LIMITER DRIVE
+8  OUTPUT CEILING
+```
+
+The important design trick is to **restrict the range**. A mastering AI does not need ±15 dB of low-shelf gain. Give it, for example, only ±2 dB on broad tonal macros and force it to request a "mix-repair" mode for anything more extreme.
+
+### Example rack: `Sub Guard`
+
+```text
+EQ Eight
+Mode: M/S
+
+MID:
+  no mandatory filtering
+
+SIDE:
+  low-cut starting point: 80–100 Hz
+  slope: 12 dB/oct
+  default device/band: OFF
+
+Utility:
+  Width: 100%
+```
+
+The controlling macro can move the Side high-pass through roughly 60–140 Hz. The agent activates it only when low-frequency Side energy is causing a measurable or audible mono/translation problem.
+
+Do not call the rack "Mono Below 100" because that encodes the wrong conceptual assumption. Its job is **low-frequency stereo robustness**, not obedience to an arbitrary crossover.
+
+### Example rack: `Transient-Preserving Loud`
+
+```text
+Glue Compressor
+  Ratio:   2:1
+  Attack:  30 ms
+  Range:   1.5 dB
+  Release: Auto
+
+Saturator
+  Analog Clip
+  Drive: +1.5 dB
+  Output: -1.5 dB
+  Hi-Quality On
+
+Limiter
+  True Peak
+  Lookahead: 3 ms
+  Ceiling: -1 dBTP
+```
+
+Agent constraints:
+
+```text
+Glue GR warning:        >1.5 dB sustained
+Saturation review:      >2.5 dB drive
+Limiter warning:        >3 dB regular GR
+Limiter strong warning: >4 dB regular GR
+```
+
+If more loudness is required, the agent must first revisit kick/sub/drum peak structure instead of simply raising limiter gain.
+
+### Max for Live device ideas
+
+**LiveBridge.amxd**
+
+The core network bridge. It should expose selected LOM objects via local OSC/UDP and implement allow-listed get/set/call commands. Max for Live's API objects can query, observe and control Live, while Max provides OSC/network communications. citeturn17search2turn13search7
+
+Required features:
+
+```text
+discover_tracks
+discover_devices
+get_parameter
+set_parameter
+observe_parameter
+set_transport
+create_track
+import_clip
+insert_native_device
+get_meter_snapshot
+undo
+```
+
+Add authentication or bind it only to localhost; there is little reason for arbitrary LAN clients to control the mastering Set.
+
+**MasterMeterProbe.amxd**
+
+Collect a time-windowed stream of:
+
+```text
+L/R peak
+RMS-like energy
+master meter
+clip/over flags
+selected device GR if exposed
+transport/section metadata
+```
+
+Do not poll every meter object continuously at unnecessary frequency. Meter/UI observations can create overhead; sample only what the decision loop actually needs.
+
+**ReferencePilot.amxd**
+
+Controls:
+
+```text
+Reference A/B/C
+Target/reference toggle
+Reference trim
+Mono
+Dim
+Loop drop
+Loop breakdown
+```
+
+The agent writes measured reference gain offsets into this device so every A/B is reproducible.
+
+**SubScope.amxd**
+
+Outputs:
+
+```text
+20–40 Hz energy
+40–80 Hz energy
+80–120 Hz energy
+Mid versus Side LF energy
+L/R correlation
+selected-band phase estimate
+```
+
+Rather than trying to infer "good bass" from a single number, it should compare those values against the project's references.
+
+**AgentSnapshot.amxd**
+
+Creates a JSON-friendly snapshot of all approved parameters and Macro Variation state. Since the LOM provides observable/settable properties but not a general public render/save command, an explicit parameter snapshot greatly improves recovery and regression testing. citeturn17search1turn17search2
+
+**AutomationGuard.amxd**
+
+Rejects or smooths parameter jumps outside the approved bounds. Useful for avoiding a model accidentally sending, for example, `+18 dB` instead of `+1.8 dB`.
+
+**RenderGuardian.amxd**
+
+Although it cannot substitute for the missing public export API, it can signal the external Codex process when:
+
+```text
+transport stopped
+processing settled
+reference muted
+master chain active
+correct arrangement range selected
+no tracks soloed unexpectedly
+QC device ready
+```
+
+Codex computer use can then operate Export Audio, after which the external analyser verifies the resulting file. Current Codex desktop capabilities make this fallback feasible. citeturn21search1
+
+### Agent knowledge profile
+
+The expert agent prompt/skill should encode principles, not only recipes. A condensed instruction set would be:
+
+```text
+You are an electronic-music mix/master engineer specialising in
+house, techno, drum & bass and related club music.
+
+Priority order:
+1. Artistic intent and groove
+2. Kick/sub clarity
+3. Tonal balance
+4. Transient integrity
+5. Stereo/mono robustness
+6. Appropriate loudness
+7. File/delivery compliance
+
+Never:
+- chase LUFS at the expense of sound;
+- assume a fixed club loudness standard;
+- high-pass or mono low frequencies without evidence;
+- make >2 dB broad master EQ corrections without flagging the mix;
+- sustain >4 dB final limiting without review;
+- compare versions at unmatched loudness;
+- dither intermediate 32-bit float files;
+- overwrite a session without a checkpoint.
+
+Always:
+- inspect before changing;
+- state a hypothesis;
+- make the smallest useful intervention;
+- read back the result;
+- render/analyse when the decision is consequential;
+- compare against references at equal apparent loudness;
+- retain the bypass version;
+- log every accepted change.
+```
+
+### End-to-end checklist
+
+The agent's final runbook should be executed in this order.
+
+| Stage | Mandatory checks | Pass condition |
+|---|---|---|
+| **Ingest** | Files readable; channels, sample rate and duration valid; stems aligned | No corrupt/mismatched input |
+| **Session audit** | Track/routing/device inventory; unexpected solos/mutes; source clipping | State completely known |
+| **Reference setup** | 3–5 suitable lossless references; matching sections identified | Reference median/profile established |
+| **Static mix** | Kick, bass, drums, music, vocals/FX hierarchy | Groove/intent intact before master processing |
+| **Low end** | Kick/sub envelope, phase, infra energy, Side LF | Stable in stereo and mono |
+| **Dynamics** | Drum and bus peak structure | No avoidable peaks dominating master |
+| **Tonal pass** | Broad spectrum versus references | No unjustified large mastering correction |
+| **Master compression** | Level-matched A/B | Adds cohesion without removing impact |
+| **Peak shaping** | Saturation/clipping only where helpful | No audible unwanted distortion |
+| **Limiter** | TP mode, ceiling, GR history | Appropriate loudness without collapse |
+| **Stereo** | Mono, correlation, M/S-by-band | No critical element disappears |
+| **Reference A/B** | Loudness matched | Master competes sonically, not merely numerically |
+| **Export** | Correct WAV, bit depth, rate, dither policy | File matches manifest |
+| **Offline QC** | LUFS-I/S, dBTP, clipping, spectrum, duration, channels | All technical gates pass |
+| **Translation** | mains, low level, headphones, mono, secondary playback | No system-specific failure |
+| **Club/PA** | reference-matched venue test where practical | LF/impact/harshness acceptable across positions |
+| **Archive** | `.als`, settings manifest, 32-bit archive where required, delivery WAV | Fully reproducible master |
+
+The agent's final report for each job should be compact but auditable:
+
+```text
+MASTER RESULT: PASS
+
+Genre profile:
+  Techno / peak-time
+
+Primary diagnosis:
+  Excess 45–70 Hz sustain caused limiter pumping.
+  Side energy below 95 Hz was elevated.
+
+Mix interventions:
+  Bass release shortened.
+  Rumble return -1.4 dB.
+  Side LF attenuation introduced at 92 Hz.
+
+Master:
+  EQ: -0.7 dB broad low shelf
+  Glue: 0.8 dB max regular GR
+  Saturator: +1.2 dB Analog Clip
+  Limiter: True Peak, -1 dBTP, 2.6 dB max GR
+
+Measurements:
+  LUFS-I: -7.2
+  loudest drop LUFS-S: -6.4
+  max TP: -1.0 dBTP
+
+Reference median:
+  drop LUFS-S: -6.2
+
+QC:
+  mono PASS
+  low-side PASS
+  codec audition PASS
+  exported-file QC PASS
+
+Decision:
+  Do not increase loudness further.
+  Current version retains stronger kick transient than +0.8 dB louder test.
+```
+
+That last decision—**choosing the more convincing master rather than the louder one**—is the behaviour the entire architecture should be designed to encourage. AES loudness guidance, experienced mastering engineers and even long-running specialist mastering discussions converge on the same broad principle: numerical level is useful evidence, but excessive compression and limiting can damage dynamics and sound quality, and there is no static loudness value that substitutes for listening and context. citeturn18search2turn18search5turn16search0turn16search4
+
+As of the 2 October 2026 research snapshot, the most technically sound implementation is therefore a **hybrid Codex/Ableton system**: Codex for reasoning, tool orchestration, computer-use fallbacks and evaluation; a Max for Live/LOM bridge for deterministic DAW control; pre-built Racks for third-party plug-in abstraction; offline BS.1770/true-peak analysis for exported-file verification; and reference-led electronic-music engineering rules that prioritise low-end integrity, transient punch and repeatable club translation over arbitrary loudness maximisation. OpenAI's current agent tooling provides the orchestration, Live 12's API provides much—but not all—of the DAW control, and the combination can be made sufficiently deterministic for serious semi-autonomous mixing/mastering provided its API limitations, monitoring uncertainty and artistic judgement boundaries are treated as first-class engineering constraints. citeturn21search1turn21search5turn17search0turn17search1turn17search4

@@ -16,6 +16,7 @@ import { LiveTransport } from './transport.js';
 import { Logger } from './logger.js';
 import { isKnownCommand, validateArgs, type CommandName } from './validation.js';
 import { BRIDGE_SIDE_COMMANDS, COMMANDS, MUTATING_COMMANDS } from './commands/registry.js';
+import { MasterChain } from './mastering/chain.js';
 
 export interface BridgeOptions {
   host?: string;
@@ -23,6 +24,8 @@ export interface BridgeOptions {
   liveHost?: string;
   livePort?: number;
   logger: Logger;
+  /** Where decision logs and checkpoints are written. */
+  dataDir?: string;
 }
 
 const MAX_BODY_BYTES = 32 * 1024 * 1024;
@@ -30,6 +33,7 @@ const MAX_BODY_BYTES = 32 * 1024 * 1024;
 export class Bridge {
   readonly transport: LiveTransport;
   readonly session: Session;
+  readonly master: MasterChain;
 
   private readonly host: string;
   private readonly port: number;
@@ -49,6 +53,7 @@ export class Bridge {
       logger: this.log,
     });
     this.session = new Session(this.transport, this.log);
+    this.master = new MasterChain(this.transport, options.dataDir);
 
     this.http = http.createServer((req, res) => {
       this.handleHttp(req, res).catch((error) => {
@@ -185,6 +190,37 @@ export class Bridge {
         return this.session.restoreClip(args.snapshot_id as string);
       case 'live.list_snapshots':
         return { snapshots: this.session.listSnapshots() };
+      case 'master.inspect_chain':
+        return this.master.inspect(args.track_id as number | undefined);
+      case 'master.set':
+        return this.master.set(args as unknown as Parameters<MasterChain['set']>[0]);
+      case 'master.decisions':
+        return { decisions: this.master.listDecisions(args.role as string | undefined) };
+      case 'master.reset_decisions':
+        return this.master.resetDecisions(args.label as string | undefined);
+      case 'master.checkpoint': {
+        const { parameters, ...rest } = await this.master.checkpoint(
+          args.label as string,
+          args.track_id as number | undefined,
+        );
+        return { ...rest, parameter_count: parameters.length };
+      }
+      case 'master.restore_checkpoint':
+        return this.master.restore(args.checkpoint_id as string);
+      case 'master.list_checkpoints':
+        return { checkpoints: this.master.listCheckpoints() };
+      case 'master.build_chain':
+        return this.master.buildChain({
+          trackId: args.track_id as number | undefined,
+          preset: args.preset as string | null | undefined,
+        });
+      case 'master.apply_preset':
+        return this.master.applyPreset(args.preset as string, args.track_id as number | undefined);
+      case 'master.meters':
+        return this.master.meters(
+          (args.seconds as number | undefined) ?? 3,
+          args.track_id as number | undefined,
+        );
       case 'live.duplicate_clip':
         return this.session.duplicateClip(
           args as unknown as Parameters<Session['duplicateClip']>[0],

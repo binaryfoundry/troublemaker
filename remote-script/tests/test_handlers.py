@@ -526,6 +526,128 @@ class TestScenes(HandlerTestCase):
         self.assertIn("Intro", [s["name"] for s in error["available_scenes"]])
 
 
+class TestMaster(HandlerTestCase):
+    def setUp(self):
+        HandlerTestCase.setUp(self)
+        self.master = self.call("live.get_tracks")["master_track"]["track_id"]
+        self.devices = {d["name"]: d["device_id"]
+                        for d in self.call("live.get_devices", track_id=self.master)["devices"]}
+
+    def set_display(self, device, name, target):
+        return self.call("live.set_device_parameter_display", track_id=self.master,
+                         device_id=self.devices[device], parameter_name=name, target=target)
+
+    def test_parses_live_display_strings(self):
+        from TroubleMaker.handlers.master import parse_display
+        self.assertEqual(parse_display("-1.0 dB"), (-1.0, "dB"))
+        self.assertEqual(parse_display("1.20 kHz"), (1200.0, "Hz"))
+        self.assertEqual(parse_display("30.0 ms"), (30.0, "ms"))
+        self.assertEqual(parse_display("100 %"), (100.0, "%"))
+        self.assertEqual(parse_display("1.20 s"), (1200.0, "ms"))
+        self.assertEqual(parse_display("-inf dB")[0], -1e9)
+        self.assertIsNone(parse_display("Off"))
+
+    def test_sets_a_normalized_parameter_by_its_displayed_db_value(self):
+        result = self.set_display("Limiter", "Ceiling", -1.0)
+        self.assertAlmostEqual(result["achieved"], -1.0, places=1)
+        self.assertEqual(result["after"]["display_value"], "-1.0 dB")
+        self.assertEqual(result["before"]["display_value"], "0.0 dB")
+
+    def test_lands_on_zero_rather_than_negative_zero(self):
+        result = self.call("live.set_device_parameter_display", track_id=self.master,
+                           device_id=self.devices["Utility"], parameter_name="Gain", target=0.0)
+        self.assertEqual(result["after"]["display_value"], "0.0 dB")
+
+    def test_handles_a_logarithmic_display(self):
+        result = self.set_display("Limiter", "Release", 100.0)
+        self.assertAlmostEqual(result["achieved"], 100.0, delta=0.5)
+
+    def test_handles_a_kilohertz_display(self):
+        result = self.set_display("EQ Eight", "1 Frequency A", 2500.0)
+        self.assertAlmostEqual(result["achieved"], 2500.0, delta=10)
+
+    def test_picks_the_nearest_step_of_a_quantized_parameter(self):
+        result = self.set_display("Glue Compressor", "Ratio", 4.0)
+        self.assertEqual(result["after"]["display_value"], "4")
+
+    def test_refuses_a_target_outside_the_displayed_range(self):
+        error = self.fail_call("live.set_device_parameter_display", track_id=self.master,
+                               device_id=self.devices["Limiter"], parameter_name="Ceiling",
+                               target=6.0)
+        self.assertEqual(error["code"], "INVALID_ARGUMENT")
+        self.assertEqual(error["display_max"], 0.0)
+
+    def test_refuses_a_non_numeric_display(self):
+        error = self.fail_call("live.set_device_parameter_display", track_id=self.master,
+                               device_id=self.devices["EQ Eight"], parameter_name="1 Filter On A",
+                               target=1.0)
+        self.assertEqual(error["code"], "UNSUPPORTED")
+
+    def test_parameters_report_their_displayed_range(self):
+        params = self.call("live.get_device_parameters", track_id=self.master,
+                           device_id=self.devices["Limiter"])["parameters"]
+        ceiling = [p for p in params if p["name"] == "Ceiling"][0]
+        self.assertEqual((ceiling["display_min"], ceiling["display_max"]), ("-24.0 dB", "0.0 dB"))
+
+    def test_parses_bare_decimals(self):
+        from TroubleMaker.handlers.master import parse_display
+        self.assertEqual(parse_display(".6"), (0.6, ""))
+
+    def test_searches_only_the_numeric_part_of_a_range(self):
+        result = self.set_display("Glue Compressor", "Release", 0.6)
+        self.assertEqual(result["after"]["display_value"], ".6")
+
+    def test_reports_the_numeric_range_when_one_end_is_a_named_state(self):
+        error = self.fail_call("live.set_device_parameter_display", track_id=self.master,
+                               device_id=self.devices["Glue Compressor"], parameter_name="Release",
+                               target=5.0)
+        self.assertEqual(error["code"], "INVALID_ARGUMENT")
+        self.assertAlmostEqual(error["display_max"], 1.1, places=1)
+
+    def test_sets_a_named_option(self):
+        result = self.call("live.set_device_parameter_option", track_id=self.master,
+                           device_id=self.devices["Limiter"], parameter_name="Mode",
+                           option="True Peak")
+        self.assertEqual(result["before"]["display_value"], "Standard")
+        self.assertEqual(result["after"]["display_value"], "True Peak")
+
+    def test_sets_a_named_state_at_the_end_of_a_continuous_range(self):
+        result = self.call("live.set_device_parameter_option", track_id=self.master,
+                           device_id=self.devices["Glue Compressor"], parameter_name="Release",
+                           option="Auto", aliases=["A"])
+        self.assertEqual(result["after"]["display_value"], "A")
+
+    def test_unknown_option_lists_the_real_ones(self):
+        error = self.fail_call("live.set_device_parameter_option", track_id=self.master,
+                               device_id=self.devices["Limiter"], parameter_name="Mode",
+                               option="Loud")
+        self.assertEqual(error["code"], "INVALID_ARGUMENT")
+        self.assertEqual(error["available_options"], ["Standard", "True Peak"])
+
+    def test_device_insertion_is_refused_honestly_on_live_11(self):
+        self.assertFalse(self.call("live.get_capabilities")["device_insertion"])
+        error = self.fail_call("live.insert_device", track_id=self.master, device_name="Limiter")
+        self.assertEqual(error["code"], "UNSUPPORTED")
+        self.assertIn("12.3", error["message"])
+
+    def test_device_insertion_is_used_where_live_supports_it(self):
+        inserted = []
+
+        def insert_device(name, index=None):
+            inserted.append((name, index))
+            self.song.master_track.devices.append(fake_live.Device(name, name, []))
+
+        self.song.master_track.insert_device = insert_device
+        result = self.call("live.insert_device", track_id=self.master, device_name="Utility",
+                           index=0)
+        self.assertEqual(inserted, [("Utility", 0)])
+        self.assertEqual(len(result["devices"]), 6)
+
+    def test_reads_output_meters(self):
+        meters = self.call("live.get_meters", track_id=self.master)
+        self.assertAlmostEqual(meters["left"], 0.42)
+
+
 class TestEndToEndWorkflow(HandlerTestCase):
     """The MVP interaction from the plan, start to finish."""
 

@@ -257,6 +257,56 @@ export const schemas = {
   'live.select_track': trackRef.strict(),
   'live.select_clip_slot': clipRef.strict(),
 
+  // -- mastering (Live side) ---------------------------------------------
+  'live.set_device_parameter_display': parameterRef
+    .extend({ target: z.number().finite() })
+    .strict()
+    .refine(
+      (v) => v.parameter_id !== undefined || v.parameter_name !== undefined,
+      "Identify the parameter with 'parameter_id' or 'parameter_name'.",
+    ),
+  'live.set_device_parameter_option': parameterRef
+    .extend({ option: z.string().min(1), aliases: z.array(z.string()).optional() })
+    .strict()
+    .refine(
+      (v) => v.parameter_id !== undefined || v.parameter_name !== undefined,
+      "Identify the parameter with 'parameter_id' or 'parameter_name'.",
+    ),
+  'live.insert_device': trackRef
+    .extend({ device_name: nonEmptyName, index: z.number().int().min(0).optional() })
+    .strict(),
+  'live.get_meters': trackRef.strict(),
+
+  // -- mastering (bridge side) -------------------------------------------
+  'master.inspect_chain': z.object({ track_id: handle.optional() }).strict(),
+  'master.set': z
+    .object({
+      role: z.string().min(1),
+      value: z.union([z.number().finite(), z.string().min(1)]),
+      track_id: handle.optional(),
+      reason: z.string().trim().min(3, 'Every master change needs a reason for the audit trail.').max(500),
+      mix_repair: z.boolean().optional(),
+      allow_widen: z.boolean().optional(),
+      override: z.boolean().optional(),
+    })
+    .strict(),
+  'master.decisions': z.object({ role: z.string().min(1).optional() }).strict(),
+  'master.reset_decisions': z.object({ label: z.string().max(80).optional() }).strict(),
+  'master.checkpoint': z
+    .object({ label: z.string().trim().min(1).max(80), track_id: handle.optional() })
+    .strict(),
+  'master.apply_preset': z
+    .object({ preset: z.string().min(1), track_id: handle.optional() })
+    .strict(),
+  'master.restore_checkpoint': z.object({ checkpoint_id: z.string().min(1) }).strict(),
+  'master.list_checkpoints': empty,
+  'master.build_chain': z
+    .object({ track_id: handle.optional(), preset: z.string().min(1).nullable().optional() })
+    .strict(),
+  'master.meters': z
+    .object({ seconds: z.number().min(0.2).max(30).optional(), track_id: handle.optional() })
+    .strict(),
+
   // -- bridge-side ------------------------------------------------------
   'live.snapshot_clip': clipRef.extend({ label: z.string().max(128).optional() }).strict(),
   'live.restore_clip': z.object({ snapshot_id: z.string().min(1) }).strict(),
