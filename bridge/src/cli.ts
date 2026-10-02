@@ -13,6 +13,16 @@ import { COMMANDS } from './commands/registry.js';
 import { runQc } from '../../qc/src/run.js';
 import { compareFiles, runAb } from '../../qc/src/ab.js';
 import { analyzeBass, formatBassProfile } from '../../qc/src/bass.js';
+import { applyEffect, findEffect, loadCodex } from './fx.js';
+import {
+  arrangementCommands,
+  checkArrangement,
+  formatPlan,
+  planArrangement,
+  styleNames,
+  type RoleSource,
+} from '../../agent/src/arrangement.js';
+import { inferTrackRole } from '../../agent/src/composition.js';
 import {
   genreSummary,
   loadReferenceSets,
@@ -121,6 +131,18 @@ Reference library:
   ableton-agent refs pick --dir <dir> --genre <g> [--bpm n]
   On qc, compare and ab:  --refs <set>  or  --refs-dir <dir> [--genre <g>]
       picks 3-5 lossless references automatically (BPM from Live when it is reachable).
+
+Effects (agent/knowledge/effects.json):
+  ableton-agent fx list [--family <f>] [--energy <e>]   The codex, one line per effect
+  ableton-agent fx show <id|name|alias>                  Cue, mechanism, recipe, confusions
+  ableton-agent fx apply <id> --track <id> [--slot n] [--start beat] [--bars n | --length beats]
+      [--pitch n] [--root F] [--set "Param=value"]... [--dry-run]
+      Build the effect in Live from its recipe.
+
+Arrangement (agent/knowledge/styles.json):
+  ableton-agent arrangement plan <style> [--roles kick,bass,...]   Sections, energy, roles, checks
+  ableton-agent arrangement build <style> [--dry-run]
+      Lay each track's slot-0 loop across the sections its role plays in (Live 11+).
 
 Bassline analysis:
   ableton-agent bass <file> [--bpm n]               Rhythm, pitches, kick ducking and balance of a drop
@@ -312,6 +334,12 @@ async function main(argv: string[]): Promise<number> {
 
     case 'refs':
       return refs(rest);
+
+    case 'fx':
+      return fx(rest);
+
+    case 'arrangement':
+      return arrangement(rest);
 
     case 'bass': {
       const options = [...rest];
@@ -593,6 +621,131 @@ async function ab(argv: string[]): Promise<number> {
   process.stdout.write(
     `${result.report}\n\nKept: ${result.kept}${result.kept === 'A' ? ' (change reverted)' : ' (change kept)'}\n`,
   );
+  return 0;
+}
+
+async function fx(argv: string[]): Promise<number> {
+  const args = [...argv];
+  const [sub, ...rest] = args;
+  switch (sub) {
+    case 'list': {
+      const options = [...rest];
+      const [family] = takeOption(options, '--family');
+      const [energy] = takeOption(options, '--energy');
+      for (const e of loadCodex().effects) {
+        if (family && e.family !== family) continue;
+        if (energy && !e.energy.includes(energy)) continue;
+        const how = e.build.method === 'unsupported' ? `not buildable (${e.availability})` : e.build.method;
+        process.stdout.write(`  ${e.id.padEnd(24)} ${e.family.padEnd(12)} ${e.energy.join('/').padEnd(22)} ${how}\n`);
+      }
+      return 0;
+    }
+    case 'show': {
+      const e = findEffect(rest.join(' '));
+      const lines = [
+        `${e.name}  (${e.id})`,
+        `  also: ${e.aliases.join(', ')}`,
+        `  cue: ${e.cue}`,
+        `  mechanism: ${e.mechanism}`,
+        `  control: ${e.control}; time scale: ${e.time_scale}; energy: ${e.energy.join(', ')}`,
+        ...Object.entries(e.params ?? {}).map(([k, v]) => `  ${k}: ${v}`),
+        ...(e.distinguish_from ?? []).map((d) => `  not ${d.id}: ${d.how}`),
+        ...(e.mistakes ?? []).map((m) => `  mistake: ${m}`),
+        `  build: ${e.build.method}${e.build.placement ? ` (${e.build.placement})` : ''}` +
+          (e.build.devices ? ` - ${e.build.devices.map((d) => d.name).join(' -> ')}` : '') +
+          (e.build.generator ? ` - ${e.build.generator}` : ''),
+        ...(e.build.note ? [`  note: ${e.build.note}`] : []),
+        ...e.references.map((r) => `  listen: ${r.track}${r.where ? ` (${r.where})` : ''} [${r.evidence === 'D' ? 'documented' : 'auditory'}]`),
+      ];
+      process.stdout.write(`${lines.join('\n')}\n`);
+      return 0;
+    }
+    case 'apply': {
+      const options = [...rest];
+      const dryRun = takeFlag(options, '--dry-run');
+      const [track] = takeOption(options, '--track');
+      const [slot] = takeOption(options, '--slot');
+      const [start] = takeOption(options, '--start');
+      const [bars] = takeOption(options, '--bars');
+      const [length] = takeOption(options, '--length');
+      const [pitch] = takeOption(options, '--pitch');
+      const [root] = takeOption(options, '--root');
+      const sets = takeOption(options, '--set');
+      const [id, ...extra] = options;
+      if (!id || !track) throw new Error('Usage: fx apply <id> --track <id> [options]');
+      if (extra.length) throw new Error(`Unexpected arguments: ${extra.join(' ')}`);
+      const set: Record<string, number | string> = {};
+      for (const pair of sets) {
+        const [k, ...v] = pair.split('=');
+        const raw = v.join('=');
+        set[k!.trim()] = raw.trim() !== '' && Number.isFinite(Number(raw)) ? Number(raw) : raw.trim();
+      }
+      const result = await applyEffect(
+        { post },
+        {
+          effect: id,
+          track_id: parseInteger('--track', track),
+          clip_slot: slot ? parseInteger('--slot', slot) : undefined,
+          start_beat: start ? parseNumber('--start', start) : undefined,
+          length_beats: length ? parseNumber('--length', length) : bars ? parseNumber('--bars', bars) * 4 : undefined,
+          pitch: pitch ? parseInteger('--pitch', pitch) : undefined,
+          root,
+          set,
+          dry_run: dryRun,
+        },
+      );
+      process.stdout.write(`${result.effect} on track ${result.track_id}\n`);
+      for (const step of result.steps) process.stdout.write(`  - ${step}\n`);
+      for (const warning of result.warnings) process.stdout.write(`  ! ${warning}\n`);
+      return 0;
+    }
+    default:
+      throw new Error('Unknown fx subcommand. Try: list, show, apply.');
+  }
+}
+
+async function arrangement(argv: string[]): Promise<number> {
+  const args = [...argv];
+  const dryRun = takeFlag(args, '--dry-run');
+  const [rolesText] = takeOption(args, '--roles');
+  const [sub, style] = args;
+  if (!sub || !style) throw new Error(`Usage: arrangement plan|build <style>. Styles: ${styleNames().join(', ')}`);
+
+  if (sub === 'plan') {
+    const plan = planArrangement(style, rolesText ? { roles: rolesText.split(',').map((r) => r.trim()) } : {});
+    process.stdout.write(`${formatPlan(plan, checkArrangement(plan))}\n`);
+    return 0;
+  }
+  if (sub !== 'build') throw new Error('Unknown arrangement subcommand. Try: plan, build.');
+
+  // Map tracks to roles by name, using each track's slot-0 loop as its material.
+  const { tracks } = (await post('live.get_tracks')) as {
+    tracks: Array<{ track_id: number; name: string; type: string }>;
+  };
+  const sources: Record<string, RoleSource> = {};
+  for (const track of tracks) {
+    const { role } = inferTrackRole(track.name);
+    if (role === 'unknown' || sources[role]) continue;
+    try {
+      const clip = (await post('live.get_clip', { track_id: track.track_id, clip_slot: 0 })) as { length_beats: number };
+      sources[role === 'snare' ? 'clap' : role] = { track_id: track.track_id, clip_slot: 0, length_beats: clip.length_beats };
+    } catch {
+      // No loop in slot 0: this track does not take part.
+    }
+  }
+  const roles = Object.keys(sources);
+  if (!roles.length) throw new Error('No tracks with a recognisable role name (kick, bass, hats, chords, lead...) and a clip in slot 0.');
+  const plan = planArrangement(style, { roles });
+  const commands = arrangementCommands(plan, sources);
+  process.stdout.write(`${formatPlan(plan, checkArrangement(plan))}\n\nRoles: ${roles.map((r) => `${r} -> track ${sources[r]!.track_id}`).join(', ')}\n`);
+  if (dryRun) {
+    process.stdout.write(`[dry run] ${commands.length} clip placements.\n`);
+    return 0;
+  }
+  const caps = (await post('live.get_capabilities')) as { arrangement_placement?: boolean };
+  if (!caps.arrangement_placement) throw new Error('This Live version cannot place clips in the Arrangement via the API.');
+  for (const command of commands) await post(command.command, command.args);
+  process.stdout.write(`Placed ${commands.length} clips on the Arrangement.\n`);
   return 0;
 }
 
