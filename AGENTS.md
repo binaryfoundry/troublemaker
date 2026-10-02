@@ -159,8 +159,13 @@ have been wrong every time. Then sweep it on Live with `fx apply`.
   Time and Roar are Suite-only; Operator is not in Standard.
 - Return tracks have no clip slots, so devices on returns cannot carry clip
   automation; automate the source track's send (`mixer: send:N`) instead.
-- Firing a scene and recording separately makes the capture start at the
-  scene's second bar; `live.record_with_scene` launches both in one tick.
+- From a stopped transport a scene starts at once but a recording waits
+  for the next bar, so captures began at the scene's second bar - even when
+  both were fired in one tick. The capture now starts the transport first,
+  then fires scene and recording together (`live.record_with_scene`), and
+  both land on the same bar. Verified with a two-bar clip whose bars differ
+  in pitch. Caveat: with the transport running, tracks outside the scene
+  may play their Arrangement clips if the Set has an Arrangement.
 
 ## Gotchas
 

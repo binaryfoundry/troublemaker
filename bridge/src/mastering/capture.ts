@@ -114,9 +114,14 @@ export class MasterCapture {
     try {
       let started = false;
       if (options.scene_id !== undefined) {
-        // Scene and recording in one Live tick, so both launch on the same
-        // bar. Sent separately, the scene starts at once while the recording
-        // waits for the next bar, and the capture misses the first bar.
+        // From a stopped transport a scene starts at once while a recording
+        // always waits for the next bar, so the capture began at the scene's
+        // second bar (verified with a two-bar clip whose bars differ in
+        // pitch). Get the transport running first; then scene and recording,
+        // fired in one Live tick, both quantise to the same coming bar.
+        // Caveat: with the transport running, tracks outside the scene may
+        // play their Arrangement clips if the Set has an Arrangement.
+        await this.ensurePlaying();
         try {
           await this.transport.send('live.record_with_scene', {
             track_id: trackId,
@@ -191,6 +196,18 @@ export class MasterCapture {
       // Always leave the Set safe: stop playback and disarm the capture track.
       await this.transport.send('live.stop').catch(() => undefined);
       await this.transport.send('live.set_track_arm', { track_id: trackId, enabled: false }).catch(() => undefined);
+    }
+  }
+
+  private async ensurePlaying(timeoutMs = 5_000): Promise<void> {
+    const transport = (await this.transport.send('live.get_transport')) as { playing: boolean };
+    if (transport.playing) return;
+    await this.transport.send('live.play');
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const now = (await this.transport.send('live.get_transport')) as { playing: boolean };
+      if (now.playing) return;
+      await sleep(POLL_MS);
     }
   }
 

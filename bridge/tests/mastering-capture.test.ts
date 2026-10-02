@@ -65,6 +65,8 @@ beforeEach(async () => {
   live.handlers.set('live.delete_clip', () => ({ deleted: true }));
   live.handlers.set('live.stop_clip', () => ({ stopped: true }));
   live.handlers.set('live.stop', () => ({}));
+  live.handlers.set('live.play', () => ({}));
+  live.handlers.set('live.get_transport', () => ({ playing: live.received.some((r) => r.command === 'live.play') }));
   live.handlers.set('live.record_with_scene', () => {
     recordingPolls = 3;
     return { started: true };
@@ -118,10 +120,10 @@ describe('master.capture', () => {
     expect(live.received.some((r) => r.command === 'live.create_audio_track')).toBe(false);
   });
 
-  it('launches the scene and the recording together, so the first bar is captured', async () => {
+  it('starts the transport, then launches scene and recording together', async () => {
     await bridge.execute('master.capture', { bars: 1, scene_id: 5 });
     const commands = live.received.map((r) => r.command);
-    expect(commands).toContain('live.record_with_scene');
+    expect(commands.indexOf('live.play')).toBeLessThan(commands.indexOf('live.record_with_scene'));
     expect(commands).not.toContain('live.record_clip');
   });
 
