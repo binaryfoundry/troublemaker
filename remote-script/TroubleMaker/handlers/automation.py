@@ -32,10 +32,42 @@ def _envelope(clip, param, create=False):
     return envelope
 
 
+class _MixerTarget(object):
+    """Stands in for a device so mixer parameters share the automation code."""
+
+    def __init__(self, name):
+        self.name = name
+
+
+def _mixer_parameter(track, target):
+    """'volume', 'pan' or 'send:N' on the track's mixer."""
+    mixer = track.mixer_device
+    if target == "volume":
+        return mixer.volume
+    if target == "pan":
+        return mixer.panning
+    if target.startswith("send:"):
+        try:
+            index = int(target.split(":", 1)[1])
+        except ValueError:
+            raise errors.InvalidArgument("Mixer target must be volume, pan or send:N.")
+        sends = list(mixer.sends)
+        if index < 0 or index >= len(sends):
+            raise errors.InvalidArgument(
+                "Track '%s' has %d sends; send %d is out of range." % (track.name, len(sends), index),
+                send_count=len(sends),
+            )
+        return sends[index]
+    raise errors.InvalidArgument("Mixer target must be volume, pan or send:N.")
+
+
 def _resolve(ctx, args):
     track, slot, clip = lom.resolve_clip(
         ctx, req_int(args, "track_id"), req_int(args, "clip_slot")
     )
+    mixer = opt_str(args, "mixer")
+    if mixer:
+        return track, clip, _MixerTarget("Mixer"), _mixer_parameter(track, mixer)
     track_, device, param = lom.resolve_parameter(
         ctx,
         req_int(args, "track_id"),

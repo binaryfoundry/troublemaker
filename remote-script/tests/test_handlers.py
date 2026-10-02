@@ -480,6 +480,20 @@ class TestAutomation(HandlerTestCase):
                                points=[{"beat": 0, "value": 50000}])
         self.assertEqual(error["code"], "INVALID_ARGUMENT")
 
+    def test_automates_a_mixer_send_for_a_delay_throw(self):
+        self.call("live.set_automation", track_id=self.bass, clip_slot=0, mixer="send:0",
+                  points=[{"beat": 0, "normalized": 0.0}, {"beat": 3, "normalized": 0.0},
+                          {"beat": 3.5, "normalized": 0.8}, {"beat": 4, "normalized": 0.0}])
+        curve = self.call("live.get_automation", track_id=self.bass, clip_slot=0, mixer="send:0",
+                          resolution=0.5)
+        self.assertTrue(curve["has_envelope"])
+        self.assertGreater(max(p["value"] for p in curve["points"]), 0.5)
+
+    def test_rejects_a_missing_send(self):
+        error = self.fail_call("live.set_automation", track_id=self.bass, clip_slot=0, mixer="send:7",
+                               points=[{"beat": 0, "normalized": 0.5}])
+        self.assertEqual(error["code"], "INVALID_ARGUMENT")
+
     def test_clears_an_envelope(self):
         self.call("live.set_automation", track_id=self.bass, clip_slot=0,
                   device_id=self.device["device_id"], parameter_name="Frequency",

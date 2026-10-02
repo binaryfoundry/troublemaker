@@ -223,7 +223,8 @@ export const schemas = {
   // -- automation -------------------------------------------------------
   'live.get_automation': clipRef
     .extend({
-      device_id: handle,
+      device_id: handle.optional(),
+      mixer: z.string().regex(/^(volume|pan|send:\d+)$/).optional(),
       parameter_id: handle.optional(),
       parameter_name: z.string().min(1).optional(),
       resolution: positiveBeats.optional(),
@@ -231,7 +232,9 @@ export const schemas = {
     .strict(),
   'live.set_automation': clipRef
     .extend({
-      device_id: handle,
+      device_id: handle.optional(),
+      /** Automate the track mixer instead of a device: volume, pan or send:N. */
+      mixer: z.string().regex(/^(volume|pan|send:\d+)$/).optional(),
       parameter_id: handle.optional(),
       parameter_name: z.string().min(1).optional(),
       points: z.array(automationPoint).min(1).max(1024),
@@ -241,7 +244,8 @@ export const schemas = {
     .strict(),
   'live.clear_automation': clipRef
     .extend({
-      device_id: handle,
+      device_id: handle.optional(),
+      mixer: z.string().regex(/^(volume|pan|send:\d+)$/).optional(),
       parameter_id: handle.optional(),
       parameter_name: z.string().min(1).optional(),
       from_beat: beat.optional(),
