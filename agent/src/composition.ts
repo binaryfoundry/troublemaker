@@ -349,14 +349,15 @@ export function partsForEnergy(energy: number): string[] {
 export function inferTrackRole(name: string): { role: string; confidence: number } {
   const text = name.toLowerCase();
   const rules: Array<[RegExp, string]> = [
-    [/\b(kick|bd|bass ?drum)\b/, 'kick'],
-    [/\b(snare|clap|rim|sd)\b/, 'snare'],
-    [/\b(hat|hh|cymbal|ride|shaker|perc)\b/, 'hats'],
-    [/\b(sub|bass|808|reese)\b/, 'bass'],
-    [/\b(lead|arp|melody|hook|top ?line)\b/, 'lead'],
-    [/\b(chord|pad|keys|stab|rhodes|piano)\b/, 'chords'],
-    [/\b(fx|riser|sweep|impact|noise|atmos|ambient|texture)\b/, 'atmosphere'],
-    [/\b(vox|vocal|voice)\b/, 'vocal'],
+    // Plurals count: real tracks are called "Hats" and "Chords".
+    [/\b(kicks?|bd|bass ?drums?)\b/, 'kick'],
+    [/\b(snares?|claps?|rims?|sd)\b/, 'snare'],
+    [/\b(hats?|hh|cymbals?|rides?|shakers?|percs?|percussion)\b/, 'hats'],
+    [/\b(sub|bass|basses|808s?|reese)\b/, 'bass'],
+    [/\b(leads?|arps?|melody|melodies|hooks?|top ?lines?)\b/, 'lead'],
+    [/\b(chords?|pads?|keys|stabs?|rhodes|piano)\b/, 'chords'],
+    [/\b(fx|risers?|sweeps?|impacts?|noise|atmos|ambient|textures?)\b/, 'atmosphere'],
+    [/\b(vox|vocals?|voices?)\b/, 'vocal'],
   ];
   for (const [pattern, role] of rules) {
     if (pattern.test(text)) return { role, confidence: 0.8 };

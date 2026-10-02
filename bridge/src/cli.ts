@@ -141,8 +141,9 @@ Effects (agent/knowledge/effects.json):
 
 Arrangement (agent/knowledge/styles.json):
   ableton-agent arrangement plan <style> [--roles kick,bass,...]   Sections, energy, roles, checks
-  ableton-agent arrangement build <style> [--dry-run]
+  ableton-agent arrangement build <style> [--map kick=12,bass=15,...] [--replace] [--dry-run]
       Lay each track's slot-0 loop across the sections its role plays in (Live 11+).
+      Roles come from --map, or from track names. --replace clears existing Arrangement clips.
 
 Bassline analysis:
   ableton-agent bass <file> [--bpm n]               Rhythm, pitches, kick ducking and balance of a drop
@@ -707,7 +708,9 @@ async function fx(argv: string[]): Promise<number> {
 async function arrangement(argv: string[]): Promise<number> {
   const args = [...argv];
   const dryRun = takeFlag(args, '--dry-run');
+  const replace = takeFlag(args, '--replace');
   const [rolesText] = takeOption(args, '--roles');
+  const [mapText] = takeOption(args, '--map');
   const [sub, style] = args;
   if (!sub || !style) throw new Error(`Usage: arrangement plan|build <style>. Styles: ${styleNames().join(', ')}`);
 
@@ -718,13 +721,22 @@ async function arrangement(argv: string[]): Promise<number> {
   }
   if (sub !== 'build') throw new Error('Unknown arrangement subcommand. Try: plan, build.');
 
-  // Map tracks to roles by name, using each track's slot-0 loop as its material.
+  // Map tracks to roles: explicit --map role=track_id first, then by name,
+  // using each track's slot-0 loop as its material.
   const { tracks } = (await post('live.get_tracks')) as {
     tracks: Array<{ track_id: number; name: string; type: string }>;
   };
+  const explicit = new Map<string, number>();
+  for (const pair of (mapText ?? '').split(',').filter(Boolean)) {
+    const [role, id] = pair.split('=');
+    explicit.set(role!.trim(), parseInteger('--map', id));
+  }
+  const candidates: Array<{ role: string; track_id: number }> = explicit.size
+    ? [...explicit].map(([role, track_id]) => ({ role, track_id }))
+    : tracks.map((t) => ({ role: inferTrackRole(t.name).role, track_id: t.track_id }));
   const sources: Record<string, RoleSource> = {};
-  for (const track of tracks) {
-    const { role } = inferTrackRole(track.name);
+  for (const { role, track_id } of candidates) {
+    const track = { track_id };
     if (role === 'unknown' || sources[role]) continue;
     try {
       const clip = (await post('live.get_clip', { track_id: track.track_id, clip_slot: 0 })) as { length_beats: number };
@@ -744,6 +756,17 @@ async function arrangement(argv: string[]): Promise<number> {
   }
   const caps = (await post('live.get_capabilities')) as { arrangement_placement?: boolean };
   if (!caps.arrangement_placement) throw new Error('This Live version cannot place clips in the Arrangement via the API.');
+  // Never stack a second arrangement on top of an existing one silently.
+  const involved = [...new Set(Object.values(sources).map((s) => s.track_id))];
+  for (const trackId of involved) {
+    const { clips } = (await post('live.get_arrangement_clips', { track_id: trackId })) as { clips: unknown[] };
+    if (clips.length && !replace) {
+      throw new Error(
+        `Track ${trackId} already has ${clips.length} Arrangement clips. Pass --replace to clear them first.`,
+      );
+    }
+    if (clips.length && replace) await post('live.clear_arrangement', { track_id: trackId });
+  }
   for (const command of commands) await post(command.command, command.args);
   process.stdout.write(`Placed ${commands.length} clips on the Arrangement.\n`);
   return 0;

@@ -9,6 +9,16 @@ import { formatReport } from '../../agent/src/mastering/report.js';
 const techno = getProfile('techno');
 const ids = (e: ReturnType<typeof evaluate>) => e.findings.map((f) => f.id);
 
+describe('track roles', () => {
+  it('recognises plural track names', async () => {
+    const { inferTrackRole } = await import('../../agent/src/composition.js');
+    expect(inferTrackRole('Hats').role).toBe('hats');
+    expect(inferTrackRole('Chords').role).toBe('chords');
+    expect(inferTrackRole('Kicks').role).toBe('kick');
+    expect(inferTrackRole('Vocals').role).toBe('vocal');
+  });
+});
+
 describe('profiles', () => {
   it('never treats -23 LUFS broadcast loudness as a club target', () => {
     for (const profile of Object.values(PROFILES)) {
