@@ -147,7 +147,51 @@ through the same filters, so the comparison holds.
 Reference analyses are cached in `.troublemaker/qc-cache/`, so re-runs only
 re-analyse the target.
 
-## 4. Adjust, one change at a time
+## 4. Try a change: A/B at matched loudness
+
+The preferred way to change the chain. One command runs the whole
+experiment `MIXING.md` describes:
+
+```bash
+npm run cli -- ab limiter_gain 4 --reason "mix sits at -15 LUFS, under the window" \
+  --bars 16 --scene <id> --ref a.wav --ref b.wav --ref c.wav
+```
+
+1. checkpoint the chain;
+2. capture **A** (the chain as it is);
+3. apply the change;
+4. capture **B**;
+5. compare the two **at matched loudness**;
+6. **keep the change only if B wins**, otherwise restore the checkpoint.
+   `--keep` keeps it anyway, for when you have decided by ear.
+
+If the second capture fails, the change is reverted.
+
+The comparison uses only measures that loudness can't fake, because a
+louder version always seems better:
+
+| Measure | Counts for B when |
+| ------- | ----------------- |
+| Technical failures (true peak, clipping) | B has fewer; decides on its own |
+| Peak-to-loudness ratio | B keeps ≥ 1 dB more punch |
+| Low-end mono loss | B is ≥ 0.5 dB more mono-safe |
+| Tonal distance to the references | B is ≥ 0.5 dB closer |
+| Tonal shift from a *dynamics* change | counts **against** B from 1.5 dB |
+| Loudness | **only** while A is below the working window, for at most 3 dB of PLR, and never below the PLR floor |
+
+The PLR floor is the reference median minus 2 dB, or the profile minimum
+without references (deep 9, house 7.5, techno 7, dnb 6 dB, a heuristic). It
+stops a run of trials from each spending "only" 3 dB. With no measurable
+difference, A is kept: the best move can be no move.
+
+Every trial also writes **loudness-matched listening copies** to
+`.troublemaker/ab/<time>/`: A as captured, and B gain-adjusted to A's loudness,
+written as 32-bit float so it can't clip. Judge by ear too. The numbers are
+evidence, not the verdict.
+
+`compare <a.wav> <b.wav>` does steps 5 and 6's analysis for any two files.
+
+## 5. Adjust directly, one change at a time
 
 ```bash
 npm run cli -- master checkpoint "before limiter work"

@@ -50,14 +50,20 @@ qc --capture --bars 16 --scene <id> --ref ... --chain
   -> PASS:   stop. Report.
   -> REVIEW: read the findings. Most say "fix it in the mix" — say so.
   -> FAIL:   fix the technical failure (true peak, bit depth, clipping) first.
-master.set <role> <value> --reason ...   one small change, with its hypothesis
-<re-capture, re-run qc>                  keep the change only if evidence supports it
+ab <role> <value> --reason ...           one small change, with its hypothesis:
+                                         captures A and B, compares at matched loudness,
+                                         keeps the change only if B wins, else reverts
 ```
 
 Stop when improvement is smaller than uncertainty, or when `qc` reports
 `STOP_AND_REVIEW`: a control that has reversed direction twice means the loop
 is chasing a room anomaly or its own tail. Ask the user for independent
 monitoring evidence (headphones, a second room, mono) before continuing.
+
+Prefer `ab` over `master.set` for anything that changes the sound. Use
+`master.set` directly only for setup (presets, routing) or when the user has
+already decided. When `ab` keeps A, report that the change did not earn its
+place, rather than trying a bigger version of the same change.
 
 ## Roles, not parameters
 

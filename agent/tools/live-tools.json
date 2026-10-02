@@ -761,5 +761,18 @@
       "1": "REVIEW",
       "2": "FAIL"
     }
+  },
+  "ab": {
+    "$comment": "The preferred way to change the master chain. Runs locally and drives the bridge.",
+    "command": "npm run cli -- ab <role> <value> --reason \"<hypothesis>\" --bars 16 --scene <id> [--ref <file>...] [--profile <name>] [--keep]",
+    "behaviour": "Captures A, applies the change, captures B, compares at matched loudness, keeps the change only if B wins, otherwise restores the checkpoint."
+  },
+  "compare": {
+    "command": "npm run cli -- compare <a.wav> <b.wav> [--ref <file>...] [--profile <name>] [--out <dir>]",
+    "behaviour": "Loudness-matched comparison of two files, with gain-matched listening copies. Exit 0 when B is preferred."
+  },
+  "capture": {
+    "command": "npm run cli -- qc --capture --bars 16 --scene <id> [--ref <file>...] --chain",
+    "behaviour": "Records the Master output in Live (real time) and runs QC on it. The agentic stand-in for Export."
   }
 }
