@@ -1,0 +1,91 @@
+{
+  "$comment": "Production defaults from COMPOSITION.md. Starting points, not genre definitions: establish tempo and structure from the references first. Sections are 1-based bars; energy 0..1 drives which roles play (see composition partsForEnergy).",
+  "version": 1,
+  "styles": {
+    "house": {
+      "tempo": [120, 128],
+      "priority": "Groove, repetition, hook, bass/drum conversation",
+      "defining_idea": "hook, riff, vocal or bass identity",
+      "harmony": ["natural_minor", "dorian", "major"],
+      "progressions": [[1, 6, 3, 7], [1, 4, 7, 3], [1, 7, 6, 7]],
+      "sections": [
+        { "name": "Intro", "bars": 16, "energy": 0.3 },
+        { "name": "Groove", "bars": 16, "energy": 0.55 },
+        { "name": "Main A", "bars": 32, "energy": 0.85 },
+        { "name": "Break", "bars": 16, "energy": 0.35 },
+        { "name": "Build", "bars": 8, "energy": 0.65 },
+        { "name": "Main B", "bars": 32, "energy": 1.0 },
+        { "name": "Outro", "bars": 16, "energy": 0.3 }
+      ]
+    },
+    "deep_house": {
+      "tempo": [118, 124],
+      "priority": "Warm harmony, subtle movement, restrained transitions",
+      "defining_idea": "chord, stab or hook",
+      "harmony": ["dorian", "natural_minor"],
+      "voicing": "sevenths and ninths; parallel or voice-led; keep chords out of the sub register",
+      "progressions": [[1, 4], [1, 2, 4, 1], [1, 7, 6, 7]],
+      "sections": [
+        { "name": "Intro", "bars": 32, "energy": 0.25 },
+        { "name": "Groove", "bars": 32, "energy": 0.5 },
+        { "name": "Development", "bars": 16, "energy": 0.65 },
+        { "name": "Break", "bars": 16, "energy": 0.35 },
+        { "name": "Main", "bars": 32, "energy": 0.9 },
+        { "name": "Variation", "bars": 16, "energy": 0.75 },
+        { "name": "Outro", "bars": 32, "energy": 0.25 }
+      ]
+    },
+    "melodic_techno": {
+      "tempo": [120, 126],
+      "priority": "Hypnotic bass, evolving lead, long builds",
+      "defining_idea": "lead motif or arp with timbral evolution",
+      "harmony": ["natural_minor", "harmonic_minor", "phrygian"],
+      "progressions": [[1, 6, 3, 7], [1, 7, 6, 7], [1, 4, 7, 3]],
+      "sections": [
+        { "name": "Intro", "bars": 32, "energy": 0.3 },
+        { "name": "Build", "bars": 32, "energy": 0.6 },
+        { "name": "Peak A", "bars": 32, "energy": 0.9 },
+        { "name": "Break", "bars": 32, "energy": 0.35 },
+        { "name": "Peak B", "bars": 32, "energy": 1.0 },
+        { "name": "Outro", "bars": 32, "energy": 0.3 }
+      ]
+    },
+    "techno": {
+      "tempo": [126, 132],
+      "priority": "Hypnosis, texture, tension, evolving percussion",
+      "defining_idea": "rhythmic or timbral motif",
+      "harmony": ["natural_minor", "phrygian"],
+      "voicing": "pedal tones and drones; change upper intervals over a fixed bass",
+      "progressions": [[1], [1, 1, 7, 1]],
+      "sections": [
+        { "name": "Intro", "bars": 32, "energy": 0.3 },
+        { "name": "Build", "bars": 32, "energy": 0.6 },
+        { "name": "Peak A", "bars": 32, "energy": 0.9 },
+        { "name": "Reset", "bars": 16, "energy": 0.4 },
+        { "name": "Peak B", "bars": 48, "energy": 1.0 },
+        { "name": "Outro", "bars": 32, "energy": 0.3 }
+      ]
+    }
+  },
+  "groove": {
+    "anchor": "Keep the kick quantised until there is a musical reason not to.",
+    "targets": ["hats", "shaker", "percussion"],
+    "timing_percent": [20, 60],
+    "random_percent": [0, 10],
+    "order": "velocity variation before timing changes; bass only if it improves the drum/bass pocket"
+  },
+  "arrangement_rules": {
+    "change_every_bars": 16,
+    "major_change_on": [16, 32],
+    "max_static_bars": 32,
+    "fills_on": [8, 16, 32],
+    "note": "Change is not the same as adding a layer: subtract, filter, modulate. Reserve the fullest state for the real peaks."
+  },
+  "palettes": {
+    "natural_minor": "Aeolian: i-VI-III-VII cyclic, i-VII-VI-VII hypnotic, i-iv-VII-III journey",
+    "dorian": "Minor centre with a bright major sixth: i-IV exposes the colour; i-ii-IV-i moves gently",
+    "harmonic_minor": "Raised seventh for a darker leading tone",
+    "phrygian": "Flat second for a dark, tense techno colour",
+    "major": "I-vi-IV-V functional framework"
+  }
+}
