@@ -12,6 +12,7 @@ import { join } from 'node:path';
 import { COMMANDS } from './commands/registry.js';
 import { runQc } from '../../qc/src/run.js';
 import { compareFiles, runAb } from '../../qc/src/ab.js';
+import { analyzeBass, formatBassProfile } from '../../qc/src/bass.js';
 import {
   genreSummary,
   loadReferenceSets,
@@ -120,6 +121,9 @@ Reference library:
   ableton-agent refs pick --dir <dir> --genre <g> [--bpm n]
   On qc, compare and ab:  --refs <set>  or  --refs-dir <dir> [--genre <g>]
       picks 3-5 lossless references automatically (BPM from Live when it is reachable).
+
+Bassline analysis:
+  ableton-agent bass <file> [--bpm n]               Rhythm, pitches, kick ducking and balance of a drop
 
 Loudness-matched A/B:
   ableton-agent compare <a.wav> <b.wav> [--ref <file>...] [--profile <name>] [--out <dir>]
@@ -308,6 +312,16 @@ async function main(argv: string[]): Promise<number> {
 
     case 'refs':
       return refs(rest);
+
+    case 'bass': {
+      const options = [...rest];
+      const [bpm] = takeOption(options, '--bpm');
+      const [file] = options;
+      if (!file) throw new Error("'bass' needs a file.");
+      const profile = await analyzeBass(file, bpm ? { bpm: parseNumber('--bpm', bpm) } : {});
+      process.stdout.write(`${formatBassProfile(profile)}\n`);
+      return 0;
+    }
 
     case 'ab':
       return ab(rest);

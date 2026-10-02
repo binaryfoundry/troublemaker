@@ -66,12 +66,61 @@ Limiter's missing True Peak mode.
 
 Save this as your own default Set or template so you don't have to repeat it.
 
-## 2. Collect references
+## 2. References
 
-Pick **3–5 lossless masters** from the same subgenre and era. One reference
+Use **3–5 lossless masters** from the same subgenre and era. One reference
 can carry an unusual tonal choice that QC would otherwise treat as a genre
 rule. Local lossless files only; streamed or loudness-normalised copies give
 misleading levels.
+
+### A reference library
+
+Point the tools at a folder of released masters, such as a Beatport download
+folder, and they pick references for you from the tags:
+
+```bash
+npm run cli -- refs scan D:/beatport      # index by tags (genre, BPM, key, label, year)
+npm run cli -- refs genres                # what the library holds
+npm run cli -- refs pick "melodic techno" # which tracks a set resolves to
+```
+
+Named sets live in `config/reference-sets.json`, as artists plus a profile:
+
+| Set | Artists | Profile |
+| --- | ------- | ------- |
+| deep house | Yotto, Tinlicker, Grum | deep |
+| melodic techno | CamelPhat, Audiofire UK | techno |
+| house | Eric Prydz, Pryda | house |
+
+Then `--refs "melodic techno"` on `qc`, `ab` or `compare`. Selection rules:
+
+- lossless only (`--allow-lossy` overrides);
+- matching artists anywhere in the credit, so collaborations and remixes count;
+- closest BPM to the Set's tempo, read from Live when it is reachable;
+- picks spread round-robin across the set's artists;
+- never two versions of the same song.
+
+Artist sets work better than genre tags here: Beatport files Yotto and
+Tinlicker under "Melodic House & Techno" and "Progressive House", not "Deep
+House". `--refs-dir <dir> --genre <tag>` selects by tag instead.
+
+Indexing reads tags only (433 files in about 3 s). Audio is analysed only for
+the references actually chosen, and cached, so the first QC run against a set
+takes about 30 s and later ones are instant.
+
+### Borrowing a bassline's feel
+
+```bash
+npm run cli -- bass "D:/beatport/Aname - Anywhere (Road Trippin_) (Fehrplay Remix).mp3"
+```
+
+reads the drop of a track: the level and steady pitch of each 16th, the pitch
+classes and register, how far the low end ducks at the kick, note length, and
+sub vs low-bass balance. `bassFromFeel` in `agent/src/patterns.ts` writes a
+bassline from that profile: the reference's rhythm, accents, note length and
+pitches, with the kick's 16ths left empty or started late (`kickDelay`) to
+stand in for a sidechain. MP3s are fine here, since lossy encoding leaves the
+bass region essentially intact.
 
 ## 3. Capture or export, then measure
 

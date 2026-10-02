@@ -134,6 +134,12 @@ npm run cli -- master build
 # Record 16 bars of the Master output inside Live and measure it - no export
 npm run cli -- qc --capture --bars 16 --scene <id> --ref a.wav --ref b.wav --ref c.wav
 
+# References chosen from your own library by artist set and tempo
+npm run cli -- qc --capture --bars 16 --scene <id> --refs "melodic techno"
+
+# What a reference's bassline does: rhythm, pitches, kick ducking
+npm run cli -- bass "D:/beatport/some track.mp3"
+
 # Try a change; keep it only if it wins at matched loudness, else revert
 npm run cli -- ab limiter_gain 4 --reason "under the window" --bars 16 --scene <id>
 
@@ -215,7 +221,7 @@ Live's shared undo stack.
 ## Testing
 
 ```bash
-npm run test:all     # 218 TypeScript + 95 Python tests, no Ableton required
+npm run test:all     # 241 TypeScript + 95 Python tests, no Ableton required
 npm test             # TypeScript only
 npm run test:python  # Live-side handlers only
 npm run typecheck
