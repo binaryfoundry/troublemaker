@@ -12,6 +12,15 @@ import { join } from 'node:path';
 import { COMMANDS } from './commands/registry.js';
 import { runQc } from '../../qc/src/run.js';
 import { compareFiles, runAb } from '../../qc/src/ab.js';
+import {
+  genreSummary,
+  loadReferenceSets,
+  profileForGenre,
+  referencesForSet,
+  scanLibrary,
+  selectReferences,
+  type LibraryEntry,
+} from '../../qc/src/library.js';
 import { PROFILES } from '../../agent/src/mastering/profiles.js';
 import type { ChainState, Decision } from '../../agent/src/mastering/policy.js';
 
@@ -102,6 +111,15 @@ Mastering QC (runs locally on exported files; no bridge needed):
         --bars <n>             capture length (default 16)
         --scene <id>           launch this scene for the capture
   Exit code: 0 PASS, 1 REVIEW, 2 FAIL.
+
+Reference library:
+  ableton-agent refs sets                          Named sets from config/reference-sets.json
+  ableton-agent refs scan [dir]                    Index a folder of released masters (tags only)
+  ableton-agent refs genres [dir]                  What the library holds, by genre tag
+  ableton-agent refs pick <set> [--bpm n]          Which references a set resolves to
+  ableton-agent refs pick --dir <dir> --genre <g> [--bpm n]
+  On qc, compare and ab:  --refs <set>  or  --refs-dir <dir> [--genre <g>]
+      picks 3-5 lossless references automatically (BPM from Live when it is reachable).
 
 Loudness-matched A/B:
   ableton-agent compare <a.wav> <b.wav> [--ref <file>...] [--profile <name>] [--out <dir>]
@@ -288,6 +306,9 @@ async function main(argv: string[]): Promise<number> {
     case 'compare':
       return compare(rest);
 
+    case 'refs':
+      return refs(rest);
+
     case 'ab':
       return ab(rest);
 
@@ -297,6 +318,108 @@ async function main(argv: string[]): Promise<number> {
     default:
       process.stderr.write(`Unknown command '${command}'.\n\n${USAGE}`);
       return 2;
+  }
+}
+
+interface ResolvedReferences {
+  files: string[];
+  profile: string | null;
+  describe: string[];
+}
+
+/** Turn --ref / --refs <set> / --refs-dir into files, a profile hint and notes. */
+async function resolveReferences(
+  args: string[],
+  options: { exclude?: string[] } = {},
+): Promise<ResolvedReferences> {
+  const explicit = takeOption(args, '--ref');
+  const [set] = takeOption(args, '--refs');
+  const [dir] = takeOption(args, '--refs-dir');
+  const [genre] = takeOption(args, '--genre');
+  const [bpmText] = takeOption(args, '--bpm');
+  const allowLossy = takeFlag(args, '--allow-lossy');
+  if (!set && !dir) return { files: explicit, profile: null, describe: [] };
+
+  let bpm = bpmText ? parseNumber('--bpm', bpmText) : undefined;
+  if (bpm === undefined) {
+    try {
+      bpm = ((await post('live.get_tempo')) as { bpm: number }).bpm;
+    } catch {
+      // Live not reachable: choose without a tempo preference.
+    }
+  }
+
+  let picked: LibraryEntry[];
+  let profile: string | null = null;
+  let notes: string[];
+  let label: string;
+  if (set) {
+    const result = await referencesForSet(set, { bpm, exclude: options.exclude });
+    picked = result.references;
+    profile = result.profile;
+    notes = result.notes;
+    label = `set '${result.set}'`;
+  } else {
+    const index = await scanLibrary(dir!);
+    const result = selectReferences(index, { genre, bpm, allowLossy, exclude: options.exclude });
+    picked = result.references;
+    profile = profileForGenre(genre);
+    notes = result.notes;
+    label = genre ? `'${genre}' in ${dir}` : dir!;
+  }
+  const describe = [
+    `References (${label}${bpm !== undefined ? `, near ${bpm} BPM` : ''}):`,
+    ...picked.map((e) => `  ${String(e.bpm ?? '?').padStart(3)} BPM  ${e.artist} - ${e.title}`),
+    ...notes.map((n) => `  note: ${n}`),
+  ];
+  return { files: [...explicit, ...picked.map((e) => e.path)], profile, describe };
+}
+
+async function refs(argv: string[]): Promise<number> {
+  const args = [...argv];
+  const [sub, ...rest] = args;
+  switch (sub) {
+    case 'sets': {
+      const config = loadReferenceSets();
+      process.stdout.write(`Library: ${config.library ?? '(per set)'}\n\n`);
+      for (const [name, set] of Object.entries(config.sets)) {
+        const who = set.artists?.length ? set.artists.join(', ') : `genre '${set.genre}'`;
+        process.stdout.write(`  ${name.padEnd(16)} ${who}  [profile ${set.profile ?? 'auto'}]\n`);
+      }
+      return 0;
+    }
+    case 'scan':
+    case 'genres': {
+      const dir = rest[0] ?? loadReferenceSets().library;
+      if (!dir) throw new Error('Give a folder, or set "library" in config/reference-sets.json.');
+      const started = Date.now();
+      const index = await scanLibrary(dir);
+      const lossless = index.entries.filter((e) => e.lossless).length;
+      process.stdout.write(
+        `${index.entries.length} files (${lossless} lossless) indexed in ${((Date.now() - started) / 1000).toFixed(1)} s\n\n`,
+      );
+      for (const g of genreSummary(index)) {
+        process.stdout.write(`  ${String(g.lossless).padStart(4)} lossless / ${String(g.total).padStart(4)}  ${g.genre}\n`);
+      }
+      return 0;
+    }
+    case 'pick': {
+      const options = [...rest];
+      const setName = options[0] && !options[0].startsWith('--') ? options.shift() : undefined;
+      if (setName) options.push('--refs', setName);
+      const [dir] = takeOption([...options], '--dir');
+      if (dir) {
+        const i = options.indexOf('--dir');
+        options.splice(i, 2, '--refs-dir', dir);
+      }
+      const resolved = await resolveReferences(options);
+      if (!resolved.files.length) throw new Error('Name a set, or give --dir <folder> [--genre <g>].');
+      process.stdout.write(`${resolved.describe.join('\n')}\n`);
+      if (resolved.profile) process.stdout.write(`  profile: ${resolved.profile}\n`);
+      return 0;
+    }
+    default:
+      throw new Error('Unknown refs subcommand. Try: sets, scan, genres, pick.');
   }
 }
 
@@ -320,8 +443,11 @@ function takeOption(args: string[], name: string): string[] {
 
 async function qc(argv: string[]): Promise<number> {
   const args = [...argv];
-  const references = takeOption(args, '--ref');
-  const [profile] = takeOption(args, '--profile');
+  const resolved = await resolveReferences(args);
+  const references = resolved.files;
+  const [profileOption] = takeOption(args, '--profile');
+  const profile = profileOption ?? resolved.profile ?? undefined;
+  if (resolved.describe.length) process.stderr.write(`${resolved.describe.join('\n')}\n`);
   const [section] = takeOption(args, '--section');
   const [sampleRate] = takeOption(args, '--sample-rate');
   const [bitDepth] = takeOption(args, '--bit-depth');
@@ -396,8 +522,11 @@ async function qc(argv: string[]): Promise<number> {
 
 async function compare(argv: string[]): Promise<number> {
   const args = [...argv];
-  const references = takeOption(args, '--ref');
-  const [profile] = takeOption(args, '--profile');
+  const resolved = await resolveReferences(args);
+  const references = resolved.files;
+  const [profileOption] = takeOption(args, '--profile');
+  const profile = profileOption ?? resolved.profile ?? undefined;
+  if (resolved.describe.length) process.stderr.write(`${resolved.describe.join('\n')}\n`);
   const [out] = takeOption(args, '--out');
   const [a, b, ...extra] = args;
   if (!a || !b) throw new Error("'compare' needs two files: compare <a.wav> <b.wav>.");
@@ -415,8 +544,11 @@ async function compare(argv: string[]): Promise<number> {
 
 async function ab(argv: string[]): Promise<number> {
   const args = [...argv];
-  const references = takeOption(args, '--ref');
-  const [profile] = takeOption(args, '--profile');
+  const resolved = await resolveReferences(args);
+  const references = resolved.files;
+  const [profileOption] = takeOption(args, '--profile');
+  const profile = profileOption ?? resolved.profile ?? undefined;
+  if (resolved.describe.length) process.stderr.write(`${resolved.describe.join('\n')}\n`);
   const [reason] = takeOption(args, '--reason');
   const [bars] = takeOption(args, '--bars');
   const [scene] = takeOption(args, '--scene');

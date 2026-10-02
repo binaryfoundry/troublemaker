@@ -1,0 +1,19 @@
+{
+  "$comment": "Named reference sets. Artists are matched case-insensitively against the artist tag, so collaborations and remixes count. The profile only sets the true-peak ceiling and the fallback envelopes; with references, loudness and tone come from the tracks themselves.",
+  "library": "D:/beatport",
+  "count": 5,
+  "sets": {
+    "deep house": {
+      "artists": ["Yotto", "Tinlicker", "Grum"],
+      "profile": "deep"
+    },
+    "melodic techno": {
+      "artists": ["CamelPhat", "Audiofire"],
+      "profile": "techno"
+    },
+    "house": {
+      "artists": ["Eric Prydz", "Pryda"],
+      "profile": "house"
+    }
+  }
+}

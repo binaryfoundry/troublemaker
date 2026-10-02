@@ -136,6 +136,8 @@ export async function measureLoudness(
     ...sectionArgs(start, duration),
     '-i',
     path,
+    // Downloads often embed cover art as a video stream; ignore it.
+    '-vn',
     '-filter_complex',
     'ebur128=peak=true+sample:framelog=info',
     '-f',
@@ -175,6 +177,7 @@ export function streamPcm(
     ...sectionArgs(options.start, options.duration),
     '-i',
     path,
+    '-vn',
     ...filter,
     '-ar',
     String(sampleRate),
