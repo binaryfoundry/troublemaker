@@ -38,6 +38,18 @@ def _has_device_insertion():
         return False
 
 
+def _has(path, attribute):
+    try:
+        import Live
+
+        target = Live
+        for part in path:
+            target = getattr(target, part)
+        return hasattr(target, attribute)
+    except Exception:
+        return False
+
+
 def ping(ctx, args):
     """Cheap liveness probe. The bridge heartbeat uses this."""
     return {
@@ -75,6 +87,8 @@ def get_capabilities(ctx, args):
         "device_loading": False,
         # Live 12.3+: native devices can be inserted through the API.
         "device_insertion": _has_device_insertion(),
+        "arrangement_placement": _has(("Track", "Track"), "duplicate_clip_to_arrangement"),
+        "return_track_creation": _has(("Song", "Song"), "create_return_track"),
         "clip_automation": _has_clip_automation_api(),
         "arrangement_editing": False,
         "audio_warping": False,

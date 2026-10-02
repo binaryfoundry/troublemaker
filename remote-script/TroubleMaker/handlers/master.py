@@ -65,6 +65,7 @@ def _display_number(param, value):
 
 
 RANGE_SAMPLES = 64
+OPTION_SAMPLES = 1024
 
 
 def numeric_span(param):
@@ -195,6 +196,19 @@ def set_device_parameter_display(ctx, args):
 
         native = min([lo, hi], key=closeness)
 
+    if args.get("apply") is False:
+        # Conversion only: which native value displays as the target.
+        return {
+            "track_id": ctx.registry.handle_for(track),
+            "device_id": ctx.registry.handle_for(device),
+            "parameter_name": param.name,
+            "target": target,
+            "native": native,
+            "display": lom.safe(lambda: str(param.str_for_value(native)), None),
+            "min": float(param.min),
+            "max": float(param.max),
+        }
+
     try:
         param.value = native
     except Exception as exc:
@@ -231,8 +245,16 @@ def _option_values(param):
             pairs.append((value, lom.safe(lambda: str(param.str_for_value(value)), "")))
             value += 1.0
     else:
-        for value in (low, high):
-            pairs.append((value, lom.safe(lambda: str(param.str_for_value(value)), "")))
+        # Tempo-synced rates ("1/16", "1 Bar") are continuous parameters with
+        # stepped displays. Sample the range and keep the first value showing
+        # each distinct label, so those steps are selectable by name.
+        seen = set()
+        for i in range(OPTION_SAMPLES + 1):
+            value = low + (high - low) * i / float(OPTION_SAMPLES)
+            shown = lom.safe(lambda: str(param.str_for_value(value)), "")
+            if shown not in seen:
+                seen.add(shown)
+                pairs.append((value, shown))
     return pairs
 
 

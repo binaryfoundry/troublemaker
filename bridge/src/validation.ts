@@ -259,7 +259,7 @@ export const schemas = {
 
   // -- mastering (Live side) ---------------------------------------------
   'live.set_device_parameter_display': parameterRef
-    .extend({ target: z.number().finite() })
+    .extend({ target: z.number().finite(), apply: z.boolean().optional() })
     .strict()
     .refine(
       (v) => v.parameter_id !== undefined || v.parameter_name !== undefined,
@@ -276,6 +276,10 @@ export const schemas = {
     .extend({ device_name: nonEmptyName, index: z.number().int().min(0).optional() })
     .strict(),
   'live.get_meters': trackRef.strict(),
+  'live.place_clip_in_arrangement': clipRef.extend({ beat }).strict(),
+  'live.get_arrangement_clips': trackRef.strict(),
+  'live.clear_arrangement': trackRef.strict(),
+  'live.create_return_track': z.object({ name: nonEmptyName.optional() }).strict(),
   'live.set_song_time': z.object({ beat }).strict(),
 
   // -- capture ----------------------------------------------------------

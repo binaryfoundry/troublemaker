@@ -121,6 +121,13 @@ const SUMMARIES: Record<CommandName, { summary: string; mutates?: boolean; bridg
     mutates: true,
   },
   'live.get_meters': { summary: "A track's output display meters (not loudness)." },
+  'live.place_clip_in_arrangement': {
+    summary: 'Copy a Session clip onto the Arrangement timeline at a beat (Live 11+).',
+    mutates: true,
+  },
+  'live.get_arrangement_clips': { summary: "A track's Arrangement clips with start and end beats." },
+  'live.clear_arrangement': { summary: "Delete every Arrangement clip on a track. Destructive.", mutates: true },
+  'live.create_return_track': { summary: 'Create a return track (where Live supports it).', mutates: true },
   'live.set_song_time': { summary: 'Move the song position, in beats.', mutates: true },
   'live.create_audio_track': { summary: 'Create an audio track.', mutates: true },
   'live.get_input_routing': { summary: "A track's input routing and the available alternatives." },

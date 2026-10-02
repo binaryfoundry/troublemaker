@@ -693,6 +693,56 @@ class TestCapture(HandlerTestCase):
         self.assertEqual(self.call("live.get_record_settings")["signature"], [4, 4])
 
 
+class TestArrangementAndReturns(HandlerTestCase):
+    def setUp(self):
+        HandlerTestCase.setUp(self)
+        self.bass = self.track_id("Bass")
+
+    def test_reports_the_capabilities(self):
+        caps = self.call("live.get_capabilities")
+        self.assertTrue(caps["arrangement_placement"])
+        self.assertTrue(caps["return_track_creation"])
+
+    def test_places_a_session_clip_in_the_arrangement(self):
+        self.call("live.place_clip_in_arrangement", track_id=self.bass, clip_slot=0, beat=64)
+        clips = self.call("live.get_arrangement_clips", track_id=self.bass)["clips"]
+        self.assertEqual([(c["start"], c["end"]) for c in clips], [(64.0, 68.0)])
+
+    def test_refuses_a_negative_position(self):
+        error = self.fail_call("live.place_clip_in_arrangement", track_id=self.bass, clip_slot=0, beat=-4)
+        self.assertEqual(error["code"], "INVALID_ARGUMENT")
+
+    def test_clears_the_arrangement(self):
+        for beat in (0, 16):
+            self.call("live.place_clip_in_arrangement", track_id=self.bass, clip_slot=0, beat=beat)
+        self.assertEqual(self.call("live.clear_arrangement", track_id=self.bass)["removed"], 2)
+
+    def test_creates_a_named_return_track(self):
+        track = self.call("live.create_return_track", name="DUB ECHO")
+        self.assertEqual((track["name"], track["type"]), ("DUB ECHO", "return"))
+
+
+class TestSyncedRates(HandlerTestCase):
+    def setUp(self):
+        HandlerTestCase.setUp(self)
+        self.master = self.call("live.get_tracks")["master_track"]["track_id"]
+        self.limiter = [d for d in self.call("live.get_devices", track_id=self.master)["devices"]
+                        if d["name"] == "Limiter"][0]["device_id"]
+
+    def test_picks_a_division_on_a_continuous_parameter(self):
+        result = self.call("live.set_device_parameter_option", track_id=self.master,
+                           device_id=self.limiter, parameter_name="Rate", option="1/16")
+        self.assertEqual(result["after"]["display_value"], "1/16")
+
+    def test_converts_a_display_value_without_applying_it(self):
+        result = self.call("live.set_device_parameter_display", track_id=self.master,
+                           device_id=self.limiter, parameter_name="Ceiling", target=-6.0, apply=False)
+        self.assertEqual(result["display"], "-6.0 dB")
+        ceiling = [p for p in self.call("live.get_device_parameters", track_id=self.master,
+                                        device_id=self.limiter)["parameters"] if p["name"] == "Ceiling"][0]
+        self.assertEqual(ceiling["display_value"], "0.0 dB")
+
+
 class TestEndToEndWorkflow(HandlerTestCase):
     """The MVP interaction from the plan, start to finish."""
 

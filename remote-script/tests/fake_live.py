@@ -188,6 +188,9 @@ def master_chain():
         DeviceParameter("Gain", 0.0, 0.0, 1.0, display=_db_display(0.0, 24.0)),
         DeviceParameter("Ceiling", 1.0, 0.0, 1.0, display=_db_display(-24.0, 0.0)),
         DeviceParameter("Release", 0.5, 0.0, 1.0, display=_ms_display(1.0, 3000.0)),
+        DeviceParameter("Rate", 0.5, 0.0, 1.0,
+                        display=lambda v: ["8", "4", "2", "1", "1/2", "1/4", "1/8", "1/16",
+                                           "1/32", "1/64"][min(9, int(v * 10))]),
     ])
     return [utility, eq, glue, saturator, limiter]
 
@@ -398,6 +401,7 @@ class Track(LiveObject):
         self.solo = False
         self.arm = False
         self.can_be_armed = slots > 0
+        self.arrangement_clips = []
         self.current_monitoring_state = 1
         self.available_input_routing_types = (
             [RoutingType("Ext. In"), RoutingType("Resampling"), RoutingType("No Input")]
@@ -420,6 +424,16 @@ class Track(LiveObject):
     def name(self, value):
         self._check()
         self._name = value
+
+    def duplicate_clip_to_arrangement(self, clip, time):
+        self._check()
+        placed = Clip(clip.length, self, name=clip.name, is_midi=clip.is_midi_clip)
+        placed.start_time = float(time)
+        placed.end_time = float(time) + clip.length
+        self.arrangement_clips.append(placed)
+
+    def delete_clip(self, clip):
+        self.arrangement_clips = [c for c in self.arrangement_clips if c is not clip]
 
     def stop_all_clips(self):
         self._check()
@@ -505,6 +519,11 @@ class Song(LiveObject):
         if len(self.tracks) >= 16:
             raise RuntimeError("Live Intro supports at most 16 tracks")
         self.tracks.insert(index, Track("%d-MIDI" % (index + 1), is_midi=True, parent=self))
+
+    def create_return_track(self):
+        self._check()
+        self.return_tracks.append(Track("%s-Return" % chr(65 + len(self.return_tracks)),
+                                        is_midi=False, slots=0, parent=self))
 
     def create_audio_track(self, index):
         self._check()
