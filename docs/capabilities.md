@@ -27,6 +27,10 @@ reports a success it did not achieve.
 | Undo        | Live undo/redo, plus bridge-side clip snapshots                    |
 | Batching    | transactions, optionally atomic with rollback                      |
 | Dry run     | validate and report any command without applying it                |
+| Arrangement | lay Session clips onto the Arrangement at a beat; list and clear Arrangement clips |
+| Returns     | create return tracks (Live 12)                                     |
+| Effects     | build 31 codex effects from native devices, automation and generated MIDI |
+| Identify    | classify an audio excerpt's effect from onset spacing, pitch and brightness |
 | Mastering   | Master-chain roles with safe ranges, display-unit writes, decision log, checkpoints |
 | QC          | offline loudness, true peak, spectrum, stereo and integrity of exported files |
 | Meters      | Live's display meters per track (a clipping probe, not loudness)  |
@@ -35,7 +39,10 @@ reports a success it did not achieve.
 
 | Area                   | Why                                                      |
 | ---------------------- | -------------------------------------------------------- |
-| Arrangement editing    | Live exposes no reliable API for it. Session clips only.  |
+| Arrangement editing    | Session clips can be laid onto the Arrangement (`live.place_clip_in_arrangement`); free-form editing of Arrangement clips is not offered. |
+| Tape stop              | No varispeed device in Live; plugins can't be inserted via the API. |
+| Reverse reverb/cymbal  | Needs rendering and reversing audio; not available through the API. |
+| Kick-keyed sidechain   | A device's sidechain input is chosen in Live's UI only; the codex offers a volume-shaping approximation. |
 | Audio clip editing     | Out of scope for version 1.                               |
 | Warping                | Out of scope for version 1.                               |
 | Device loading         | Live 11 has no API for it. **Live 12.3+**: native devices via `live.insert_device` / `master build`, detected automatically. |

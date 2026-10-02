@@ -64,7 +64,8 @@ beforeEach(async () => {
   live.handlers.set('live.fire_scene', () => ({}));
   live.handlers.set('live.delete_clip', () => ({ deleted: true }));
   live.handlers.set('live.stop_clip', () => ({ stopped: true }));
-  live.handlers.set('live.stop', () => ({}));  live.handlers.set('live.record_with_scene', () => {
+  live.handlers.set('live.stop', () => ({}));
+  live.handlers.set('live.record_with_scene', () => {
     recordingPolls = 3;
     return { started: true };
   });

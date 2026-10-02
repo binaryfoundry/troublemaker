@@ -137,6 +137,31 @@ which releases the file (the WAV stays on disk). Without that, ffprobe gets
 checks `hasattr(Track, 'insert_device')`; True Peak mode is detected from the
 Limiter's parameters. Keep it that way, so upgrading Live needs no code change.
 
+## Composition and effects
+
+The effects codex (`agent/knowledge/effects.json`) is data, validated by
+`bridge/tests/knowledge.test.ts`: unique ids, declared energy functions,
+cross-references that resolve, recipes built only from devices Live 12
+Standard has. `bridge/src/fx.ts` executes recipes and never improvises a
+substitute for an `unsupported` one.
+
+**Adding an effect:** add an entry with cue, mechanism, control law, time
+scale, energy, confusions and references tagged `D` (documented) or `A`
+(auditory). Read real parameter names from Live (insert the device on a
+scratch track and list its parameters) - Live 11 and 12 differ, and guesses
+have been wrong every time. Then sweep it on Live with `fx apply`.
+
+**Live facts learned the hard way:**
+
+- Tempo-synced rates display as divisions ("1/16", "1 Bar") on continuous
+  parameters; set them as options, which sample the range.
+- Auto Pan-Tremolo's sync option is "Synced"; Echo, Hybrid Reverb, Spectral
+  Time and Roar are Suite-only; Operator is not in Standard.
+- Return tracks have no clip slots, so devices on returns cannot carry clip
+  automation; automate the source track's send (`mixer: send:N`) instead.
+- Firing a scene and recording separately makes the capture start at the
+  scene's second bar; `live.record_with_scene` launches both in one tick.
+
 ## Gotchas
 
 **Note ids change.** Deleting and re-adding a note gives it a new id. Always

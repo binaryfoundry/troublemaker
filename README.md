@@ -155,6 +155,32 @@ compatibility and the master-chain rules. See
 [docs/mastering.md](docs/mastering.md) for the workflow, the template chain to
 put on Master, and what changes when you upgrade to Live 12.
 
+## Composition and effects
+
+`COMPOSITION.md`, `EDM-COMPOSITION.md` and `EFFECTS.md` are integrated as
+agent prompts (`agent/prompts/composition.md`, `agent/prompts/effects.md`),
+machine-readable knowledge (`agent/knowledge/effects.json`, `styles.json`)
+and tools:
+
+```bash
+# Arrangement: plan from a style template, then lay Session loops onto the timeline
+npm run cli -- arrangement plan melodic_techno --roles kick,bass,chords,hats
+npm run cli -- arrangement build melodic_techno --map kick=12,bass=15,chords=18,hats=21
+
+# Effects: 34 families as cue / mechanism / control law / energy function
+npm run cli -- fx list --energy accumulate
+npm run cli -- fx show "roulette wheel slowing down"
+npm run cli -- fx apply noise_riser --track 12 --start 112 --bars 8
+npm run cli -- fx identify capture.wav     # which effect an excerpt sounds like
+```
+
+The pure tools cover tempo-synced timing, seventh/ninth/sus voicings with
+voice-leading, Euclidean rhythms, polyrhythms and polymetric clips, exponential
+ratchets and retrigger decelerations, fills, risers and pre-drop silence. Every
+buildable recipe has been applied on Live 12.4 Standard; effects Live cannot
+build through its API (tape stop, reverse reverb, kick-keyed sidechain) are
+refused with the reason, and Suite-only devices are never used.
+
 ## HTTP API
 
 | Route            | Purpose                                            |
@@ -181,7 +207,8 @@ qc/src/                       offline audio QC: ffmpeg loudness + PCM analysis
 bridge/tests/                 unit, protocol and golden musical tests
 agent/src/                    music theory, pattern generation, transforms
 agent/src/mastering/          profiles, reference median, QC policy, reports
-agent/prompts/                system prompt and music-editing guide
+agent/prompts/                system, music-editing, composition, effects, mastering
+agent/knowledge/              effects codex and style templates (JSON)
 agent/tools/                  LLM tool definitions
 schemas/                      command, response and project-state JSON Schema
 devices/                      semantic hints for common Live devices
@@ -221,7 +248,7 @@ Live's shared undo stack.
 ## Testing
 
 ```bash
-npm run test:all     # 241 TypeScript + 95 Python tests, no Ableton required
+npm run test:all     # 294 TypeScript + 105 Python tests, no Ableton required
 npm test             # TypeScript only
 npm run test:python  # Live-side handlers only
 npm run typecheck
