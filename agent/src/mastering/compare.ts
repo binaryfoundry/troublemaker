@@ -76,11 +76,25 @@ function summarise(
   };
 }
 
+/**
+ * What the change between A and B was meant to do. A tonal shift is the
+ * point of an EQ move but a side effect of a dynamics move, so only the
+ * latter is scored against B. Unknown means report it and let it be.
+ */
+export type ChangeIntent = 'tonal' | 'dynamics' | 'unknown';
+
+export function intentForRole(role: string): ChangeIntent {
+  if (/^eq_|^saturator_type|^bass_mono/.test(role)) return 'tonal';
+  if (/^(glue_|limiter_|saturator_drive|saturator_output|input_trim)/.test(role)) return 'dynamics';
+  return 'unknown';
+}
+
 export function compareVersions(input: {
   a: Analysis;
   b: Analysis;
   profile: MasteringProfile;
   reference?: ReferenceProfile;
+  intent?: ChangeIntent;
 }): Comparison {
   const t = THRESHOLDS;
   const a = summarise(input.a, input.profile, input.reference);
@@ -124,6 +138,27 @@ export function compareVersions(input: {
   // 2. What the change costs, measured independently of level.
   const costs: string[] = [];
   const gains: string[] = [];
+
+  // Both failing is not a tie: report it, and count a worse overshoot.
+  if (a.technicalFailures.length > 0) {
+    const overshootA = a.truePeakDbtp - input.profile.truePeakCeilingDbtp;
+    const overshootB = b.truePeakDbtp - input.profile.truePeakCeilingDbtp;
+    if (overshootB - overshootA >= 0.1) {
+      costs.push(`B overshoots the true-peak ceiling by ${(overshootB - overshootA).toFixed(1)} dB more than A`);
+    } else if (overshootA - overshootB >= 0.1) {
+      gains.push(`B overshoots the true-peak ceiling by ${(overshootA - overshootB).toFixed(1)} dB less than A`);
+    }
+  }
+
+  const biggestShift = Object.entries(tiltChangeDb)
+    .filter(([band]) => band !== 'infra')
+    .reduce<[string, number]>((best, entry) => (Math.abs(entry[1]) > Math.abs(best[1]) ? entry : best), ['', 0]);
+  if ((input.intent ?? 'unknown') === 'dynamics' && Math.abs(biggestShift[1]) >= t.abTonalSideEffectDb) {
+    costs.push(
+      `the dynamics change shifted tonal balance by up to ${Math.abs(biggestShift[1]).toFixed(1)} dB ` +
+        `(${biggestShift[0]}) - a side effect, not the intent`,
+    );
+  }
 
   const plrCost = `B has ${Math.abs(plrDeltaDb).toFixed(1)} dB less peak-to-loudness ratio (less punch at matched level)`;
   if (plrDeltaDb <= -t.abPlrNoticeDb) {
@@ -178,6 +213,12 @@ export function compareVersions(input: {
   }
 
   const reasons = [...gains.map((g) => `+ ${g}`), ...costs.map((c) => `- ${c}`)];
+  if (a.technicalFailures.length > 0) {
+    reasons.unshift(
+      `! Both versions fail technically (A: ${a.technicalFailures.join('; ')}; B: ${b.technicalFailures.join('; ')}). ` +
+        'Fix that before trusting either.',
+    );
+  }
 
   if (gains.length === 0 && costs.length === 0) {
     return result('A', 'no-difference', [

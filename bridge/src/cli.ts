@@ -7,9 +7,11 @@
  */
 
 import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import { COMMANDS } from './commands/registry.js';
 import { runQc } from '../../qc/src/run.js';
+import { compareFiles, runAb } from '../../qc/src/ab.js';
 import { PROFILES } from '../../agent/src/mastering/profiles.js';
 import type { ChainState, Decision } from '../../agent/src/mastering/policy.js';
 
@@ -100,6 +102,14 @@ Mastering QC (runs locally on exported files; no bridge needed):
         --bars <n>             capture length (default 16)
         --scene <id>           launch this scene for the capture
   Exit code: 0 PASS, 1 REVIEW, 2 FAIL.
+
+Loudness-matched A/B:
+  ableton-agent compare <a.wav> <b.wav> [--ref <file>...] [--profile <name>] [--out <dir>]
+      Compare two files at matched loudness and write gain-matched listening copies.
+  ableton-agent ab <role> <value> --reason "<why>" [--bars n] [--scene id] [--ref <file>...]
+      [--profile <name>] [--keep] [--mix-repair] [--allow-widen]
+      Capture A, apply the change, capture B, compare at matched loudness, and revert
+      unless B wins (--keep keeps it regardless). Needs the bridge.
 
 Master chain (through the bridge):
   ableton-agent master chain                       Roles, values, safe ranges
@@ -275,6 +285,12 @@ async function main(argv: string[]): Promise<number> {
     case 'qc':
       return qc(rest);
 
+    case 'compare':
+      return compare(rest);
+
+    case 'ab':
+      return ab(rest);
+
     case 'master':
       return master(rest);
 
@@ -376,6 +392,62 @@ async function qc(argv: string[]): Promise<number> {
     process.stdout.write(`Wrote ${jsonOut}\n`);
   }
   return result.evaluation.verdict === 'FAIL' ? 2 : result.evaluation.verdict === 'REVIEW' ? 1 : 0;
+}
+
+async function compare(argv: string[]): Promise<number> {
+  const args = [...argv];
+  const references = takeOption(args, '--ref');
+  const [profile] = takeOption(args, '--profile');
+  const [out] = takeOption(args, '--out');
+  const [a, b, ...extra] = args;
+  if (!a || !b) throw new Error("'compare' needs two files: compare <a.wav> <b.wav>.");
+  if (extra.length) throw new Error(`Unexpected arguments: ${extra.join(' ')}`);
+  const result = await compareFiles({
+    a,
+    b,
+    references,
+    profile,
+    outDir: out ?? join(process.env.TROUBLEMAKER_DATA_DIR ?? '.troublemaker', 'compare'),
+  });
+  process.stdout.write(`${result.report}\n`);
+  return result.comparison.preferred === 'B' ? 0 : 1;
+}
+
+async function ab(argv: string[]): Promise<number> {
+  const args = [...argv];
+  const references = takeOption(args, '--ref');
+  const [profile] = takeOption(args, '--profile');
+  const [reason] = takeOption(args, '--reason');
+  const [bars] = takeOption(args, '--bars');
+  const [scene] = takeOption(args, '--scene');
+  const keep = takeFlag(args, '--keep');
+  const mixRepair = takeFlag(args, '--mix-repair');
+  const allowWiden = takeFlag(args, '--allow-widen');
+  const [role, value, ...extra] = args;
+  if (!role || value === undefined) throw new Error('Usage: ab <role> <value> --reason "<why>"');
+  if (!reason) throw new Error('An A/B trial needs --reason "<the hypothesis it tests>".');
+  if (extra.length) throw new Error(`Unexpected arguments: ${extra.join(' ')}`);
+  const numeric = Number(value);
+  const result = await runAb(
+    { post },
+    {
+      role,
+      value: Number.isFinite(numeric) && value.trim() !== '' ? numeric : value,
+      reason,
+      bars: bars ? parseInteger('--bars', bars) : undefined,
+      scene_id: scene ? parseInteger('--scene', scene) : undefined,
+      references,
+      profile,
+      keepRegardless: keep,
+      mix_repair: mixRepair,
+      allow_widen: allowWiden,
+    },
+    (line) => process.stderr.write(`${line}\n`),
+  );
+  process.stdout.write(
+    `${result.report}\n\nKept: ${result.kept}${result.kept === 'A' ? ' (change reverted)' : ' (change kept)'}\n`,
+  );
+  return 0;
 }
 
 async function captureMaster(

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { compareVersions } from '../../agent/src/mastering/compare.js';
+import { compareVersions, intentForRole } from '../../agent/src/mastering/compare.js';
 import { getProfile } from '../../agent/src/mastering/profiles.js';
 import { buildReferenceProfile } from '../../agent/src/mastering/reference.js';
 import { analysis } from './helpers/analysis.js';
@@ -86,5 +86,30 @@ describe('loudness-matched comparison', () => {
       profile: techno,
     });
     expect(result.tiltChangeDb.sub).toBe(1.5);
+  });
+
+  it('does not call it a tie when both versions fail, and counts the worse overshoot', () => {
+    const result = compareVersions({
+      a: analysis({ lufs: -9.6, tp: -0.7 }),
+      b: analysis({ lufs: -6.8, tp: -0.3 }),
+      profile: techno,
+    });
+    expect(result.reasons[0]).toMatch(/^! Both versions fail/);
+    expect(result.reasons.join(' ')).toMatch(/overshoots the true-peak ceiling by 0\.4 dB more/);
+  });
+
+  it('counts a tonal shift against a dynamics change, but not against an EQ change', () => {
+    const a = version(-15, 12, { tilt: { presence: -10 } });
+    const b = version(-12, 10.5, { tilt: { presence: -7.5 } });
+    const dynamics = compareVersions({ a, b, profile: techno, intent: 'dynamics' });
+    const tonal = compareVersions({ a, b, profile: techno, intent: 'tonal' });
+    expect(dynamics.reasons.join(' ')).toMatch(/side effect/);
+    expect(tonal.reasons.join(' ')).not.toMatch(/side effect/);
+  });
+
+  it('maps roles to intents', () => {
+    expect(intentForRole('eq_3_gain')).toBe('tonal');
+    expect(intentForRole('limiter_gain')).toBe('dynamics');
+    expect(intentForRole('width')).toBe('unknown');
   });
 });

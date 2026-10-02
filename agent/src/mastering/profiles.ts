@@ -97,4 +97,6 @@ export const THRESHOLDS = {
   abPlrTolerableDb: 3,
   abMonoNoticeDb: 0.5,
   abTonalNoticeDb: 0.5,
+  /** A/B: tonal shift from a dynamics change large enough to count against it. */
+  abTonalSideEffectDb: 1.5,
 } as const;

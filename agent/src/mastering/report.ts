@@ -3,6 +3,7 @@
  */
 
 import type { Analysis } from '../../../qc/src/types.js';
+import type { Comparison } from './compare.js';
 import type { Evaluation, Finding } from './policy.js';
 import type { ReferenceProfile } from './reference.js';
 
@@ -77,6 +78,55 @@ export function formatReport(
   for (const finding of sorted) {
     lines.push(`  [${finding.severity.toUpperCase()}] ${finding.message}`);
     lines.push(`         -> ${finding.action}`);
+  }
+  return lines.join('\n');
+}
+
+/** The A/B verdict, in the same compact style as the master report. */
+export function formatComparison(
+  comparison: Comparison,
+  options: {
+    labels?: { a: string; b: string };
+    listening?: { a: string; b: string } | null;
+  } = {},
+): string {
+  const labels = options.labels ?? { a: 'A', b: 'B' };
+  const { a, b } = comparison;
+  const row = (name: string, av: string, bv: string) =>
+    `  ${name.padEnd(16)} ${av.padStart(10)}   ${bv.padStart(10)}`;
+  const n = (v: number, unit: string) => `${v.toFixed(1)} ${unit}`;
+  const lines = [
+    `A/B RESULT: prefer ${comparison.preferred} (${comparison.confidence})`,
+    '',
+    `  A = ${labels.a}`,
+    `  B = ${labels.b}`,
+    '',
+    row('', 'A', 'B'),
+    row('LUFS-I', n(a.integratedLufs, 'LUFS'), n(b.integratedLufs, 'LUFS')),
+    row('true peak', n(a.truePeakDbtp, 'dBTP'), n(b.truePeakDbtp, 'dBTP')),
+    row('PLR', n(a.plrDb, 'dB'), n(b.plrDb, 'dB')),
+    row('low-end mono', n(a.lowMonoLossDb, 'dB'), n(b.lowMonoLossDb, 'dB')),
+    row('clipped runs', String(a.clippedRuns), String(b.clippedRuns)),
+  ];
+  if (a.referenceDistanceDb !== null && b.referenceDistanceDb !== null) {
+    lines.push(row('dist. to refs', n(a.referenceDistanceDb, 'dB'), n(b.referenceDistanceDb, 'dB')));
+  }
+  lines.push(
+    '',
+    `Compared at matched loudness: B is ${comparison.loudnessDeltaLu >= 0 ? '+' : ''}${comparison.loudnessDeltaLu.toFixed(1)} LU vs A, ` +
+      `so B plays ${comparison.matchGainDb >= 0 ? '+' : ''}${comparison.matchGainDb.toFixed(1)} dB for listening.`,
+  );
+  const moved = Object.entries(comparison.tiltChangeDb).filter(([, d]) => Math.abs(d) >= 0.5);
+  if (moved.length) {
+    lines.push(
+      `Tonal change A -> B: ${moved.map(([band, d]) => `${band} ${d > 0 ? '+' : ''}${d.toFixed(1)}`).join(', ')} dB`,
+    );
+  }
+  lines.push('', 'Why:');
+  for (const reason of comparison.reasons) lines.push(`  ${reason}`);
+  if (options.listening) {
+    lines.push('', 'Loudness-matched listening copies (judge by ear too):');
+    lines.push(`  ${options.listening.a}`, `  ${options.listening.b}`);
   }
   return lines.join('\n');
 }
