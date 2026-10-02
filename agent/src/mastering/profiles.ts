@@ -91,4 +91,10 @@ export const THRESHOLDS = {
   reversalsBeforeStop: 2,
   /** References more than this far apart (LU) disagree materially. */
   referenceSpreadLu: 4,
+  /** A/B: smallest PLR change worth reporting. */
+  abPlrNoticeDb: 1,
+  /** A/B: most PLR a louder version may cost while still below the window. */
+  abPlrTolerableDb: 3,
+  abMonoNoticeDb: 0.5,
+  abTonalNoticeDb: 0.5,
 } as const;
