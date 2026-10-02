@@ -73,16 +73,45 @@ can carry an unusual tonal choice that QC would otherwise treat as a genre
 rule. Local lossless files only; streamed or loudness-normalised copies give
 misleading levels.
 
-## 3. Export and measure
+## 3. Capture or export, then measure
 
-Live has no export API, so this step is manual. In File → Export Audio/Video:
+### Capture (agentic)
+
+No Live version can export through its API, but Live can record its own
+output. `--capture` does that in one step:
+
+```bash
+npm run cli -- qc --capture --bars 16 --scene <scene_id> --ref a.wav --ref b.wav --ref c.wav --chain
+```
+
+It creates (or reuses) an audio track called **TM Capture**, sets its input to
+**Resampling** (everything reaching the Master, *after* the Master chain), turns
+monitoring off so nothing feeds back, launches the scene, records the requested
+length, and runs QC on the resulting WAV. `master capture` records without
+running QC.
+
+Afterwards it removes the recorded clip from the capture track. Live loops a
+freshly recorded Session clip straight into playback, which would feed back
+into the Master, and it holds the file locked while the clip is loaded. The
+WAV stays in the project's `Samples/Recorded` folder. Playback is stopped and
+the track disarmed, even if the capture fails.
+
+Capture runs in real time (16 bars at 124 BPM is about 31 s) at Live's
+recording format (Preferences → Record, 24-bit WAV by default) and the audio
+device's sample rate. That is right for judging a mix. For the delivery file,
+still use a real export: it renders offline, at the delivery bit depth, with
+dither once.
+
+### Export (delivery)
+
+In File → Export Audio/Video:
 
 - **24-bit WAV** at the project sample rate, with dither on (once, at the
   final reduction) for the deliverable;
 - **32-bit float** with dither off for an archive or a file that will be
   processed further.
 
-Then:
+Then measure the exported file:
 
 ```bash
 npm run cli -- qc mixdown.wav \

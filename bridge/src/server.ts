@@ -17,6 +17,7 @@ import { Logger } from './logger.js';
 import { isKnownCommand, validateArgs, type CommandName } from './validation.js';
 import { BRIDGE_SIDE_COMMANDS, COMMANDS, MUTATING_COMMANDS } from './commands/registry.js';
 import { MasterChain } from './mastering/chain.js';
+import { MasterCapture } from './mastering/capture.js';
 
 export interface BridgeOptions {
   host?: string;
@@ -34,6 +35,7 @@ export class Bridge {
   readonly transport: LiveTransport;
   readonly session: Session;
   readonly master: MasterChain;
+  readonly capture: MasterCapture;
 
   private readonly host: string;
   private readonly port: number;
@@ -54,6 +56,7 @@ export class Bridge {
     });
     this.session = new Session(this.transport, this.log);
     this.master = new MasterChain(this.transport, options.dataDir);
+    this.capture = new MasterCapture(this.transport);
 
     this.http = http.createServer((req, res) => {
       this.handleHttp(req, res).catch((error) => {
@@ -195,7 +198,12 @@ export class Bridge {
       case 'master.set':
         return this.master.set(args as unknown as Parameters<MasterChain['set']>[0]);
       case 'master.decisions':
-        return { decisions: this.master.listDecisions(args.role as string | undefined) };
+        return {
+          decisions: this.master.listDecisions(
+            args.role as string | undefined,
+            args.track_id as number | undefined,
+          ),
+        };
       case 'master.reset_decisions':
         return this.master.resetDecisions(args.label as string | undefined);
       case 'master.checkpoint': {
@@ -214,6 +222,8 @@ export class Bridge {
           trackId: args.track_id as number | undefined,
           preset: args.preset as string | null | undefined,
         });
+      case 'master.capture':
+        return this.capture.capture(args as Parameters<MasterCapture['capture']>[0]);
       case 'master.apply_preset':
         return this.master.applyPreset(args.preset as string, args.track_id as number | undefined);
       case 'master.meters':

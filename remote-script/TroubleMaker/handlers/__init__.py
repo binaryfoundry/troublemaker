@@ -10,5 +10,6 @@ from . import devices
 from . import automation
 from . import selection
 from . import master
+from . import capture
 
-MODULES = (song, tracks, clips, notes, scenes, devices, automation, selection, master)
+MODULES = (song, tracks, clips, notes, scenes, devices, automation, selection, master, capture)

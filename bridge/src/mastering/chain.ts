@@ -98,6 +98,8 @@ export interface DecisionRecord {
   display_after: string | null;
   reason: string;
   override: boolean;
+  /** Set when a preset made this change; presets reset the reversal count. */
+  preset?: string;
 }
 
 export interface ChainCheckpoint {
@@ -123,6 +125,8 @@ export interface SetArgs {
   allow_widen?: boolean;
   override?: boolean;
   track_id?: number;
+  /** Internal: the preset making this change. */
+  preset?: string;
 }
 
 const REVERSALS_BEFORE_STOP = 2;
@@ -321,6 +325,7 @@ export class MasterChain {
       display_after: result.after.display_value,
       reason: args.reason,
       override: Boolean(args.override),
+      ...(args.preset ? { preset: args.preset } : {}),
     });
     return {
       role: spec.role,
@@ -368,6 +373,7 @@ export class MasterChain {
       display_after: result.after.display_value,
       reason: args.reason,
       override: Boolean(args.override),
+      ...(args.preset ? { preset: args.preset } : {}),
     });
     return {
       role: spec.role,
@@ -404,6 +410,7 @@ export class MasterChain {
           track_id: chain.track_id,
           // Presets reset to a known start; they are not an optimiser step.
           override: true,
+          preset: name,
         })) as { display_after: string | null };
         applied.push({ role: step.role, display: result.display_after });
       } catch (error) {
@@ -439,8 +446,12 @@ export class MasterChain {
     );
   }
 
-  listDecisions(role?: string): DecisionRecord[] {
-    return role ? this.decisionsFor(role) : [...this.decisions];
+  listDecisions(role?: string, trackId?: number): DecisionRecord[] {
+    return this.decisions.filter(
+      (d) =>
+        (role === undefined || d.role === role) &&
+        (trackId === undefined || d.track_id === undefined || d.track_id === trackId),
+    );
   }
 
   /** Start a new job: archive the log so reversal counting starts fresh. */
@@ -667,10 +678,17 @@ function detectTruePeak(devices: LiveDevice[]): TruePeakMode {
   return 'unavailable';
 }
 
-function countRoleReversals(records: Array<{ before: unknown; after: unknown }>): number {
+function countRoleReversals(
+  records: Array<{ before: unknown; after: unknown; preset?: string }>,
+): number {
   let reversals = 0;
   let last = 0;
   for (const record of records) {
+    if (record.preset) {
+      reversals = 0;
+      last = 0;
+      continue;
+    }
     if (typeof record.before !== 'number' || typeof record.after !== 'number') continue;
     const direction = Math.sign(record.after - record.before);
     if (direction === 0) continue;

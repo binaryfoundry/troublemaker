@@ -276,6 +276,33 @@ export const schemas = {
     .extend({ device_name: nonEmptyName, index: z.number().int().min(0).optional() })
     .strict(),
   'live.get_meters': trackRef.strict(),
+  'live.set_song_time': z.object({ beat }).strict(),
+
+  // -- capture ----------------------------------------------------------
+  'live.create_audio_track': z
+    .object({ name: nonEmptyName.optional(), index: z.number().int().min(0).optional() })
+    .strict(),
+  'live.get_input_routing': trackRef.strict(),
+  'live.set_input_routing': trackRef.extend({ routing: z.string().min(1) }).strict(),
+  'live.set_monitoring': trackRef
+    .extend({ state: z.enum(['in', 'auto', 'off']) })
+    .strict(),
+  'live.record_clip': clipRef.extend({ length_beats: positiveBeats }).strict(),
+  'live.get_clip_slot_status': clipRef.strict(),
+  'live.get_record_settings': empty,
+  'master.capture': z
+    .object({
+      bars: z.number().int().min(1).max(256).optional(),
+      seconds: z.number().min(2).max(600).optional(),
+      scene_id: handle.optional(),
+      start_beat: beat.optional(),
+    })
+    .strict()
+    .refine((v) => !(v.bars !== undefined && v.seconds !== undefined), 'Give bars or seconds, not both.')
+    .refine(
+      (v) => !(v.scene_id !== undefined && v.start_beat !== undefined),
+      'Give scene_id or start_beat, not both.',
+    ),
 
   // -- mastering (bridge side) -------------------------------------------
   'master.inspect_chain': z.object({ track_id: handle.optional() }).strict(),
@@ -290,7 +317,9 @@ export const schemas = {
       override: z.boolean().optional(),
     })
     .strict(),
-  'master.decisions': z.object({ role: z.string().min(1).optional() }).strict(),
+  'master.decisions': z
+    .object({ role: z.string().min(1).optional(), track_id: handle.optional() })
+    .strict(),
   'master.reset_decisions': z.object({ label: z.string().max(80).optional() }).strict(),
   'master.checkpoint': z
     .object({ label: z.string().trim().min(1).max(80), track_id: handle.optional() })

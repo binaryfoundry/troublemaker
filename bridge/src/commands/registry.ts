@@ -121,6 +121,26 @@ const SUMMARIES: Record<CommandName, { summary: string; mutates?: boolean; bridg
     mutates: true,
   },
   'live.get_meters': { summary: "A track's output display meters (not loudness)." },
+  'live.set_song_time': { summary: 'Move the song position, in beats.', mutates: true },
+  'live.create_audio_track': { summary: 'Create an audio track.', mutates: true },
+  'live.get_input_routing': { summary: "A track's input routing and the available alternatives." },
+  'live.set_input_routing': { summary: "Set a track's input routing by name, e.g. Resampling.", mutates: true },
+  'live.set_monitoring': { summary: 'Set track monitoring to in, auto or off.', mutates: true },
+  'live.record_clip': {
+    summary: 'Record a fixed length into an empty slot of an armed track.',
+    mutates: true,
+  },
+  'live.get_clip_slot_status': {
+    summary: 'Whether a slot is recording or playing, and an audio clip file path.',
+  },
+  'live.get_record_settings': { summary: 'Tempo, signature, launch quantization, sample rate.' },
+  'master.capture': {
+    summary:
+      'Record the Master output (after the chain) to a WAV via a Resampling track, in real time, ' +
+      'and return its path for QC. The agentic stand-in for Export.',
+    mutates: true,
+    bridgeSide: true,
+  },
 
   'master.inspect_chain': {
     summary:

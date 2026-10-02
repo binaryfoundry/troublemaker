@@ -221,6 +221,25 @@ describe('policy', () => {
     expect(countReversals(decisions).get('eq_1_gain')).toBe(2);
     expect(ids(evaluate({ target: analysis(), profile: techno, decisions }))).toContain('reversal-eq_1_gain');
   });
+
+  it('never counts an option role as reversing', () => {
+    const decisions: Decision[] = [
+      { role: 'limiter_mode', before: 'True Peak', after: 'Standard', reason: 'x', at: '' },
+      { role: 'limiter_mode', before: 'Standard', after: 'True Peak', reason: 'x', at: '' },
+      { role: 'limiter_mode', before: 'True Peak', after: 'Standard', reason: 'x', at: '' },
+    ];
+    expect(countReversals(decisions).get('limiter_mode')).toBeUndefined();
+  });
+
+  it('restarts the reversal count after a preset', () => {
+    const decisions: Decision[] = [
+      { role: 'eq_1_gain', before: 0, after: 1, reason: 'x', at: '' },
+      { role: 'eq_1_gain', before: 1, after: 0.5, reason: 'x', at: '' },
+      { role: 'eq_1_gain', before: 0.5, after: 0, reason: 'preset', at: '', preset: 'clean' },
+      { role: 'eq_1_gain', before: 0, after: 1, reason: 'x', at: '' },
+    ];
+    expect(countReversals(decisions).get('eq_1_gain')).toBeUndefined();
+  });
 });
 
 describe('report', () => {

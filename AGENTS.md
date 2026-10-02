@@ -126,6 +126,13 @@ test in `bridge/tests/mastering-chain.test.ts`.
 the action for a mix-level problem should say so rather than suggest master
 processing.
 
+**Capturing the Master:** the capture track's input is Resampling, so its
+monitoring must be off or the Master feeds back into itself. Live loops a
+freshly recorded Session clip into playback and holds its file exclusively
+while the clip is loaded; `MasterCapture` deletes the clip after recording,
+which releases the file (the WAV stays on disk). Without that, ffprobe gets
+"Permission denied".
+
 **Version-dependent features are detected, never assumed.** Device insertion
 checks `hasattr(Track, 'insert_device')`; True Peak mode is detected from the
 Limiter's parameters. Keep it that way, so upgrading Live needs no code change.

@@ -39,10 +39,13 @@ export interface ChainState {
 
 export interface Decision {
   role: string;
-  before: number;
-  after: number;
+  before: number | string | null;
+  after: number | string | null;
   reason: string;
   at: string;
+  track_id?: number;
+  /** Set when a preset made this change; presets reset the reversal count. */
+  preset?: string;
 }
 
 export interface Evaluation {
@@ -392,11 +395,22 @@ function truePeakAction(
   }
 }
 
-/** How many times each role's change direction flipped. */
+/**
+ * How many times each numeric role's change direction flipped.
+ *
+ * Option roles (True Peak on/off) have no direction and never count. A preset
+ * is a deliberate reset to a known start, so counting restarts after one.
+ */
 export function countReversals(decisions: Decision[]): Map<string, number> {
   const lastDirection = new Map<string, number>();
   const reversals = new Map<string, number>();
   for (const decision of decisions) {
+    if (decision.preset) {
+      lastDirection.delete(decision.role);
+      reversals.delete(decision.role);
+      continue;
+    }
+    if (typeof decision.before !== 'number' || typeof decision.after !== 'number') continue;
     const direction = Math.sign(decision.after - decision.before);
     if (direction === 0) continue;
     const previous = lastDirection.get(decision.role);

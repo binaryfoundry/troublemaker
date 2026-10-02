@@ -43,14 +43,15 @@ these rules; this prompt is the operational form.
 
 ```
 master.inspect_chain                     what is on Master, which roles exist
+master.build_chain                       if core roles are missing (Live 12.3+)
 master.checkpoint "start"                so everything is reversible
-<user exports the master>                Export has no API — ask the user
-qc <export.wav> --ref ... --chain        measure, compare, apply the rules
+qc --capture --bars 16 --scene <id> --ref ... --chain
+                                         record the Master in Live, measure, apply the rules
   -> PASS:   stop. Report.
   -> REVIEW: read the findings. Most say "fix it in the mix" — say so.
   -> FAIL:   fix the technical failure (true peak, bit depth, clipping) first.
 master.set <role> <value> --reason ...   one small change, with its hypothesis
-<re-export, re-run qc>                   keep the change only if evidence supports it
+<re-capture, re-run qc>                  keep the change only if evidence supports it
 ```
 
 Stop when improvement is smaller than uncertainty, or when `qc` reports
@@ -112,9 +113,13 @@ Call `live.get_capabilities` first.
   does). On Live 11 the Limiter has no such mode: `qc` measures true peak on the
   export, and if it is over, lower `limiter_ceiling` by the overshoot plus
   margin.
-- **No export API.** Ask the user to export (File → Export Audio/Video, 24-bit
-  WAV at the project rate, dither off for 32-bit float, on only at the final
-  bit-depth reduction), then give you the path.
+- **No export API, in any Live version.** Judge the mix from `master.capture`,
+  which records the Master output through a Resampling track in real time.
+  For the *delivery* file, ask the user to export (File → Export Audio/Video,
+  24-bit WAV at the project rate, dither once at the final reduction) and run
+  `qc` on that file before signing off.
+- **Capture the section that matters.** Launch the scene with the drop
+  (`--scene`) so you compare drop to drop with the references.
 - **Meters are display meters.** `master.meters` is a quick clipping probe;
   loudness and true peak come only from `qc`.
 

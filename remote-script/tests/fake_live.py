@@ -354,10 +354,28 @@ class ClipSlot(LiveObject):
         self.clip._destroy()
         self.clip = None
 
-    def fire(self):
+    def fire(self, record_length=None):
         self._check()
+        if record_length is not None:
+            # Recording into an empty slot: the clip appears and records.
+            track = self._parent
+            if self.clip is None and track is not None and track.arm:
+                self.clip = Clip(record_length, self, is_midi=not track.has_midi_input is False)
+                self.clip.is_midi_clip = bool(track.has_midi_input)
+                self.clip.is_recording = True
+                self.clip.file_path = "C:/Samples/Recorded/capture-%d.wav" % (self.clip._live_ptr,)
+            return
         if self.clip is not None:
             self.clip.is_playing = True
+
+    @property
+    def is_triggered(self):
+        return False
+
+
+class RoutingType(object):
+    def __init__(self, display_name):
+        self.display_name = display_name
 
 
 class TrackView(object):
@@ -379,6 +397,13 @@ class Track(LiveObject):
         self.mute = False
         self.solo = False
         self.arm = False
+        self.can_be_armed = slots > 0
+        self.current_monitoring_state = 1
+        self.available_input_routing_types = (
+            [RoutingType("Ext. In"), RoutingType("Resampling"), RoutingType("No Input")]
+            if not is_midi else [RoutingType("All Ins"), RoutingType("No Input")]
+        )
+        self.input_routing_type = self.available_input_routing_types[0]
         self.output_meter_left = 0.42
         self.output_meter_right = 0.40
         self.output_meter_level = 0.42
@@ -480,6 +505,12 @@ class Song(LiveObject):
         if len(self.tracks) >= 16:
             raise RuntimeError("Live Intro supports at most 16 tracks")
         self.tracks.insert(index, Track("%d-MIDI" % (index + 1), is_midi=True, parent=self))
+
+    def create_audio_track(self, index):
+        self._check()
+        if len(self.tracks) >= 16:
+            raise RuntimeError("Live Intro supports at most 16 tracks")
+        self.tracks.insert(index, Track("%d-Audio" % (index + 1), is_midi=False, parent=self))
 
     def create_scene(self, index):
         self._check()

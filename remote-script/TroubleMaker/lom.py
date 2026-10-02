@@ -307,6 +307,8 @@ def serialize_clip(ctx, clip, slot_index=None):
         "signature_numerator": safe(lambda: int(clip.signature_numerator), 4),
         "signature_denominator": safe(lambda: int(clip.signature_denominator), 4),
     }
+    if not out["is_midi_clip"]:
+        out["file_path"] = safe(lambda: str(clip.file_path), None)
     if slot_index is not None:
         out["slot"] = slot_index
     return out

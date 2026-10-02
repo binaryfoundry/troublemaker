@@ -39,7 +39,7 @@ reports a success it did not achieve.
 | Audio clip editing     | Out of scope for version 1.                               |
 | Warping                | Out of scope for version 1.                               |
 | Device loading         | Live 11 has no API for it. **Live 12.3+**: native devices via `live.insert_device` / `master build`, detected automatically. |
-| Export / render        | No API in any Live version. The user exports; QC measures the file. |
+| Export / render        | No API in any Live version. `master.capture` records the Master output through a Resampling track instead (real time); a final delivery export is still manual. |
 | Live loudness metering | Live exposes display meters only. Loudness comes from QC on the export. |
 | Preset loading         | Same.                                                     |
 | Return track creation  | Not exposed. Returns can be read and their sends written. |

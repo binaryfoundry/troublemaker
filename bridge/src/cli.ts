@@ -96,6 +96,9 @@ Mastering QC (runs locally on exported files; no bridge needed):
       --bit-depth <bits>       required delivery bit depth
       --chain                  also apply master-chain rules (needs the bridge)
       --json <out.json>        write the full result as JSON
+      --capture                record the Master in Live instead of reading a file (needs the bridge)
+        --bars <n>             capture length (default 16)
+        --scene <id>           launch this scene for the capture
   Exit code: 0 PASS, 1 REVIEW, 2 FAIL.
 
 Master chain (through the bridge):
@@ -110,6 +113,8 @@ Master chain (through the bridge):
                                                    Insert the chain and dial it in (Live 12.3+)
   ableton-agent master preset <name>              Apply a starting preset (clean)
   ableton-agent master meters [seconds]           Live's display meters
+  ableton-agent master capture [--bars n] [--scene id]
+                                                   Record the Master output to a WAV (real time)
   Every master subcommand takes --track <id> to work on a track other than Master.
 
 Options:
@@ -306,8 +311,16 @@ async function qc(argv: string[]): Promise<number> {
   const [bitDepth] = takeOption(args, '--bit-depth');
   const [jsonOut] = takeOption(args, '--json');
   const withChain = takeFlag(args, '--chain');
-  const [target, ...extra] = args;
-  if (!target) throw new Error("'qc' needs a file to analyse.");
+  const doCapture = takeFlag(args, '--capture');
+  const [bars] = takeOption(args, '--bars');
+  const [scene] = takeOption(args, '--scene');
+  let [target, ...extra] = args;
+  if (doCapture) {
+    if (target) throw new Error('--capture records the file itself; do not also give one.');
+    const captured = await captureMaster(bars, scene);
+    target = captured.file_path;
+  }
+  if (!target) throw new Error("'qc' needs a file to analyse, or --capture.");
   if (extra.length) throw new Error(`Unexpected arguments: ${extra.join(' ')}`);
 
   let parsedSection: { start: number; duration: number } | undefined;
@@ -323,11 +336,15 @@ async function qc(argv: string[]): Promise<number> {
   let decisions: Decision[] | undefined;
   if (withChain) {
     const inspection = (await post('master.inspect_chain')) as {
+      track_id: number;
       readings: ChainState['readings'];
       limiter_true_peak: ChainState['limiterTruePeak'];
     };
     chain = { readings: inspection.readings, limiterTruePeak: inspection.limiter_true_peak };
-    decisions = ((await post('master.decisions')) as { decisions: Decision[] }).decisions;
+    // Only this chain's history: changes on a scratch track are not Master's.
+    decisions = (
+      (await post('master.decisions', { track_id: inspection.track_id })) as { decisions: Decision[] }
+    ).decisions;
   }
 
   if (references.length && references.length < 3) {
@@ -359,6 +376,18 @@ async function qc(argv: string[]): Promise<number> {
     process.stdout.write(`Wrote ${jsonOut}\n`);
   }
   return result.evaluation.verdict === 'FAIL' ? 2 : result.evaluation.verdict === 'REVIEW' ? 1 : 0;
+}
+
+async function captureMaster(
+  bars: string | undefined,
+  scene: string | undefined,
+): Promise<{ file_path: string; seconds: number }> {
+  const args: Record<string, unknown> = { bars: bars ? parseInteger('--bars', bars) : 16 };
+  if (scene) args.scene_id = parseInteger('--scene', scene);
+  process.stderr.write(`Capturing ${args.bars} bars of the Master output in real time...\n`);
+  const result = (await post('master.capture', args)) as { file_path: string; seconds: number };
+  process.stderr.write(`Captured ${result.seconds} s -> ${result.file_path}\n`);
+  return result;
 }
 
 async function master(argv: string[]): Promise<number> {
@@ -429,6 +458,13 @@ async function master(argv: string[]): Promise<number> {
       if (!rest[0]) throw new Error('master restore needs a checkpoint id.');
       print(await post('master.restore_checkpoint', { checkpoint_id: rest[0] }));
       return 0;
+    case 'capture': {
+      const options = [...rest];
+      const [bars] = takeOption(options, '--bars');
+      const [scene] = takeOption(options, '--scene');
+      print(await captureMaster(bars, scene));
+      return 0;
+    }
     case 'build': {
       const options = [...rest];
       const noPreset = takeFlag(options, '--no-preset');
@@ -450,7 +486,7 @@ async function master(argv: string[]): Promise<number> {
       return 0;
     default:
       throw new Error(
-        'Unknown master subcommand. Try: chain, set, decisions, reset, checkpoint, restore, build, preset, meters.',
+        'Unknown master subcommand. Try: chain, set, decisions, reset, checkpoint, restore, build, preset, meters, capture.',
       );
   }
 }

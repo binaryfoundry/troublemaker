@@ -265,6 +265,14 @@ describe('presets', () => {
     expect(now.roles.limiter_ceiling.value).toBe(-1);
   });
 
+  it('resets the reversal count, so tuning can start again after it', async () => {
+    await set('limiter_ceiling', -2);
+    await set('limiter_ceiling', -1.5);
+    await bridge.execute('master.apply_preset', { preset: 'clean' });
+    await set('limiter_ceiling', -1.5);
+    await expect(set('limiter_ceiling', -1.2)).resolves.toBeTruthy();
+  });
+
   it('is not blocked by the reversal stop', async () => {
     await set('limiter_ceiling', -2);
     await set('limiter_ceiling', -1.5);

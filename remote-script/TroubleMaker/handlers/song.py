@@ -179,6 +179,14 @@ def continue_playing(ctx, args):
     return get_transport(ctx, {})
 
 
+def set_song_time(ctx, args):
+    beat = req_float(args, "beat")
+    if beat < 0:
+        raise errors.InvalidArgument("Song position must be >= 0 beats.")
+    ctx.song.current_song_time = beat
+    return {"current_song_time": float(ctx.song.current_song_time)}
+
+
 def stop_all_clips(ctx, args):
     ctx.song.stop_all_clips()
     return {"stopped": True}
@@ -219,6 +227,7 @@ COMMANDS = {
     "live.stop": stop,
     "live.continue_playing": continue_playing,
     "live.stop_all_clips": stop_all_clips,
+    "live.set_song_time": set_song_time,
     "live.set_metronome": set_metronome,
     "live.undo": undo,
     "live.redo": redo,

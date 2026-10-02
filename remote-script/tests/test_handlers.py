@@ -648,6 +648,51 @@ class TestMaster(HandlerTestCase):
         self.assertAlmostEqual(meters["left"], 0.42)
 
 
+class TestCapture(HandlerTestCase):
+    def setUp(self):
+        HandlerTestCase.setUp(self)
+        self.track = self.call("live.create_audio_track", name="TM Capture")["track_id"]
+
+    def test_creates_an_audio_track(self):
+        track = self.call("live.get_track", track_id=self.track)
+        self.assertEqual((track["name"], track["type"]), ("TM Capture", "audio"))
+
+    def test_routes_the_input_to_resampling_by_name(self):
+        result = self.call("live.set_input_routing", track_id=self.track, routing="resampling")
+        self.assertEqual(result["current"], "Resampling")
+
+    def test_unknown_routing_lists_the_real_ones(self):
+        error = self.fail_call("live.set_input_routing", track_id=self.track, routing="Master")
+        self.assertIn("Resampling", error["available_routings"])
+
+    def test_sets_monitoring_off(self):
+        self.call("live.set_monitoring", track_id=self.track, state="off")
+        self.assertEqual(self.call("live.get_input_routing", track_id=self.track)["monitoring"], "off")
+
+    def test_refuses_to_record_on_a_disarmed_track(self):
+        error = self.fail_call("live.record_clip", track_id=self.track, clip_slot=0, length_beats=16)
+        self.assertIn("Arm", error["message"])
+
+    def test_records_a_fixed_length_and_reports_the_file(self):
+        self.call("live.set_track_arm", track_id=self.track, enabled=True)
+        self.call("live.record_clip", track_id=self.track, clip_slot=0, length_beats=16)
+        status = self.call("live.get_clip_slot_status", track_id=self.track, clip_slot=0)
+        self.assertTrue(status["has_clip"] and status["is_recording"])
+        self.assertTrue(status["file_path"].endswith(".wav"))
+
+    def test_refuses_to_record_over_an_existing_clip(self):
+        self.call("live.set_track_arm", track_id=self.track, enabled=True)
+        self.call("live.record_clip", track_id=self.track, clip_slot=0, length_beats=4)
+        error = self.fail_call("live.record_clip", track_id=self.track, clip_slot=0, length_beats=4)
+        self.assertIn("empty slot", error["message"])
+
+    def test_moves_the_song_position(self):
+        self.assertEqual(self.call("live.set_song_time", beat=32)["current_song_time"], 32.0)
+
+    def test_reports_record_settings(self):
+        self.assertEqual(self.call("live.get_record_settings")["signature"], [4, 4])
+
+
 class TestEndToEndWorkflow(HandlerTestCase):
     """The MVP interaction from the plan, start to finish."""
 

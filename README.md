@@ -131,6 +131,9 @@ npm run cli -- qc master.wav --ref a.wav --ref b.wav --ref c.wav --profile techn
 # Live 12.3+: the agent builds and dials in the chain itself
 npm run cli -- master build
 
+# Record 16 bars of the Master output inside Live and measure it - no export
+npm run cli -- qc --capture --bars 16 --scene <id> --ref a.wav --ref b.wav --ref c.wav
+
 # Adjust the Master chain by role, within safe ranges, with a logged reason
 npm run cli -- master chain
 npm run cli -- master checkpoint "before limiter work"
@@ -209,7 +212,7 @@ Live's shared undo stack.
 ## Testing
 
 ```bash
-npm run test:all     # 188 TypeScript + 86 Python tests, no Ableton required
+npm run test:all     # 198 TypeScript + 95 Python tests, no Ableton required
 npm test             # TypeScript only
 npm run test:python  # Live-side handlers only
 npm run typecheck
