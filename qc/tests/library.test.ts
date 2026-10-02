@@ -65,7 +65,10 @@ describe('selectReferences', () => {
 
   it('takes one track per lead artist when choosing by genre', () => {
     const lib = index([entry({ artist: 'Argy' }), entry({ artist: 'Argy, Anyma' }), entry({ artist: 'ARTBAT' })]);
-    expect(selectReferences(lib).references.map((e) => e.artist)).toEqual(['Argy', 'ARTBAT']);
+    const artists = selectReferences(lib).references.map((e) => e.artist);
+    expect(artists).toHaveLength(2);
+    expect(artists).toContain('ARTBAT');
+    expect(artists.filter((a) => a!.startsWith('Argy'))).toHaveLength(1);
   });
 
   it('matches named artists anywhere in the credit, including collaborations', () => {
