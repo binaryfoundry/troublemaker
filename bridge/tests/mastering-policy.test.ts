@@ -113,6 +113,11 @@ describe('policy', () => {
     expect(result.findings.find((f) => f.id === 'side-sub')!.message).toMatch(/-10\.0 dB relative to mid/);
   });
 
+  it('warns about an over-limited master against the profile floor without references', () => {
+    const result = evaluate({ target: analysis({ lufs: -6, tp: -1.1 }), profile: techno });
+    expect(result.findings.find((f) => f.id === 'over-limited')!.message).toMatch(/below the 7 dB floor/);
+  });
+
   it('flags references that disagree materially', () => {
     const reference = buildReferenceProfile([analysis({ lufs: -6 }), analysis({ lufs: -12 })]);
     expect(ids(evaluate({ target: analysis(), profile: techno, reference }))).toContain('references-disagree');

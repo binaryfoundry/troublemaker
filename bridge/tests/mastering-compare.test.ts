@@ -107,6 +107,13 @@ describe('loudness-matched comparison', () => {
     expect(tonal.reasons.join(' ')).not.toMatch(/side effect/);
   });
 
+  it('stops spending dynamics at an absolute PLR floor', () => {
+    // Each step costs under 3 dB, but B lands below techno's 7 dB floor.
+    const result = compareVersions({ a: version(-14, 8.5), b: version(-12, 6.5), profile: techno });
+    expect(result.preferred).toBe('A');
+    expect(result.reasons.join(' ')).toMatch(/below the 7\.0 dB floor/);
+  });
+
   it('maps roles to intents', () => {
     expect(intentForRole('eq_3_gain')).toBe('tonal');
     expect(intentForRole('limiter_gain')).toBe('dynamics');

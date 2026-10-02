@@ -14,6 +14,11 @@ export interface MasteringProfile {
   lufsRange: [number, number];
   /** Maximum allowed true peak for the deliverable. */
   truePeakCeilingDbtp: number;
+  /**
+   * Lowest peak-to-loudness ratio before a master counts as over-limited,
+   * used only without references. A heuristic floor, not a standard.
+   */
+  minPlrDb: number;
 }
 
 export const PROFILES: Record<string, MasteringProfile> = {
@@ -22,24 +27,28 @@ export const PROFILES: Record<string, MasteringProfile> = {
     description: 'Dynamic / deep electronic. Preserve depth; do not densify to match louder records.',
     lufsRange: [-11, -8],
     truePeakCeilingDbtp: -1,
+    minPlrDb: 9,
   },
   house: {
     name: 'house',
     description: 'House. Kick/bass groove first; calibrate to the subgenre reference set.',
     lufsRange: [-9, -6.5],
     truePeakCeilingDbtp: -1,
+    minPlrDb: 7.5,
   },
   techno: {
     name: 'techno',
     description: 'Techno. Density varies enormously; reference matching is essential.',
     lufsRange: [-9, -6],
     truePeakCeilingDbtp: -1,
+    minPlrDb: 7,
   },
   dnb: {
     name: 'dnb',
     description: 'Drum & bass / bass music. Loud masters possible; reject drum or sub collapse.',
     lufsRange: [-8, -5.5],
     truePeakCeilingDbtp: -1,
+    minPlrDb: 6,
   },
   'club-pcm': {
     name: 'club-pcm',
@@ -47,6 +56,7 @@ export const PROFILES: Record<string, MasteringProfile> = {
       'Dedicated unencoded club PCM. Ceiling may sit at -0.5 dBTP, but only with a reason.',
     lufsRange: [-9, -6],
     truePeakCeilingDbtp: -0.5,
+    minPlrDb: 7,
   },
   distribution: {
     name: 'distribution',
@@ -55,6 +65,7 @@ export const PROFILES: Record<string, MasteringProfile> = {
       'playback policy - but keep <= -1 dBTP.',
     lufsRange: [-14, -5.5],
     truePeakCeilingDbtp: -1,
+    minPlrDb: 7,
   },
 };
 

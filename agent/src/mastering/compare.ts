@@ -187,9 +187,18 @@ export function compareVersions(input: {
   const quieter = loudnessDeltaLu <= -0.5;
   const aBelowWindow = a.integratedLufs < windowLow;
   let loudnessCredit = false;
+  // An absolute floor, so a run of trials cannot each spend "only" 3 dB.
+  const plrFloor = input.reference
+    ? input.reference.plrDb - t.plrBelowReferenceDb
+    : input.profile.minPlrDb;
   if (louder && aBelowWindow) {
     const tolerable = Math.abs(Math.min(0, plrDeltaDb)) <= t.abPlrTolerableDb;
-    if (tolerable) {
+    if (tolerable && b.plrDb < plrFloor) {
+      costs.push(
+        `B's loudness takes PLR to ${b.plrDb.toFixed(1)} dB, below the ${plrFloor.toFixed(1)} dB floor ` +
+          `(${input.reference ? 'reference median - 2 dB' : `${input.profile.name} profile`}) - over-limited`,
+      );
+    } else if (tolerable) {
       loudnessCredit = true;
       // The PLR given up is the price of that loudness, not a second cost.
       const priced = costs.indexOf(plrCost);

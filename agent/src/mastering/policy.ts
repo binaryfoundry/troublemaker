@@ -192,6 +192,15 @@ export function evaluate(input: EvaluateInput): Evaluation {
   }
 
   // -- dynamics -----------------------------------------------------------
+  if (!comparison && target.loudness.plrDb < profile.minPlrDb) {
+    add({
+      id: 'over-limited',
+      severity: 'warn',
+      area: 'dynamics',
+      message: `Peak-to-loudness ratio is ${target.loudness.plrDb.toFixed(1)} dB, below the ${profile.minPlrDb} dB floor for ${profile.name}.`,
+      action: 'Likely over-limited. Back off limiter drive and compare at matched loudness; add references for a better floor.',
+    });
+  }
   if (comparison && comparison.plrDeltaDb < -t.plrBelowReferenceDb) {
     add({
       id: 'over-limited',

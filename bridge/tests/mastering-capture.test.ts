@@ -10,6 +10,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 const CAPTURED = join(tmpdir(), 'tm-capture-test.wav');
 writeFileSync(CAPTURED, 'RIFF');
+// Live writes this once a recording is complete; the capture waits for it.
+writeFileSync(`${CAPTURED}.asd`, 'asd');
 
 import { Bridge } from '../src/server.js';
 import { Logger } from '../src/logger.js';
@@ -61,6 +63,7 @@ beforeEach(async () => {
   });
   live.handlers.set('live.fire_scene', () => ({}));
   live.handlers.set('live.delete_clip', () => ({ deleted: true }));
+  live.handlers.set('live.stop_clip', () => ({ stopped: true }));
   live.handlers.set('live.stop', () => ({}));
   live.handlers.set('live.record_clip', () => {
     recordingPolls = 3;
@@ -91,10 +94,11 @@ describe('master.capture', () => {
     expect(monitoring).toBe('off');
   });
 
-  it('removes the recorded clip so it stops playing and releases the file', async () => {
+  it('stops the clip and lets Live finish the file before removing the clip', async () => {
     await bridge.execute('master.capture', { bars: 1 });
     const order = live.received.map((r) => r.command);
-    expect(order.indexOf('live.delete_clip')).toBeGreaterThan(order.lastIndexOf('live.get_clip_slot_status'));
+    expect(order.indexOf('live.stop_clip')).toBeGreaterThan(order.lastIndexOf('live.get_clip_slot_status'));
+    expect(order.indexOf('live.delete_clip')).toBeGreaterThan(order.indexOf('live.stop_clip'));
   });
 
   it('disarms the capture track and stops playback afterwards', async () => {

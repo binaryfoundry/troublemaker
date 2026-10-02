@@ -12,7 +12,7 @@
  * at the chosen bit depth, with dither).
  */
 
-import { closeSync, openSync } from 'node:fs';
+import { closeSync, existsSync, openSync, statSync } from 'node:fs';
 
 import { BridgeError } from '../errors.js';
 import type { LiveTransport } from '../transport.js';
@@ -152,9 +152,13 @@ export class MasterCapture {
         throw new BridgeError('CAPTURE_FAILED', 'Live recorded the clip but reported no file path.');
       }
       // Live loops a freshly recorded Session clip straight into playback and
-      // holds its file exclusively while the clip is loaded. Removing the clip
-      // stops it feeding back into the Master and releases the file; the WAV
-      // itself stays in the project's Samples/Recorded folder.
+      // holds its file exclusively while the clip is loaded. Stop it first,
+      // let Live finish writing the file, and only then remove the clip -
+      // removing it mid-finalisation leaves the file unfinished and locked.
+      // The WAV itself stays in the project's Samples/Recorded folder.
+      await this.transport.send('live.stop_clip', { track_id: trackId });
+      await this.transport.send('live.stop');
+      await waitUntilFinalised(status.file_path);
       await this.transport.send('live.delete_clip', { track_id: trackId, clip_slot: slot });
       await waitUntilReadable(status.file_path);
       return {
@@ -184,8 +188,29 @@ export class MasterCapture {
   }
 }
 
+/**
+ * Wait until Live has finished writing a recording: its size has stopped
+ * changing and Live has written the .asd analysis file it creates once a
+ * recording is complete. Both can be checked while Live holds the file.
+ */
+async function waitUntilFinalised(path: string, timeoutMs = 15_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let lastSize = -1;
+  let stableSince = Date.now();
+  while (Date.now() < deadline) {
+    const size = existsSync(path) ? statSync(path).size : -1;
+    if (size !== lastSize) {
+      lastSize = size;
+      stableSince = Date.now();
+    }
+    if (size > 0 && existsSync(`${path}.asd`) && Date.now() - stableSince >= 750) return;
+    await sleep(POLL_MS);
+  }
+  // Not fatal on its own: the readability check that follows decides.
+}
+
 /** Wait for Live to release a file it has just finished writing. */
-async function waitUntilReadable(path: string, timeoutMs = 10_000): Promise<void> {
+async function waitUntilReadable(path: string, timeoutMs = 20_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     try {
