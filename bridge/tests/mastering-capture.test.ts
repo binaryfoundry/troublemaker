@@ -64,7 +64,10 @@ beforeEach(async () => {
   live.handlers.set('live.fire_scene', () => ({}));
   live.handlers.set('live.delete_clip', () => ({ deleted: true }));
   live.handlers.set('live.stop_clip', () => ({ stopped: true }));
-  live.handlers.set('live.stop', () => ({}));
+  live.handlers.set('live.stop', () => ({}));  live.handlers.set('live.record_with_scene', () => {
+    recordingPolls = 3;
+    return { started: true };
+  });
   live.handlers.set('live.record_clip', () => {
     recordingPolls = 3;
     return { started: true };
@@ -114,7 +117,15 @@ describe('master.capture', () => {
     expect(live.received.some((r) => r.command === 'live.create_audio_track')).toBe(false);
   });
 
-  it('launches a scene so the music plays during the capture', async () => {
+  it('launches the scene and the recording together, so the first bar is captured', async () => {
+    await bridge.execute('master.capture', { bars: 1, scene_id: 5 });
+    const commands = live.received.map((r) => r.command);
+    expect(commands).toContain('live.record_with_scene');
+    expect(commands).not.toContain('live.record_clip');
+  });
+
+  it('falls back to separate launches on an older Remote Script', async () => {
+    live.handlers.delete('live.record_with_scene');
     await bridge.execute('master.capture', { bars: 1, scene_id: 5 });
     const order = live.received.map((r) => r.command);
     expect(order.indexOf('live.fire_scene')).toBeLessThan(order.indexOf('live.record_clip'));

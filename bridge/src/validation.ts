@@ -296,6 +296,7 @@ export const schemas = {
     .extend({ state: z.enum(['in', 'auto', 'off']) })
     .strict(),
   'live.record_clip': clipRef.extend({ length_beats: positiveBeats }).strict(),
+  'live.record_with_scene': clipRef.extend({ length_beats: positiveBeats, scene_id: handle }).strict(),
   'live.get_clip_slot_status': clipRef.strict(),
   'live.get_record_settings': empty,
   'master.capture': z

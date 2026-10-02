@@ -216,6 +216,23 @@ export function classify(f: EffectFeatures): Identification {
   return result('unknown', 'low');
 }
 
+/** Drop leading and trailing silence, so timing trends describe the effect. */
+export function trimSilence(samples: Float32Array, rate = IDENTIFY_RATE, thresholdDb = -50): Float32Array {
+  const hop = Math.round(rate * 0.005);
+  let peak = 0;
+  for (const s of samples) peak = Math.max(peak, Math.abs(s));
+  const floor = peak * 10 ** (thresholdDb / 20);
+  const loud = (i: number) => {
+    for (let j = i; j < Math.min(samples.length, i + hop); j += 1) if (Math.abs(samples[j]!) > floor) return true;
+    return false;
+  };
+  let start = 0;
+  while (start < samples.length && !loud(start)) start += hop;
+  let end = samples.length;
+  while (end > start && !loud(end - hop)) end -= hop;
+  return samples.subarray(Math.max(0, start - hop), Math.min(samples.length, end + hop));
+}
+
 export async function identifyEffect(path: string, start = 0, duration?: number): Promise<Identification> {
-  return classify(extractFeatures(await decodeExcerpt(path, start, duration)));
+  return classify(extractFeatures(trimSilence(await decodeExcerpt(path, start, duration))));
 }

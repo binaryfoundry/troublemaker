@@ -137,6 +137,10 @@ const SUMMARIES: Record<CommandName, { summary: string; mutates?: boolean; bridg
     summary: 'Record a fixed length into an empty slot of an armed track.',
     mutates: true,
   },
+  'live.record_with_scene': {
+    summary: 'Launch a scene and start a fixed-length recording on the same bar.',
+    mutates: true,
+  },
   'live.get_clip_slot_status': {
     summary: 'Whether a slot is recording or playing, and an audio clip file path.',
   },

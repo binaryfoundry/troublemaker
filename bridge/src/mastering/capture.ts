@@ -112,18 +112,36 @@ export class MasterCapture {
 
     await this.transport.send('live.set_track_arm', { track_id: trackId, enabled: true });
     try {
+      let started = false;
       if (options.scene_id !== undefined) {
-        await this.transport.send('live.fire_scene', { scene_id: options.scene_id });
+        // Scene and recording in one Live tick, so both launch on the same
+        // bar. Sent separately, the scene starts at once while the recording
+        // waits for the next bar, and the capture misses the first bar.
+        try {
+          await this.transport.send('live.record_with_scene', {
+            track_id: trackId,
+            clip_slot: slot,
+            scene_id: options.scene_id,
+            length_beats: lengthBeats,
+          });
+          started = true;
+        } catch (error) {
+          if (!(error instanceof BridgeError) || error.code !== 'UNKNOWN_COMMAND') throw error;
+          // Older Remote Script: fall back to separate launches.
+          await this.transport.send('live.fire_scene', { scene_id: options.scene_id });
+        }
       } else if (options.start_beat !== undefined) {
         await this.transport.send('live.stop');
         await this.transport.send('live.set_song_time', { beat: options.start_beat });
         await this.transport.send('live.continue_playing');
       }
-      await this.transport.send('live.record_clip', {
-        track_id: trackId,
-        clip_slot: slot,
-        length_beats: lengthBeats,
-      });
+      if (!started) {
+        await this.transport.send('live.record_clip', {
+          track_id: trackId,
+          clip_slot: slot,
+          length_beats: lengthBeats,
+        });
+      }
 
       // Recording starts on the next launch-quantization boundary, so wait for
       // the clip to appear and then to stop recording, rather than a fixed time.

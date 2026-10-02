@@ -113,6 +113,31 @@ def record_clip(ctx, args):
     }
 
 
+def record_with_scene(ctx, args):
+    """Launch a scene and start recording in the same tick.
+
+    Sent as two commands, the scene starts at once from a stopped transport
+    while the recording, arriving a moment later, waits for the next bar - so
+    every capture missed the scene's first bar. Triggered together, both
+    launch on the same quantised boundary.
+    """
+    track, slot = lom.resolve_clip_slot(ctx, req_int(args, "track_id"), req_int(args, "clip_slot"))
+    scene = lom.resolve_scene(ctx, req_int(args, "scene_id"))
+    length = req_float(args, "length_beats")
+    if length <= 0:
+        raise errors.InvalidArgument("length_beats must be greater than 0.")
+    if not track.arm:
+        raise errors.InvalidArgument("Arm track '%s' before recording into it." % (track.name,))
+    if slot.has_clip:
+        raise errors.InvalidArgument("Record into an empty slot on '%s'." % (track.name,))
+    scene.fire()
+    try:
+        slot.fire(record_length=length)
+    except TypeError:
+        raise errors.Unsupported("This Live version cannot record a fixed length through the API.")
+    return {"track_id": ctx.registry.handle_for(track), "clip_slot": req_int(args, "clip_slot"), "started": True}
+
+
 def get_clip_slot_status(ctx, args):
     track, slot = lom.resolve_clip_slot(ctx, req_int(args, "track_id"), req_int(args, "clip_slot"))
     clip = slot.clip if slot.has_clip else None
@@ -150,6 +175,7 @@ COMMANDS = {
     "live.set_input_routing": set_input_routing,
     "live.set_monitoring": set_monitoring,
     "live.record_clip": record_clip,
+    "live.record_with_scene": record_with_scene,
     "live.get_clip_slot_status": get_clip_slot_status,
     "live.get_record_settings": get_record_settings,
 }

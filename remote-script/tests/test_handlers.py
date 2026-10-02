@@ -700,6 +700,12 @@ class TestCapture(HandlerTestCase):
         error = self.fail_call("live.record_clip", track_id=self.track, clip_slot=0, length_beats=4)
         self.assertIn("empty slot", error["message"])
 
+    def test_launches_a_scene_and_records_in_one_step(self):
+        self.call("live.set_track_arm", track_id=self.track, enabled=True)
+        scene = self.call("live.get_scenes")["scenes"][0]["scene_id"]
+        self.call("live.record_with_scene", track_id=self.track, clip_slot=0, scene_id=scene, length_beats=8)
+        self.assertTrue(self.call("live.get_clip_slot_status", track_id=self.track, clip_slot=0)["is_recording"])
+
     def test_moves_the_song_position(self):
         self.assertEqual(self.call("live.set_song_time", beat=32)["current_song_time"], 32.0)
 
