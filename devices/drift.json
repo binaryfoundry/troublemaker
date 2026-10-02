@@ -1,0 +1,16 @@
+{
+  "device": "Drift",
+  "class_name": "Drift",
+  "note": "Hints only. Drift ships with Live 11.2 and later; inspect before writing.",
+  "roles": {
+    "brightness": "Filter Frequency",
+    "resonance": "Filter Resonance",
+    "attack": "Envelope Attack",
+    "release": "Envelope Release",
+    "movement": "LFO Amount"
+  },
+  "directions": {
+    "darker": { "parameter": "Filter Frequency", "delta_normalized": -0.2 },
+    "brighter": { "parameter": "Filter Frequency", "delta_normalized": 0.2 }
+  }
+}

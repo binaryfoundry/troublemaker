@@ -1,0 +1,32 @@
+{
+  "description": "The MVP interaction: read the selected bass clip, shift four notes onto 16th syncopations and shorten three of them, keeping every pitch. The note ids below come from the preceding live.get_notes call and must never be invented.",
+  "read_first": [
+    { "command": "live.get_selected_clip", "args": {} },
+    { "command": "live.get_notes", "args": { "track_id": 2, "clip_slot": 0 } }
+  ],
+  "command": "transaction",
+  "args": {
+    "atomic": true,
+    "commands": [
+      {
+        "command": "live.snapshot_clip",
+        "args": { "track_id": 2, "clip_slot": 0, "label": "before syncopation" }
+      },
+      {
+        "command": "live.update_notes",
+        "args": {
+          "track_id": 2,
+          "clip_slot": 0,
+          "updates": [
+            { "note_id": 3, "start": 1.25, "duration": 0.27 },
+            { "note_id": 5, "start": 2.25, "duration": 0.27 },
+            { "note_id": 9, "start": 5.25, "duration": 0.27 },
+            { "note_id": 12, "start": 6.75 }
+          ]
+        }
+      }
+    ]
+  },
+  "verify_after": [{ "command": "live.get_notes", "args": { "track_id": 2, "clip_slot": 0 } }],
+  "expected_report": "Kept the original pitch sequence, shifted four notes onto 16th-note syncopations, shortened three of them, and left the first and final bars intact."
+}

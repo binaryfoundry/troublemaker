@@ -1,0 +1,97 @@
+{
+  "description": "A 4-bar melodic techno starting point at 124 BPM in F minor: drums, a rolling bass and a chord bed across three tracks. Track ids are illustrative; read real ones from live.get_project_state first.",
+  "setup": [{ "command": "live.set_tempo", "args": { "bpm": 124 } }],
+  "command": "transaction",
+  "args": {
+    "atomic": true,
+    "commands": [
+      {
+        "command": "live.create_midi_clip",
+        "args": {
+          "track_id": 1,
+          "clip_slot": 0,
+          "length_beats": 16,
+          "name": "Drums",
+          "replace_existing": true
+        }
+      },
+      {
+        "command": "live.replace_notes",
+        "args": {
+          "track_id": 1,
+          "clip_slot": 0,
+          "notes": [
+            { "pitch": 36, "start": 0, "duration": 0.25, "velocity": 122 },
+            { "pitch": 36, "start": 1, "duration": 0.25, "velocity": 116 },
+            { "pitch": 36, "start": 2, "duration": 0.25, "velocity": 118 },
+            { "pitch": 36, "start": 3, "duration": 0.25, "velocity": 116 },
+            { "pitch": 46, "start": 0.5, "duration": 0.25, "velocity": 96 },
+            { "pitch": 46, "start": 1.5, "duration": 0.25, "velocity": 92 },
+            { "pitch": 46, "start": 2.5, "duration": 0.25, "velocity": 96 },
+            { "pitch": 46, "start": 3.5, "duration": 0.25, "velocity": 92 },
+            { "pitch": 39, "start": 1, "duration": 0.25, "velocity": 110 },
+            { "pitch": 39, "start": 3, "duration": 0.25, "velocity": 108 }
+          ]
+        }
+      },
+      {
+        "command": "live.create_midi_clip",
+        "args": {
+          "track_id": 2,
+          "clip_slot": 0,
+          "length_beats": 16,
+          "name": "Bass",
+          "replace_existing": true
+        }
+      },
+      {
+        "command": "live.replace_notes",
+        "args": {
+          "track_id": 2,
+          "clip_slot": 0,
+          "notes": [
+            { "pitch": 41, "start": 0.25, "duration": 0.2, "velocity": 104 },
+            { "pitch": 41, "start": 0.5, "duration": 0.2, "velocity": 92 },
+            { "pitch": 41, "start": 0.75, "duration": 0.2, "velocity": 100 },
+            { "pitch": 41, "start": 1.25, "duration": 0.2, "velocity": 104 },
+            { "pitch": 48, "start": 1.75, "duration": 0.2, "velocity": 98 },
+            { "pitch": 41, "start": 2.25, "duration": 0.2, "velocity": 104 },
+            { "pitch": 44, "start": 2.75, "duration": 0.2, "velocity": 96 },
+            { "pitch": 41, "start": 3.25, "duration": 0.2, "velocity": 102 }
+          ]
+        }
+      },
+      {
+        "command": "live.create_midi_clip",
+        "args": {
+          "track_id": 3,
+          "clip_slot": 0,
+          "length_beats": 16,
+          "name": "Chords",
+          "replace_existing": true
+        }
+      },
+      {
+        "command": "live.replace_notes",
+        "args": {
+          "track_id": 3,
+          "clip_slot": 0,
+          "notes": [
+            { "pitch": 65, "start": 0, "duration": 3.9, "velocity": 88 },
+            { "pitch": 68, "start": 0, "duration": 3.9, "velocity": 84 },
+            { "pitch": 72, "start": 0, "duration": 3.9, "velocity": 86 },
+            { "pitch": 68, "start": 4, "duration": 3.9, "velocity": 88 },
+            { "pitch": 72, "start": 4, "duration": 3.9, "velocity": 84 },
+            { "pitch": 75, "start": 4, "duration": 3.9, "velocity": 86 },
+            { "pitch": 63, "start": 8, "duration": 3.9, "velocity": 88 },
+            { "pitch": 67, "start": 8, "duration": 3.9, "velocity": 84 },
+            { "pitch": 70, "start": 8, "duration": 3.9, "velocity": 86 },
+            { "pitch": 60, "start": 12, "duration": 3.9, "velocity": 88 },
+            { "pitch": 63, "start": 12, "duration": 3.9, "velocity": 84 },
+            { "pitch": 67, "start": 12, "duration": 3.9, "velocity": 86 }
+          ]
+        }
+      }
+    ]
+  }
+}

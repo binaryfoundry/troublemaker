@@ -1,0 +1,64 @@
+{
+  "description": "An 8-bar build into a drop (bars 25-32, which is beats 96-128 in 4/4, shown here against a 32-beat clip starting at beat 24): an accelerating snare roll, the kick cleared from the final half bar, and a filter opening across the span. Track, slot and device ids are illustrative.",
+  "command": "transaction",
+  "args": {
+    "atomic": true,
+    "commands": [
+      {
+        "command": "live.snapshot_clip",
+        "args": { "track_id": 1, "clip_slot": 4, "label": "before build" }
+      },
+      {
+        "command": "live.remove_notes",
+        "args": {
+          "track_id": 1,
+          "clip_slot": 4,
+          "from_time": 30,
+          "time_span": 2,
+          "from_pitch": 36,
+          "pitch_span": 1
+        }
+      },
+      {
+        "command": "live.add_notes",
+        "args": {
+          "track_id": 1,
+          "clip_slot": 4,
+          "notes": [
+            { "pitch": 38, "start": 24, "duration": 0.25, "velocity": 62 },
+            { "pitch": 38, "start": 24.5, "duration": 0.25, "velocity": 70 },
+            { "pitch": 38, "start": 25, "duration": 0.25, "velocity": 78 },
+            { "pitch": 38, "start": 25.5, "duration": 0.25, "velocity": 84 },
+            { "pitch": 38, "start": 26, "duration": 0.25, "velocity": 90 },
+            { "pitch": 38, "start": 26.5, "duration": 0.25, "velocity": 96 },
+            { "pitch": 38, "start": 27, "duration": 0.2, "velocity": 100 },
+            { "pitch": 38, "start": 27.25, "duration": 0.2, "velocity": 104 },
+            { "pitch": 38, "start": 27.5, "duration": 0.2, "velocity": 108 },
+            { "pitch": 38, "start": 27.75, "duration": 0.2, "velocity": 112 },
+            { "pitch": 38, "start": 28, "duration": 0.125, "velocity": 114 },
+            { "pitch": 38, "start": 28.125, "duration": 0.125, "velocity": 116 },
+            { "pitch": 38, "start": 28.25, "duration": 0.125, "velocity": 118 },
+            { "pitch": 38, "start": 28.375, "duration": 0.125, "velocity": 120 },
+            { "pitch": 38, "start": 28.5, "duration": 0.125, "velocity": 122 },
+            { "pitch": 38, "start": 28.625, "duration": 0.125, "velocity": 124 },
+            { "pitch": 38, "start": 28.75, "duration": 0.125, "velocity": 126 },
+            { "pitch": 38, "start": 28.875, "duration": 0.125, "velocity": 127 }
+          ]
+        }
+      },
+      {
+        "command": "live.set_automation",
+        "args": {
+          "track_id": 2,
+          "clip_slot": 4,
+          "device_id": 22,
+          "parameter_name": "Frequency",
+          "points": [
+            { "beat": 24, "normalized": 0.25 },
+            { "beat": 32, "normalized": 0.9 }
+          ]
+        }
+      }
+    ]
+  }
+}

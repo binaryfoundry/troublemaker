@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://troublemaker.local/schemas/command.schema.json",
+  "title": "TroubleMaker command",
+  "description": "A single request sent to the bridge (POST /command) or to the Live Remote Script. The bridge validates every request against the per-command schemas in bridge/src/validation.ts; this file documents the envelope.",
+  "type": "object",
+  "required": ["command"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Correlation id. The bridge generates one if omitted."
+    },
+    "command": {
+      "type": "string",
+      "description": "Command name, e.g. live.get_notes. 'transaction' groups several.",
+      "minLength": 1
+    },
+    "args": {
+      "type": "object",
+      "description": "Command arguments. Unknown keys are rejected.",
+      "default": {}
+    },
+    "dry_run": {
+      "type": "boolean",
+      "default": false,
+      "description": "Validate and report the operation without applying it to the Live Set."
+    }
+  },
+  "$defs": {
+    "note": {
+      "type": "object",
+      "description": "A MIDI note. Time is in beats (quarter notes), zero-based from the clip start.",
+      "required": ["pitch", "start", "duration"],
+      "additionalProperties": false,
+      "properties": {
+        "note_id": {
+          "type": ["integer", "null"],
+          "description": "Assigned by Live. Accepted and ignored on write."
+        },
+        "pitch": { "type": "integer", "minimum": 0, "maximum": 127 },
+        "start": { "type": "number", "minimum": 0, "maximum": 4096 },
+        "duration": { "type": "number", "exclusiveMinimum": 0, "maximum": 4096 },
+        "velocity": { "type": "number", "minimum": 0, "maximum": 127, "default": 100 },
+        "mute": { "type": "boolean", "default": false },
+        "probability": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "noteUpdate": {
+      "type": "object",
+      "description": "An in-place change to one existing note, addressed by note_id.",
+      "required": ["note_id"],
+      "minProperties": 2,
+      "additionalProperties": false,
+      "properties": {
+        "note_id": { "type": "integer" },
+        "pitch": { "type": "integer", "minimum": 0, "maximum": 127 },
+        "start": { "type": "number", "minimum": 0, "maximum": 4096 },
+        "duration": { "type": "number", "exclusiveMinimum": 0, "maximum": 4096 },
+        "velocity": { "type": "number", "minimum": 0, "maximum": 127 },
+        "mute": { "type": "boolean" },
+        "probability": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "automationPoint": {
+      "type": "object",
+      "description": "One automation breakpoint. Give value (native units) or normalized (0-1).",
+      "required": ["beat"],
+      "additionalProperties": false,
+      "properties": {
+        "beat": { "type": "number", "minimum": 0, "maximum": 4096 },
+        "value": { "type": "number" },
+        "normalized": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "anyOf": [{ "required": ["value"] }, { "required": ["normalized"] }]
+    },
+    "transactionArgs": {
+      "type": "object",
+      "required": ["commands"],
+      "additionalProperties": false,
+      "properties": {
+        "commands": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 256,
+          "items": { "$ref": "#" }
+        },
+        "atomic": {
+          "type": "boolean",
+          "default": false,
+          "description": "Snapshot every clip the batch writes to and restore them if a step fails."
+        }
+      }
+    }
+  }
+}

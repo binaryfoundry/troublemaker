@@ -1,0 +1,17 @@
+{
+  "device": "Wavetable",
+  "class_name": "InstrumentVector",
+  "note": "Hints only. Inspect the actual device before writing.",
+  "roles": {
+    "brightness": "Filter 1 Freq",
+    "resonance": "Filter 1 Res",
+    "timbre": "Osc 1 Pos",
+    "attack": "Env 1 Attack",
+    "release": "Env 1 Release",
+    "detune": "Osc 1 Detune"
+  },
+  "directions": {
+    "darker": { "parameter": "Filter 1 Freq", "delta_normalized": -0.2 },
+    "brighter": { "parameter": "Filter 1 Freq", "delta_normalized": 0.2 }
+  }
+}

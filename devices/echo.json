@@ -1,0 +1,16 @@
+{
+  "device": "Echo",
+  "class_name": "Echo",
+  "note": "Hints only. Always inspect the actual device before writing.",
+  "roles": {
+    "space": "Dry/Wet",
+    "feedback": "Feedback",
+    "time": "L Time",
+    "brightness": "Filter Hi Freq",
+    "movement": "Mod Rate"
+  },
+  "directions": {
+    "more spacious": { "parameter": "Dry/Wet", "delta_normalized": 0.12 },
+    "more trippy": { "parameter": "Feedback", "delta_normalized": 0.15 }
+  }
+}

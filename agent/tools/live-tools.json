@@ -1,0 +1,373 @@
+{
+  "$comment": "Tool definitions for an LLM driving the bridge. Each maps 1:1 to a bridge command, with a narrow description. There is deliberately no execute_ableton_code tool: the agent works through explicit capabilities only.",
+  "transport": {
+    "type": "http",
+    "url": "http://127.0.0.1:8765/command",
+    "method": "POST",
+    "body": { "command": "<tool name>", "args": "<tool arguments>" }
+  },
+  "tools": [
+    {
+      "name": "get_capabilities",
+      "command": "live.get_capabilities",
+      "description": "Returns which Live operations this installation actually supports. Call this once at the start of a session. Never assume a capability that is not listed here.",
+      "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
+    },
+    {
+      "name": "get_project_state",
+      "command": "live.get_project_state",
+      "description": "Compact overview of the Live Set: tempo, time signature, tracks with their stable track_ids, the clips in each track's slots, devices, and scenes. Does not include notes or parameter values. Start here, then drill down.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "include_devices": { "type": "boolean", "default": true },
+          "include_return_tracks": { "type": "boolean", "default": false }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_selected_clip",
+      "command": "live.get_selected_clip",
+      "description": "The clip the user currently has highlighted in Live's Session view. Use this to resolve 'this clip', 'the selected clip' or an unqualified 'it'. Returns track_id and clip_slot for subsequent calls.",
+      "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
+    },
+    {
+      "name": "get_selected_track",
+      "command": "live.get_selected_track",
+      "description": "The track the user currently has selected, with its clips and devices. Resolves 'this track'.",
+      "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
+    },
+    {
+      "name": "get_selected_device",
+      "command": "live.get_selected_device",
+      "description": "The device the user currently has selected, with all of its parameters. Resolves 'this device' and 'this synth'.",
+      "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
+    },
+    {
+      "name": "get_clip_notes",
+      "command": "live.get_notes",
+      "description": "Returns the MIDI notes in an existing Ableton MIDI clip, each with a note_id, pitch, start (beats), duration (beats) and velocity. Call this before modifying an existing musical pattern.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "track_id": { "type": "integer", "description": "From get_project_state, never guessed." },
+          "clip_slot": { "type": "integer" },
+          "from_time": { "type": "number", "description": "Optional beat window start." },
+          "time_span": { "type": "number", "description": "Optional beat window length." }
+        },
+        "required": ["track_id", "clip_slot"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "update_clip_notes",
+      "command": "live.update_notes",
+      "description": "Changes existing notes in place, addressed by note_id. Use this for any edit that should preserve the identity of a part - more syncopation, humanized velocity, transposition, swing. Only the properties you supply change.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "track_id": { "type": "integer" },
+          "clip_slot": { "type": "integer" },
+          "updates": {
+            "type": "array",
+            "description": "One entry per note to change. Each needs note_id plus at least one property.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "note_id": { "type": "integer" },
+                "pitch": { "type": "integer", "minimum": 0, "maximum": 127 },
+                "start": { "type": "number", "minimum": 0 },
+                "duration": { "type": "number", "exclusiveMinimum": 0 },
+                "velocity": { "type": "number", "minimum": 0, "maximum": 127 },
+                "mute": { "type": "boolean" }
+              },
+              "required": ["note_id"]
+            }
+          }
+        },
+        "required": ["track_id", "clip_slot", "updates"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "add_clip_notes",
+      "command": "live.add_notes",
+      "description": "Adds notes to a MIDI clip, leaving existing notes untouched. Use for fills, echoes and layers.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "track_id": { "type": "integer" },
+          "clip_slot": { "type": "integer" },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "pitch": { "type": "integer", "minimum": 0, "maximum": 127 },
+                "start": { "type": "number", "minimum": 0, "description": "Beats from clip start, zero-based." },
+                "duration": { "type": "number", "exclusiveMinimum": 0 },
+                "velocity": { "type": "number", "minimum": 0, "maximum": 127 }
+              },
+              "required": ["pitch", "start", "duration"]
+            }
+          }
+        },
+        "required": ["track_id", "clip_slot", "notes"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "remove_clip_notes",
+      "command": "live.remove_notes",
+      "description": "Deletes notes, either a specific set of note_ids or everything in a time/pitch window. Prefer note_ids so nothing unintended is caught.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "track_id": { "type": "integer" },
+          "clip_slot": { "type": "integer" },
+          "note_ids": { "type": "array", "items": { "type": "integer" } },
+          "from_time": { "type": "number" },
+          "time_span": { "type": "number" }
+        },
+        "required": ["track_id", "clip_slot"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "replace_clip_notes",
+      "command": "live.replace_notes",
+      "description": "Deletes every note in the clip and writes a new set. Destructive - only use when the user asked for new material, and snapshot the clip first.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "track_id": { "type": "integer" },
+          "clip_slot": { "type": "integer" },
+          "notes": { "type": "array", "items": { "type": "object" } }
+        },
+        "required": ["track_id", "clip_slot", "notes"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "create_midi_clip",
+      "command": "live.create_midi_clip",
+      "description": "Creates an empty MIDI clip of a given length in beats. Fails if the slot is occupied unless replace_existing is true.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "track_id": { "type": "integer" },
+          "clip_slot": { "type": "integer" },
+          "length_beats": { "type": "number", "exclusiveMinimum": 0, "description": "16 beats = 4 bars in 4/4." },
+          "name": { "type": "string" },
+          "replace_existing": { "type": "boolean", "default": false }
+        },
+        "required": ["track_id", "clip_slot", "length_beats"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "set_clip_loop",
+      "command": "live.set_clip_loop",
+      "description": "Sets a clip's loop region in beats. Give start plus either length or end.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "track_id": { "type": "integer" },
+          "clip_slot": { "type": "integer" },
+          "start": { "type": "number", "minimum": 0 },
+          "length": { "type": "number", "exclusiveMinimum": 0 },
+          "end": { "type": "number" },
+          "looping": { "type": "boolean", "default": true }
+        },
+        "required": ["track_id", "clip_slot"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "snapshot_clip",
+      "command": "live.snapshot_clip",
+      "description": "Stores a clip's notes, loop and name in bridge memory and returns a snapshot_id. Take one before any destructive edit so it can be undone without disturbing Live's shared undo stack.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "track_id": { "type": "integer" },
+          "clip_slot": { "type": "integer" },
+          "label": { "type": "string" }
+        },
+        "required": ["track_id", "clip_slot"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "restore_clip",
+      "command": "live.restore_clip",
+      "description": "Restores a clip from a snapshot_id returned by snapshot_clip.",
+      "parameters": {
+        "type": "object",
+        "properties": { "snapshot_id": { "type": "string" } },
+        "required": ["snapshot_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_tracks",
+      "command": "live.get_tracks",
+      "description": "Lists tracks with their stable track_ids, names and types. Use the ids, never the names, in later calls.",
+      "parameters": {
+        "type": "object",
+        "properties": { "include_devices": { "type": "boolean" } },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "create_midi_track",
+      "command": "live.create_midi_track",
+      "description": "Creates a MIDI track. Live Intro caps a Set at 16 tracks and will refuse beyond that.",
+      "parameters": {
+        "type": "object",
+        "properties": { "name": { "type": "string" }, "index": { "type": "integer" } },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_device_parameters",
+      "command": "live.get_device_parameters",
+      "description": "Lists a device's parameters with name, current value, normalized value (0-1), min, max and a human-readable display value. Always inspect a parameter before writing it - ranges differ per device.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "track_id": { "type": "integer" },
+          "device_id": { "type": "integer" }
+        },
+        "required": ["track_id", "device_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "set_device_parameter",
+      "command": "live.set_device_parameter",
+      "description": "Sets one device parameter. Give either value (native units) or normalized (0-1). Returns the before and after values so the write can be verified.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "track_id": { "type": "integer" },
+          "device_id": { "type": "integer" },
+          "parameter_id": { "type": "integer" },
+          "parameter_name": { "type": "string" },
+          "value": { "type": "number" },
+          "normalized": { "type": "number", "minimum": 0, "maximum": 1 }
+        },
+        "required": ["track_id", "device_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "set_automation",
+      "command": "live.set_automation",
+      "description": "Writes a clip automation ramp for a device parameter from breakpoints in beats. Use for 'open the filter over the last 4 bars'. Returns a capability error if Live cannot automate that parameter.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "track_id": { "type": "integer" },
+          "clip_slot": { "type": "integer" },
+          "device_id": { "type": "integer" },
+          "parameter_name": { "type": "string" },
+          "parameter_id": { "type": "integer" },
+          "points": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "properties": {
+                "beat": { "type": "number", "minimum": 0 },
+                "normalized": { "type": "number", "minimum": 0, "maximum": 1 },
+                "value": { "type": "number" }
+              },
+              "required": ["beat"]
+            }
+          },
+          "clear_first": { "type": "boolean", "default": true }
+        },
+        "required": ["track_id", "clip_slot", "device_id", "points"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "set_tempo",
+      "command": "live.set_tempo",
+      "description": "Sets the Live Set tempo in BPM.",
+      "parameters": {
+        "type": "object",
+        "properties": { "bpm": { "type": "number", "minimum": 20, "maximum": 999 } },
+        "required": ["bpm"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "set_track_volume",
+      "command": "live.set_track_volume",
+      "description": "Sets a track's volume. Give normalized (0-1) unless you have read the native range.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "track_id": { "type": "integer" },
+          "normalized": { "type": "number", "minimum": 0, "maximum": 1 },
+          "value": { "type": "number" }
+        },
+        "required": ["track_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "set_track_send",
+      "command": "live.set_track_send",
+      "description": "Sets a send level on a track, e.g. to push a part further into reverb for a breakdown.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "track_id": { "type": "integer" },
+          "send_index": { "type": "integer", "minimum": 0 },
+          "normalized": { "type": "number", "minimum": 0, "maximum": 1 }
+        },
+        "required": ["track_id", "send_index"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "fire_clip",
+      "command": "live.fire_clip",
+      "description": "Launches a clip so the user can hear an edit.",
+      "parameters": {
+        "type": "object",
+        "properties": { "track_id": { "type": "integer" }, "clip_slot": { "type": "integer" } },
+        "required": ["track_id", "clip_slot"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "transaction",
+      "command": "transaction",
+      "description": "Runs several commands as one logical edit, validating all of them first. Set atomic to roll affected clips back if a step fails. Prefer one transaction per musical change over many separate calls.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "commands": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "command": { "type": "string" },
+                "args": { "type": "object" }
+              },
+              "required": ["command"]
+            }
+          },
+          "atomic": { "type": "boolean", "default": false }
+        },
+        "required": ["commands"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

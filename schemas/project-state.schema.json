@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://troublemaker.local/schemas/project-state.schema.json",
+  "title": "Project state summary",
+  "description": "The result of live.get_project_state. Deliberately excludes notes and device parameter values: fetch those per object so the agent's context stays small.",
+  "type": "object",
+  "required": ["tempo", "time_signature", "playing", "tracks", "scenes"],
+  "properties": {
+    "tempo": { "type": "number" },
+    "time_signature": {
+      "type": "array",
+      "items": { "type": "integer" },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "playing": { "type": "boolean" },
+    "current_song_time": { "type": "number" },
+    "track_count": { "type": "integer" },
+    "scene_count": { "type": "integer" },
+    "tracks": { "type": "array", "items": { "$ref": "#/$defs/track" } },
+    "return_tracks": { "type": "array", "items": { "$ref": "#/$defs/track" } },
+    "master_track": { "$ref": "#/$defs/track" },
+    "scenes": { "type": "array", "items": { "$ref": "#/$defs/scene" } }
+  },
+  "$defs": {
+    "track": {
+      "type": "object",
+      "required": ["track_id", "name", "type"],
+      "properties": {
+        "track_id": {
+          "type": "integer",
+          "description": "Stable handle. Never a positional index, and never a name."
+        },
+        "name": { "type": "string" },
+        "type": { "enum": ["midi", "audio", "return", "master"] },
+        "is_grouped": { "type": "boolean" },
+        "muted": { "type": "boolean" },
+        "soloed": { "type": "boolean" },
+        "armed": { "type": "boolean" },
+        "color_index": { "type": ["integer", "null"] },
+        "volume": { "$ref": "#/$defs/parameter" },
+        "pan": { "$ref": "#/$defs/parameter" },
+        "sends": { "type": "array", "items": { "$ref": "#/$defs/parameter" } },
+        "clips": { "type": "array", "items": { "$ref": "#/$defs/clip" } },
+        "devices": { "type": "array", "items": { "$ref": "#/$defs/device" } }
+      }
+    },
+    "clip": {
+      "type": "object",
+      "required": ["clip_id", "name", "length_beats"],
+      "properties": {
+        "clip_id": { "type": "integer" },
+        "slot": { "type": "integer" },
+        "name": { "type": "string" },
+        "is_midi_clip": { "type": "boolean" },
+        "length_beats": { "type": "number" },
+        "start_marker": { "type": "number" },
+        "end_marker": { "type": "number" },
+        "looping": { "type": "boolean" },
+        "loop_start": { "type": "number" },
+        "loop_end": { "type": "number" },
+        "is_playing": { "type": "boolean" },
+        "signature_numerator": { "type": "integer" },
+        "signature_denominator": { "type": "integer" }
+      }
+    },
+    "device": {
+      "type": "object",
+      "required": ["device_id", "name"],
+      "properties": {
+        "device_id": { "type": "integer" },
+        "name": { "type": "string" },
+        "class_name": { "type": ["string", "null"] },
+        "type": { "type": ["string", "null"] },
+        "is_active": { "type": "boolean" },
+        "parameter_count": { "type": "integer" },
+        "parameters": { "type": "array", "items": { "$ref": "#/$defs/parameter" } }
+      }
+    },
+    "parameter": {
+      "type": "object",
+      "description": "Both a native value and a 0-1 normalized value, because device ranges differ wildly.",
+      "required": ["parameter_id", "name", "value", "normalized", "min", "max"],
+      "properties": {
+        "parameter_id": { "type": "integer" },
+        "name": { "type": "string" },
+        "original_name": { "type": ["string", "null"] },
+        "value": { "type": "number" },
+        "normalized": { "type": "number", "minimum": 0, "maximum": 1 },
+        "min": { "type": "number" },
+        "max": { "type": "number" },
+        "is_quantized": { "type": "boolean" },
+        "display_value": { "type": ["string", "null"] }
+      }
+    },
+    "scene": {
+      "type": "object",
+      "required": ["scene_id", "index", "name"],
+      "properties": {
+        "scene_id": { "type": "integer" },
+        "index": { "type": "integer" },
+        "name": { "type": "string" },
+        "is_empty": { "type": "boolean" },
+        "is_triggered": { "type": "boolean" },
+        "tempo": { "type": ["number", "null"] }
+      }
+    }
+  }
+}

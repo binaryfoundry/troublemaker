@@ -1,0 +1,18 @@
+{
+  "device": "Operator",
+  "class_name": "Operator",
+  "note": "Hints only. Operator's parameter set changes with its algorithm; inspect before writing.",
+  "roles": {
+    "brightness": "Filter Freq",
+    "resonance": "Filter Res",
+    "attack": "Ae Attack",
+    "release": "Ae Release",
+    "detune": "Spread",
+    "volume": "Volume"
+  },
+  "directions": {
+    "darker": { "parameter": "Filter Freq", "delta_normalized": -0.2 },
+    "wider": { "parameter": "Spread", "delta_normalized": 0.2 },
+    "snappier": { "parameter": "Ae Attack", "delta_normalized": -0.2 }
+  }
+}

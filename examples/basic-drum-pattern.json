@@ -1,0 +1,36 @@
+{
+  "description": "A one-bar four-on-the-floor kick. Milestone 3 acceptance test: kicks land on beats 0, 1, 2 and 3. Track ids are illustrative; read real ones from live.get_project_state first.",
+  "command": "transaction",
+  "args": {
+    "atomic": true,
+    "commands": [
+      {
+        "command": "live.create_midi_clip",
+        "args": {
+          "track_id": 1,
+          "clip_slot": 0,
+          "length_beats": 4,
+          "name": "Kick",
+          "replace_existing": true
+        }
+      },
+      {
+        "command": "live.replace_notes",
+        "args": {
+          "track_id": 1,
+          "clip_slot": 0,
+          "notes": [
+            { "pitch": 36, "start": 0.0, "duration": 0.25, "velocity": 122 },
+            { "pitch": 36, "start": 1.0, "duration": 0.25, "velocity": 116 },
+            { "pitch": 36, "start": 2.0, "duration": 0.25, "velocity": 118 },
+            { "pitch": 36, "start": 3.0, "duration": 0.25, "velocity": 116 }
+          ]
+        }
+      },
+      {
+        "command": "live.set_clip_loop",
+        "args": { "track_id": 1, "clip_slot": 0, "start": 0, "length": 4, "looping": true }
+      }
+    ]
+  }
+}

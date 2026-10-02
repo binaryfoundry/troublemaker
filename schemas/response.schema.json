@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://troublemaker.local/schemas/response.schema.json",
+  "title": "TroubleMaker response",
+  "description": "Every reply, from the Remote Script and from the bridge, uses this envelope. Errors are structured so an agent can recover without asking the user.",
+  "type": "object",
+  "required": ["ok"],
+  "oneOf": [
+    {
+      "type": "object",
+      "required": ["ok", "result"],
+      "properties": {
+        "id": { "type": ["string", "null"] },
+        "ok": { "const": true },
+        "result": {}
+      }
+    },
+    {
+      "type": "object",
+      "required": ["ok", "error"],
+      "properties": {
+        "id": { "type": ["string", "null"] },
+        "ok": { "const": false },
+        "error": { "$ref": "#/$defs/error" }
+      }
+    }
+  ],
+  "$defs": {
+    "error": {
+      "type": "object",
+      "required": ["code", "message"],
+      "description": "Extra keys carry recovery hints, e.g. available_parameters.",
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "BAD_REQUEST",
+            "UNKNOWN_COMMAND",
+            "INVALID_ARGUMENT",
+            "VALIDATION_FAILED",
+            "TRACK_NOT_FOUND",
+            "SCENE_NOT_FOUND",
+            "CLIP_SLOT_NOT_FOUND",
+            "CLIP_NOT_FOUND",
+            "NOT_A_MIDI_CLIP",
+            "NOT_A_MIDI_TRACK",
+            "DEVICE_NOT_FOUND",
+            "PARAMETER_NOT_FOUND",
+            "NOTE_NOT_FOUND",
+            "NOTHING_SELECTED",
+            "OBJECT_GONE",
+            "UNSUPPORTED",
+            "LIVE_ERROR",
+            "NOT_CONNECTED",
+            "NOT_READY",
+            "TIMEOUT",
+            "SNAPSHOT_NOT_FOUND",
+            "TRANSACTION_FAILED",
+            "PAYLOAD_TOO_LARGE",
+            "SERIALIZATION_ERROR",
+            "NOT_FOUND",
+            "INTERNAL_ERROR"
+          ]
+        },
+        "message": { "type": "string" },
+        "available_commands": { "type": "array", "items": { "type": "string" } },
+        "available_tracks": { "type": "array" },
+        "available_scenes": { "type": "array" },
+        "available_devices": { "type": "array" },
+        "available_parameters": { "type": "array", "items": { "type": "string" } },
+        "available_note_ids": { "type": "array", "items": { "type": "integer" } },
+        "occupied_slots": { "type": "array", "items": { "type": "integer" } },
+        "issues": {
+          "type": "array",
+          "description": "Validation failures, one per offending field.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": { "type": "string" },
+              "message": { "type": "string" }
+            }
+          }
+        },
+        "failed_index": { "type": "integer" },
+        "failed_command": { "type": "string" },
+        "commands_applied": { "type": "integer" },
+        "rolled_back": { "type": "boolean" },
+        "min": { "type": "number" },
+        "max": { "type": "number" }
+      }
+    }
+  }
+}

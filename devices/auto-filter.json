@@ -1,0 +1,18 @@
+{
+  "device": "Auto Filter",
+  "class_name": "AutoFilter",
+  "note": "Hints only. Always inspect the actual device with live.get_device_parameters before writing.",
+  "roles": {
+    "brightness": "Frequency",
+    "darkness": "Frequency",
+    "resonance": "Resonance",
+    "drive": "Drive",
+    "movement": "LFO Amount",
+    "envelope": "Env. Amount"
+  },
+  "directions": {
+    "darker": { "parameter": "Frequency", "delta_normalized": -0.2 },
+    "brighter": { "parameter": "Frequency", "delta_normalized": 0.2 },
+    "more aggressive": { "parameter": "Resonance", "delta_normalized": 0.15 }
+  }
+}
