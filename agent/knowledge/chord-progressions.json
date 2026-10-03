@@ -1,0 +1,24 @@
+{
+  "source": "CHORDS.md - template table (style and core progression). Its full knowledge base, with tempos, MIDI arrays and Rack designs, was not supplied; keys here are read from each progression's first chord.",
+  "templates": {
+    "H01": { "style": "deep / melodic house", "progression": ["F#m9", "Dmaj7", "Aadd9", "E6/9sus4"] },
+    "H02": { "style": "neo-soul / R&B", "progression": ["Ebmaj9", "Gm7", "Cm9", "Abmaj9"] },
+    "H03": { "style": "dark trap", "progression": ["Cm(add9)", "Abmaj7", "Fm9", "Gsus4→G"] },
+    "H04": { "style": "liquid drum & bass", "progression": ["Dmaj9", "F#m7", "Bm9", "Gmaj9"] },
+    "H05": { "style": "cinematic", "progression": ["Am(add9)", "Fmaj7", "C/E", "Gsus4→G"] },
+    "H06": { "style": "gospel / jazz", "progression": ["Cmaj9", "A7alt", "Dm9", "G13", "Cmaj9"] },
+    "H07": { "style": "synthwave", "progression": ["Em9", "Cmaj7", "G6", "Dadd9"] },
+    "H08": { "style": "modal techno", "progression": ["Dm9", "G/D", "Cmaj7/D", "Dm11"] }
+  },
+  "complexity_ladder": [
+    "functional triads",
+    "inversions for smoother voice leading",
+    "sevenths, ninths and suspensions only where they serve the emotional purpose"
+  ],
+  "checks": {
+    "mud_floor_midi": 48,
+    "mud_interval": 4,
+    "max_voices": 5,
+    "max_motion_per_change": 12
+  }
+}

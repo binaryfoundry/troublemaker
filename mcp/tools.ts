@@ -33,7 +33,6 @@ import { genreSummary, loadReferenceSets, scanLibrary } from '../qc/src/library.
 import { checkArrangement, formatPlan, planArrangement, styleNames } from '../agent/src/arrangement.js';
 import {
   createBuildUp,
-  createChordProgression,
   createFourOnFloorKick,
   createOffbeatHat,
   createRollingBass,
@@ -44,6 +43,7 @@ import {
 import { bassFromFeel, cycleArp, euclidean, euclideanPattern, polyrhythm } from '../agent/src/patterns.js';
 import { progression } from '../agent/src/music-theory.js';
 import { drumGenres } from '../agent/src/drums.js';
+import { checkChords, chordKnowledge, chordTemplate, voiceLeadingReport, voiceProgression, type VoicedChord } from '../agent/src/chords.js';
 import { bassPattern, bassPatternNames, checkBassline, mergeRepeats } from '../agent/src/basslines.js';
 import type { ChainState, Decision } from '../agent/src/mastering/policy.js';
 
@@ -301,7 +301,7 @@ export function createMcpServer(client: McpClient): McpServer {
         'A/A2/B/A3 development, checked against the kick), ' +
         'arp (cycle arpeggio over a voice-led progression: contour, accent, octave and rest cycles of different ' +
         'lengths drift against the bar; needs root), kick (four on the floor), hats (offbeat), drum_kit, bass (rolling, ' +
-        'needs root), chords (needs root; degrees e.g. [1,6,3,7]), build_up, euclidean (hits/steps/pitch), ' +
+        'needs root), chords (voice-led: symbols, a CHORDS.md template H01-H08, or root + degrees), build_up, euclidean (hits/steps/pitch), ' +
         'polyrhythm (a:b), bass_from_reference (copy a reference track\'s bass rhythm, accents and pitches). ' +
         'Replaces the clip in that slot; the previous clip is snapshotted when there was one.',
       inputSchema: {
@@ -331,6 +331,9 @@ export function createMcpServer(client: McpClient): McpServer {
         root: z.string().optional().describe('Key root, e.g. "F" or "A#"'),
         scale: z.string().optional().describe('minor, major, dorian, phrygian, ...'),
         degrees: z.array(z.number().int().min(1).max(7)).optional().describe('chords'),
+        symbols: z.array(z.string()).optional().describe('chords: chord symbols, e.g. ["F#m9","Dmaj7","Aadd9","E6/9sus4"]; "Gsus4→G" resolves inside one slot'),
+        template: z.string().optional().describe(`chords: CHORDS.md template ${Object.entries(chordKnowledge().templates).map(([k, t]) => `${k} ${t.style}`).join('; ')}`),
+        voicing: z.enum(['triad', 'seventh', 'ninth', 'sus2', 'sus4', 'power']).optional().describe('chords from degrees'),
         bars_per_chord: z.number().int().min(1).optional(),
         octave: z.number().int().min(0).max(8).optional(),
         density: z.number().min(0).max(1).optional().describe('bass'),
@@ -384,17 +387,36 @@ export function createMcpServer(client: McpClient): McpServer {
             if (!args.root) throw new Error('bass needs a root, e.g. "F".');
             commands = createRollingBass(target, { ...groove, root: args.root, scale: args.scale, density: args.density });
             break;
-          case 'chords':
-            if (!args.root) throw new Error('chords needs a root, e.g. "F".');
-            commands = createChordProgression(target, {
-              seed: args.seed,
-              root: args.root,
-              scale: args.scale,
-              degrees: args.degrees,
-              barsPerChord: args.bars_per_chord,
-              octave: args.octave,
-            });
+          case 'chords': {
+            // Symbols, a CHORDS.md template, or scale degrees - always voice-led.
+            const beatsPerChord = args.beats_per_chord ?? (args.bars_per_chord ?? 1) * 4;
+            let voiced: VoicedChord[];
+            if (args.symbols?.length || args.template) {
+              const symbols = args.symbols?.length ? args.symbols : chordTemplate(args.template!).progression;
+              voiced = voiceProgression(symbols, { beatsPerChord });
+            } else {
+              if (!args.root) throw new Error('chords needs symbols, a template (H01-H08) or a root with degrees.');
+              const led = progression(args.root, args.scale ?? 'minor', args.degrees ?? [1, 6, 3, 7], {
+                voicing: args.voicing ?? 'triad',
+                octave: args.octave ?? 3,
+              });
+              voiced = led.map((pitches, i) => ({ symbol: `degree ${(args.degrees ?? [1, 6, 3, 7])[i]}`, pitches, beat: i * beatsPerChord, beats: beatsPerChord }));
+            }
+            const length = Math.max(...voiced.map((c) => c.beat + c.beats));
+            const pattern = {
+              length_beats: length,
+              events: voiced.flatMap((c) => c.pitches.map((pitch) => ({ beat: c.beat, pitch, duration: c.beats * 0.98, velocity: 88 }))),
+            };
+            commands = writePattern(pattern, { ...target, bars: length / 4, createClip: true, name: 'Chords' });
+            const motion = voiceLeadingReport(voiced).map((st) => `${st.from} → ${st.to}: ${st.motion} semitones, ${st.commonTones} common`).join('; ');
+            const findings = checkChords(voiced);
+            notes = [
+              voiced.map((c) => `${c.symbol}: ${c.pitches.join(' ')}`).join('\n'),
+              motion ? `Voice leading: ${motion}.` : 'One chord.',
+              findings.length ? findings.map((f) => `[${f.severity}] ${f.message}`).join('\n') : 'Chord checks: no findings.',
+            ];
             break;
+          }
           case 'build_up':
             commands = createBuildUp(target, groove);
             break;
@@ -1110,6 +1132,7 @@ export function createMcpServer(client: McpClient): McpServer {
     ['effects', 'effects.md', 'Production effects practice (EFFECTS.md).'],
     ['mastering', 'mastering.md', 'Club mastering practice (MIXING.md).'],
     ['drums', 'drums.md', '808/909 drum programming practice (DRUMS.md).'],
+    ['chords', 'chords.md', 'Chord progressions and voice leading (CHORDS.md).'],
     ['basslines', 'basslines.md', 'Bassline writing, kick/bass and low-end practice (BASSLINES.md).'],
   ];
   for (const [name, file, description] of prompts) {
@@ -1128,6 +1151,7 @@ export function createMcpServer(client: McpClient): McpServer {
   const files: Array<[string, string, string]> = [
     ['effects-codex', 'agent/knowledge/effects.json', 'The 34-effect codex with Live recipes.'],
     ['styles', 'agent/knowledge/styles.json', 'Arrangement style templates.'],
+    ['chord-progressions', 'agent/knowledge/chord-progressions.json', 'CHORDS.md progression templates H01-H08.'],
     ['bass-patterns', 'agent/knowledge/bass-patterns.json', 'BASSLINES.md pattern library and checks.'],
     ['drum-patterns', 'agent/knowledge/drum-patterns.json', 'DRUMS.md genre grids, velocity tiers, A/A\'/B/F phrase.'],
     ['reference-sets', 'config/reference-sets.json', 'Named reference-track sets and their profiles.'],

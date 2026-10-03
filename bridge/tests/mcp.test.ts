@@ -203,6 +203,16 @@ describe('MCP server', () => {
     expect((result.content as Array<{ text: string }>).map((c) => c.text).join(' ')).toMatch(/Bass checks: no findings/);
   });
 
+  it('voices a CHORDS.md template and reports the voice leading', async () => {
+    const result = await client.callTool({ name: 'write_part', arguments: { track_id: 1, clip_slot: 0, part: 'chords', template: 'H08' } });
+    expect(result.isError).toBeFalsy();
+    const text = (result.content as Array<{ text: string }>).map((c) => c.text).join(' ');
+    expect(text).toMatch(/Dm9: /);
+    expect(text).toMatch(/Voice leading: Dm9 → G\/D/);
+    const lowest = Math.min(...notes.filter((n) => n.start_time === 4).map((n) => n.pitch));
+    expect(lowest % 12).toBe(2);
+  });
+
   it('writes a cycle arpeggio whose notes all come from the progression', async () => {
     const result = await client.callTool({
       name: 'write_part',
