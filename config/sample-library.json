@@ -1,0 +1,5 @@
+{
+  "$comment": "Local sample library: measured by qc/src/samples.ts and offered by sound_brief. For load_sound to reach these files, add the folder as a Place in Live's browser; place_name is the name Live shows for it.",
+  "root": "D:/Samples",
+  "place_name": "Samples"
+}

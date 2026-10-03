@@ -35,7 +35,10 @@ import {
   type DrumFinding,
   type DrumOptions,
 } from '../../agent/src/drums.js';
-import { rankCandidates, type Candidate, type RankedCandidate, type SoundBrief } from '../../agent/src/sound-selection.js';
+import { rankCandidates, rankSamples, type Candidate, type RankedCandidate, type RankedSample, type SoundBrief } from '../../agent/src/sound-selection.js';
+import { scanSamples } from '../../qc/src/samples.js';
+import { existsSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import {
   applySwing,
   compareMaterial,
@@ -432,4 +435,31 @@ export async function shortlistSounds(
     }
   }
   return { shortlist: rankCandidates(candidates, brief, limit), searched, skipped };
+}
+
+export interface SampleLibraryConfig {
+  root: string;
+  place_name: string;
+}
+
+/** config/sample-library.json, if the user has a local sample library. */
+export function sampleLibraryConfig(): SampleLibraryConfig | null {
+  const path = fileURLToPath(new URL('../../config/sample-library.json', import.meta.url));
+  if (!existsSync(path)) return null;
+  const config = JSON.parse(readFileSync(path, 'utf8')) as Partial<SampleLibraryConfig>;
+  return config.root ? { root: config.root, place_name: config.place_name ?? 'Samples' } : null;
+}
+
+/** Measured samples from the local library ranked against a brief (scans once, then cached). */
+export async function shortlistLocalSamples(
+  brief: SoundBrief,
+  options: { root?: string; limit?: number; loops?: boolean } = {},
+): Promise<{ library: string; samples: RankedSample[] } | null> {
+  const config = sampleLibraryConfig();
+  if (!config || !existsSync(config.root)) return null;
+  const index = await scanSamples(config.root);
+  return {
+    library: config.root,
+    samples: rankSamples(index.entries, brief, { limit: options.limit, root: options.root, libraryName: config.place_name, loops: options.loops }),
+  };
 }

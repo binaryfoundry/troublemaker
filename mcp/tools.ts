@@ -24,6 +24,7 @@ import {
   TRANSFORMS,
   writeDrums,
   shortlistSounds,
+  shortlistLocalSamples,
   type ReferenceRequest,
 } from '../bridge/src/workflows.js';
 import { runQc } from '../qc/src/run.js';
@@ -709,7 +710,8 @@ export function createMcpServer(client: McpClient): McpServer {
       description:
         'Before browsing, write the brief: for a role (kick, bass, clap, hats, perc, chords, lead, atmosphere, fx, vocal) and ' +
         'genre, what to keep, reject and judge - then search Live\'s browser and return a ranked shortlist of 3-8 candidates ' +
-        'from different folders. Audition them with load_sound in context (same MIDI, looped, level-matched), then commit. ' +
+        'from different folders, plus measured samples from the local library (config/sample-library.json) ranked on transient, ' +
+        'tail, sub, brightness and width. Audition them with load_sound in context (same MIDI, looped, level-matched), then commit. ' +
         'Names are only hints; listening decides.',
       inputSchema: {
         role: z.enum(Object.keys(selectionKnowledge().roles) as [string, ...string[]]),
@@ -717,6 +719,8 @@ export function createMcpServer(client: McpClient): McpServer {
         character: z.array(z.string()).optional().describe('words you want, e.g. ["deep","short","analog"]'),
         avoid: z.array(z.string()).optional().describe('words to reject, e.g. ["distorted"]'),
         limit: z.number().int().min(3).max(8).optional(),
+        key: z.string().optional().describe('track key root, e.g. "F": tonal samples get a transposition to it'),
+        loops: z.boolean().optional().describe('local library: loops instead of one-shots'),
       },
       annotations: { readOnlyHint: true },
     },
@@ -724,7 +728,17 @@ export function createMcpServer(client: McpClient): McpServer {
       guarded(async () => {
         const brief = soundBrief(args.role, { genre: args.genre, character: args.character, avoid: args.avoid });
         const found = await shortlistSounds(client, brief, args.limit ?? 8);
-        return text({ brief, ...found });
+        // Measured local samples rank on transient, tail, sub, brightness and width, not just names.
+        const local = await shortlistLocalSamples(brief, { root: args.key, limit: args.limit ?? 8, loops: args.loops });
+        const samples = local && {
+          library: local.library,
+          note: 'Load with load_sound category user_folders and the browserPath, once the library folder is a Place in Live\'s browser.',
+          shortlist: local.samples.map((s) => ({
+            name: s.name, browserPath: s.browserPath, score: s.score, why: s.why, transpose: s.transpose,
+            tailMs: s.tailMs, attackMs: s.attackMs, subDb: s.subDb, brightDb: s.brightDb, widthDb: s.widthDb, note: s.note, key: s.key, bpm: s.bpm,
+          })),
+        };
+        return text({ brief, ...found, ...(samples ? { samples } : {}) });
       }),
   );
 

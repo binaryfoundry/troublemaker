@@ -18,7 +18,9 @@ import { identifyEffect } from '../../qc/src/identify.js';
 import { checkArrangement, formatPlan, planArrangement, styleNames } from '../../agent/src/arrangement.js';
 import { checkDrumPattern, drumGenres, drumGrids, drumPattern, formatGrid, type DrumOptions, type Energy, type Variant } from '../../agent/src/drums.js';
 import { genreSummary, loadReferenceSets, scanLibrary } from '../../qc/src/library.js';
-import { buildArrangement, resolveReferenceFiles, writeDrums, type ResolvedReferences } from './workflows.js';
+import { buildArrangement, resolveReferenceFiles, sampleLibraryConfig, shortlistLocalSamples, writeDrums, type ResolvedReferences } from './workflows.js';
+import { scanSamples } from '../../qc/src/samples.js';
+import { soundBrief } from '../../agent/src/sound-selection.js';
 import { PROFILES } from '../../agent/src/mastering/profiles.js';
 import type { ChainState, Decision } from '../../agent/src/mastering/policy.js';
 
@@ -132,6 +134,8 @@ Arrangement (agent/knowledge/styles.json):
   ableton-agent drums show <genre> [--phrase] [--energy e] [--variant A|A'|B|F]   DRUMS.md grid and checks
   ableton-agent drums write <genre> --track <id> [--slot n] [--bars n] [--phrase] [--energy e]
                   [--variant v] [--swing 50-75] [--laid-back] [--humanize] [--chance] [--seed n]
+  ableton-agent samples scan [folder]       Measure the local sample library (cached)
+  ableton-agent samples pick <role> [--genre g] [--character short,round] [--key F] [--loops]
   ableton-agent arrangement plan <style> [--roles kick,bass,...]   Sections, energy, roles, checks
   ableton-agent arrangement build <style> [--map kick=12,bass=15,...] [--replace] [--dry-run]
       Lay each track's slot-0 loop across the sections its role plays in (Live 11+).
@@ -336,6 +340,9 @@ async function main(argv: string[]): Promise<number> {
 
     case 'drums':
       return drums(rest);
+
+    case 'samples':
+      return samples(rest);
 
     case 'bass': {
       const options = [...rest];
@@ -691,6 +698,34 @@ async function fx(argv: string[]): Promise<number> {
     default:
       throw new Error('Unknown fx subcommand. Try: list, show, apply, identify.');
   }
+}
+
+async function samples(argv: string[]): Promise<number> {
+  const args = [...argv];
+  const loops = takeFlag(args, '--loops');
+  const [genre] = takeOption(args, '--genre');
+  const [character] = takeOption(args, '--character');
+  const [key] = takeOption(args, '--key');
+  const [sub, target] = args;
+  if (sub === 'scan') {
+    const folder = target ?? sampleLibraryConfig()?.root;
+    if (!folder) throw new Error('Give a folder, or set "root" in config/sample-library.json.');
+    const index = await scanSamples(folder, { onProgress: (done, total) => process.stderr.write(`\r${done}/${total}`) });
+    process.stderr.write('\n');
+    const roles: Record<string, number> = {};
+    for (const e of index.entries) roles[e.role] = (roles[e.role] ?? 0) + 1;
+    process.stdout.write(`${index.entries.length} samples in ${folder}\n${Object.entries(roles).map(([r, n]) => `  ${String(n).padStart(4)}  ${r}`).join('\n')}\n`);
+    return 0;
+  }
+  if (sub !== 'pick' || !target) throw new Error('Usage: samples scan [folder] | samples pick <role> [--genre g] [--character a,b] [--key F] [--loops]');
+  const brief = soundBrief(target, { genre, character: character?.split(',').map((w) => w.trim()) });
+  const found = await shortlistLocalSamples(brief, { root: key, loops });
+  if (!found) throw new Error('No sample library: set "root" in config/sample-library.json.');
+  process.stdout.write(`${brief.need}\n`);
+  for (const s of found.samples) {
+    process.stdout.write(`  ${s.score.toFixed(1).padStart(5)}  ${s.name.padEnd(40)} tail ${String(s.tailMs).padStart(4)} ms  attack ${String(s.attackMs).padStart(3)} ms  sub ${s.subDb} dB${s.transpose !== null ? `  transpose ${s.transpose}` : ''}\n         ${s.why.join('; ')}\n`);
+  }
+  return 0;
 }
 
 async function drums(argv: string[]): Promise<number> {
