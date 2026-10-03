@@ -23,6 +23,7 @@ import {
   transformClip,
   TRANSFORMS,
   writeDrums,
+  shortlistSounds,
   type ReferenceRequest,
 } from '../bridge/src/workflows.js';
 import { runQc } from '../qc/src/run.js';
@@ -43,6 +44,7 @@ import {
 import { bassFromFeel, cycleArp, euclidean, euclideanPattern, polyrhythm } from '../agent/src/patterns.js';
 import { progression } from '../agent/src/music-theory.js';
 import { drumGenres } from '../agent/src/drums.js';
+import { selectionKnowledge, soundBrief } from '../agent/src/sound-selection.js';
 import { checkMelody, motifMelody, templateMotif, varyMotif, type MotifVariation } from '../agent/src/melody.js';
 import { checkChords, chordKnowledge, chordRhythm, chordTemplate, evolveVoicing, templateInKey, voiceLeadingReport, voiceProgression, type ChordRhythm, type VoicedChord } from '../agent/src/chords.js';
 import { bassPattern, bassPatternNames, checkBassline, mergeRepeats } from '../agent/src/basslines.js';
@@ -686,6 +688,32 @@ export function createMcpServer(client: McpClient): McpServer {
   );
 
   server.registerTool(
+    'sound_brief',
+    {
+      title: 'Sound brief and shortlist',
+      description:
+        'Before browsing, write the brief: for a role (kick, bass, clap, hats, perc, chords, lead, atmosphere, fx, vocal) and ' +
+        'genre, what to keep, reject and judge - then search Live\'s browser and return a ranked shortlist of 3-8 candidates ' +
+        'from different folders. Audition them with load_sound in context (same MIDI, looped, level-matched), then commit. ' +
+        'Names are only hints; listening decides.',
+      inputSchema: {
+        role: z.enum(Object.keys(selectionKnowledge().roles) as [string, ...string[]]),
+        genre: z.enum(Object.keys(selectionKnowledge().genres) as [string, ...string[]]).optional(),
+        character: z.array(z.string()).optional().describe('words you want, e.g. ["deep","short","analog"]'),
+        avoid: z.array(z.string()).optional().describe('words to reject, e.g. ["distorted"]'),
+        limit: z.number().int().min(3).max(8).optional(),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    (args) =>
+      guarded(async () => {
+        const brief = soundBrief(args.role, { genre: args.genre, character: args.character, avoid: args.avoid });
+        const found = await shortlistSounds(client, brief, args.limit ?? 8);
+        return text({ brief, ...found });
+      }),
+  );
+
+  server.registerTool(
     'load_sound',
     {
       title: 'Load a sound',
@@ -1157,6 +1185,7 @@ export function createMcpServer(client: McpClient): McpServer {
     ['mastering', 'mastering.md', 'Club mastering practice (MIXING.md).'],
     ['drums', 'drums.md', '808/909 drum programming practice (DRUMS.md).'],
     ['chords', 'chords.md', 'Chord progressions and voice leading (CHORDS.md).'],
+    ['sound-selection', 'sound-selection.md', 'Choosing sources before processing: briefs, shortlists, hot-swap auditions (Ableton_Sound_Selection_Expert.md).'],
     ['progressive-house', 'progressive-house.md', 'Progressive house in the Eric Prydz / Pryda tradition, originality first (ERIC.md).'],
     ['melodic-techno', 'melodic-techno.md', 'Melodic techno production practice (MELODIC-TECHNO.md).'],
     ['edm-tips', 'edm-tips.md', 'EDM Tips decision trees, guardrails and QA (EDM-TIPS.md).'],
@@ -1178,6 +1207,7 @@ export function createMcpServer(client: McpClient): McpServer {
   const files: Array<[string, string, string]> = [
     ['effects-codex', 'agent/knowledge/effects.json', 'The 34-effect codex with Live recipes.'],
     ['styles', 'agent/knowledge/styles.json', 'Arrangement style templates.'],
+    ['sound-selection', 'agent/knowledge/sound-selection.json', 'Role and genre selection data.'],
     ['melodic-techno', 'agent/knowledge/melodic-techno.json', 'MELODIC-TECHNO.md motif, chord loop, automation lanes, returns, device fallbacks.'],
     ['chord-progressions', 'agent/knowledge/chord-progressions.json', 'CHORDS.md progression templates H01-H08.'],
     ['bass-patterns', 'agent/knowledge/bass-patterns.json', 'BASSLINES.md pattern library and checks.'],

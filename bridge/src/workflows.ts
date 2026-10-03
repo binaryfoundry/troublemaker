@@ -35,6 +35,7 @@ import {
   type DrumFinding,
   type DrumOptions,
 } from '../../agent/src/drums.js';
+import { rankCandidates, type Candidate, type RankedCandidate, type SoundBrief } from '../../agent/src/sound-selection.js';
 import {
   applySwing,
   compareMaterial,
@@ -400,4 +401,35 @@ export async function writeDrums(
     grid: formatGrid(drumGrids(genre, { ...options, bars: Math.min(options.bars ?? 2, 2), phrase: false })),
     findings,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Sound selection
+// ---------------------------------------------------------------------------
+
+/**
+ * Run a sound brief's searches against Live's browser and return a ranked
+ * short list to audition in context. Searches that fail (a category this
+ * Live does not have) are skipped and reported.
+ */
+export async function shortlistSounds(
+  client: LiveClient,
+  brief: SoundBrief,
+  limit = 8,
+): Promise<{ shortlist: RankedCandidate[]; searched: string[]; skipped: string[] }> {
+  const candidates: Candidate[] = [];
+  const searched: string[] = [];
+  const skipped: string[] = [];
+  for (const [category, query] of brief.searches) {
+    try {
+      const { items } = (await client.post('live.browse', { category, query, limit: 40 })) as {
+        items: Array<{ name: string; path: string[]; is_loadable: boolean; is_folder: boolean }>;
+      };
+      searched.push(`${category}: ${query}`);
+      for (const item of items) if (item.is_loadable && !item.is_folder) candidates.push({ name: item.name, category, path: item.path });
+    } catch {
+      skipped.push(`${category}: ${query}`);
+    }
+  }
+  return { shortlist: rankCandidates(candidates, brief, limit), searched, skipped };
 }

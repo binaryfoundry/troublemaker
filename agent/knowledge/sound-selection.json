@@ -1,0 +1,106 @@
+{
+  "source": "Ableton_Sound_Selection_Expert.md. Search words are matched against browser item names, so they lean on how Core Library sounds are named (\"Kick 808 Long\", \"Deep Pluck\"); character words are a proxy for what only listening confirms.",
+  "priority": ["hook", "kick", "bass", "chords", "lead", "clap", "hats", "perc", "atmosphere", "fx"],
+  "roles": {
+    "kick": {
+      "categories": ["drums", "samples"],
+      "words": ["kick", "bd", "bass drum"],
+      "evaluate": ["fundamental region", "decay length and sub tail", "transient hardness and click", "pitch movement", "saturation character", "mono stability", "relationship with the bass"],
+      "pair": "Never finalise a kick without the bass: short kick + sustained bass, longer kick + sparse bass, punchy kick + lower bass, or deep kick + bass with more upper harmonics."
+    },
+    "bass": {
+      "categories": ["sounds", "instruments"],
+      "words": ["bass", "sub", "reese"],
+      "evaluate": ["fundamental clarity", "harmonic content", "note length and attack", "pitch definition", "mono stability", "interaction with kick and chord roots", "small-speaker survival"],
+      "pair": "If the arrangement already has dense low-mids, a simpler bass can sound larger."
+    },
+    "clap": {
+      "categories": ["drums", "samples"],
+      "words": ["clap"],
+      "evaluate": ["transient", "body", "noise tail", "width", "pitch", "length", "brightness", "room"],
+      "pair": "The clap often defines period and attitude: a bright festival clap pulls restrained deep house the wrong way."
+    },
+    "snare": {
+      "categories": ["drums", "samples"],
+      "words": ["snare", "sd"],
+      "evaluate": ["transient", "body", "noise tail", "pitch", "length", "room"],
+      "pair": "Choose for genre and emotional character, not impact alone."
+    },
+    "hats": {
+      "categories": ["drums", "samples"],
+      "words": ["hihat", "hi hat", "hat", "ride"],
+      "evaluate": ["metallic versus noise character", "closed/open duration", "transient sharpness", "brightness", "stereo image", "relationship with percussion"],
+      "pair": "Do not take every hat from one spectral and envelope family: tight closed, softer shuffle, longer open, a subtle top loop - only what the groove needs."
+    },
+    "perc": {
+      "categories": ["drums", "samples"],
+      "words": ["perc", "rim", "shaker", "conga", "bongo", "tom", "cowbell", "clave", "tambourine"],
+      "evaluate": ["material (wood, metal, skin, noise, synthetic)", "pitch", "length", "contrast with the main kit"],
+      "pair": "A synthetic kit gains humanity from one organic layer; an organic groove sharpens with one precise synthetic hit."
+    },
+    "chords": {
+      "categories": ["sounds", "instruments"],
+      "words": ["pad", "chord", "stab", "keys", "piano", "rhodes", "organ"],
+      "evaluate": ["harmonic density", "attack and release", "width", "modulation", "low-mid content", "brightness", "voicing interaction"],
+      "pair": "Complex chords read better on simpler patches; simple harmony can carry a richer timbre. A big preset often brings sub, unison, reverb and delay that fight the mix."
+    },
+    "lead": {
+      "categories": ["sounds", "instruments"],
+      "words": ["lead", "pluck", "arp", "bell"],
+      "evaluate": ["transient articulation", "identity at low volume", "difference from the chord timbre", "focal region", "width", "movement versus busy MIDI"],
+      "pair": "A complicated melody wants a simpler sound; a simple motif can carry a characterful one."
+    },
+    "atmosphere": {
+      "categories": ["sounds", "samples"],
+      "words": ["texture", "atmo", "ambient", "drone", "noise", "evolving", "field"],
+      "evaluate": ["movement", "density", "tonal versus noise", "depth"],
+      "pair": "Let one or two elements carry complex movement while simpler ones support them."
+    },
+    "fx": {
+      "categories": ["sounds", "samples"],
+      "words": ["riser", "sweep", "impact", "downlifter", "noise", "fx"],
+      "evaluate": ["what the transition needs", "length against the section", "tonal fit"],
+      "pair": "Prefer deriving FX from track material: a reversed instrument, a breath, a delayed last note."
+    },
+    "vocal": {
+      "categories": ["samples", "sounds"],
+      "words": ["vocal", "vox", "voice", "choir", "spoken"],
+      "evaluate": ["emotional meaning", "register", "phrasing and rhythm", "breath and noise", "baked-in room or processing", "suitability for chopping"],
+      "pair": "It must suit key, groove, emotional direction, density and era - not just sound cool."
+    }
+  },
+  "genres": {
+    "house": {
+      "keep": ["909", "808", "warm", "punch", "groove", "analog", "classic"],
+      "reject": ["harsh", "distorted", "dubstep", "festival", "big room"],
+      "heuristics": ["groove over aggression", "a kick for long listening", "percussion with complementary swing", "do not overfill the upper mids", "keep the central pulse obvious"]
+    },
+    "deep_house": {
+      "keep": ["warm", "deep", "soft", "dusty", "analog", "round", "organic", "mellow", "soul", "rhodes", "felt"],
+      "reject": ["hard", "harsh", "distorted", "aggressive", "festival", "supersaw", "screech", "big room"],
+      "heuristics": ["warmer, darker drums", "rounded kick with little click", "less aggressive upper mids", "subtle percussion", "spacious, not bright, chords", "texture over spectacle"]
+    },
+    "melodic_house": {
+      "keep": ["organic", "warm", "pluck", "airy", "soft", "evolving", "glass"],
+      "reject": ["harsh", "distorted", "aggressive", "dubstep"],
+      "heuristics": ["emotional harmonic texture", "clean low end", "organic percussion", "restrained but detailed top", "keep the hook readable"]
+    },
+    "progressive_house": {
+      "keep": ["warm", "analog", "pluck", "saw", "pad", "deep", "wide"],
+      "reject": ["harsh", "dubstep", "screech", "festival"],
+      "heuristics": ["warm analogue-style timbres", "one strong kick rather than three layered", "avoid very bright supersaw transients unless festival is the brief"]
+    },
+    "melodic_techno": {
+      "keep": ["dark", "deep", "analog", "pluck", "evolving", "drone", "warm", "glass"],
+      "reject": ["festival", "supersaw", "cheesy", "bright", "big room"],
+      "heuristics": ["strong controlled kick", "disciplined low end", "darker percussion", "width around a stable centre", "one or two synth identities", "restrained brightness until the peak"]
+    },
+    "techno": {
+      "keep": ["dark", "hard", "industrial", "metallic", "909", "rumble", "distorted", "raw"],
+      "reject": ["soft", "felt", "acoustic", "mellow", "cheesy"],
+      "heuristics": ["sounds that reinforce repetition", "transient shape and texture", "modulation potential over spectacular one-shots"]
+    }
+  },
+  "dimensions": ["frequency footprint", "transient profile", "envelope and duration", "tonal versus noisy", "harmonic density", "pitch and tuning", "stereo footprint", "depth", "texture", "movement"],
+  "shortlist": [3, 8]
+}
