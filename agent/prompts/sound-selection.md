@@ -34,6 +34,16 @@ Spend the time on identity first: hook/vocal, kick, bass, main harmonic
 sound, lead, clap, hats, percussion, then atmosphere, transitions, ear
 candy.
 
+## The local library
+
+`sound_brief` also ranks the measured local library (config/sample-library.json):
+attack, tail, sub weight, brightness, spectral centre, width and pitch, z-scored
+within the role, with the words you ask for counting double. Use the
+measurements to shortlist and to explain choices ("tail 126 ms, little click"),
+then listen. Tonal samples come with a transposition to the track key. They
+load through `load_sound category: user_folders` with the returned
+`browserPath`, which needs the folder added as a Place in Live's browser.
+
 ## Judge on ten dimensions
 
 frequency footprint, transient profile, envelope and duration, tonal versus

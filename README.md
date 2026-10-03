@@ -221,6 +221,93 @@ the troubleshooting matrix: fundamental below ~40 Hz, clicky short notes,
 overlaps, polyphony in a sub, envelope restarts on repeated notes (fixed by
 `merge_repeats`), notes stacked on the kick, off-chord strong beats.
 
+## Chords
+
+`CHORDS.md` arrived as a summary of a larger knowledge base that was not
+included; its progression templates, method and troubleshooting are
+integrated as `agent/prompts/chords.md`, `agent/knowledge/chord-progressions.json`
+and `agent/src/chords.ts`: a chord-symbol parser (m9, maj7, add9, 6/9sus4,
+m(add9), 7alt, 13, m11, slash chords, "Gsus4→G"), voice-led voicing with slash
+basses held as pedals, transposition that spells for the key, a motion /
+common-tone report, and checks for mud, over-extension and jumpy changes.
+Templates H01-H08 (CHORDS.md) and MT1-MT3 (MELODIC-TECHNO.md). `write_part
+part: chords` takes symbols, a template (moved to `root`) or degrees and is
+always voice-led; `chord_rhythm` plays it sustained, as offbeat stabs, an
+eighth pulse or syncopated cells, and `one_voice` evolves one voicing a note
+at a time (ERIC.md).
+
+## Melody and arpeggios
+
+`EDM-TIPS.md` (a summary; its full file was not included) gives the melody
+method in `agent/src/melody.ts` and the decision trees and guardrails in
+`agent/prompts/edm-tips.md`: a one-bar rhythmic motif, chord tones on strong
+beats, stepwise motion with recovered leaps, A A A' B and a resolution to the
+tonic (`write_part part: melody`). `part: arp` writes a cycle arpeggio:
+contour, accent, octave and rest cycles of different lengths over a
+voice-led progression, drifting against the bar.
+
+## Melodic techno
+
+`MELODIC-TECHNO.md` is integrated as `agent/prompts/melodic-techno.md` and
+`agent/knowledge/melodic-techno.json`: the 192-bar plan (`arrangement build
+melodic_techno`) with explicit roles per section and a `perc` role; its drum
+foundation (`drums genre melodic_techno`), two-bar syncopated bass
+(`bassline pattern melodic_techno_syncopated`), progressions MT1-MT3, its
+motif (`melody motif_template melodic_techno`) and motif variations in its
+order (octave, rhythm, last note, velocity, gate, register), automation
+lanes, returns and device fallbacks. The arrangement checker flags a break
+that differs from the drop only by the kick and a final peak that brings
+nothing new.
+
+## Progressive house
+
+`ERIC.md` (Eric Prydz / Pryda-inspired progressive house) is integrated as
+`agent/prompts/progressive-house.md` - its creative boundary (never
+reproduce a real Prydz hook), style modes, build order, automation scales,
+breakdown trajectory and revision diagnostics - plus the `progressive_house`
+arrangement (a controlled reveal: lead withheld until the breakdown, low end
+held back through the rebuild) and the `progressive_rolling` and
+`progressive_octave` basslines.
+
+## Sound selection
+
+`Ableton_Sound_Selection_Expert.md` is integrated as
+`agent/prompts/sound-selection.md`, `agent/knowledge/sound-selection.json`
+and `agent/src/sound-selection.ts`. The MCP tool `sound_brief` writes the
+brief the document asks for (role, genre, keep / reject words, what to
+judge, the neighbour that matters) and searches Live's browser for a ranked
+shortlist of 3-8 candidates from different folders, to audition with
+`load_sound` in context.
+
+A local sample library (`config/sample-library.json`, here `D:/Samples` with
+the EDM Tips packs) is measured once and cached: every sample is classified
+from its pack folders (role, key and tempo from names) and measured for
+attack, tail length, sub weight, brightness, spectral centre, stereo width
+and pitch. `sound_brief` ranks these on the brief's character words ("short",
+"round", "deep", "dark"...) within each role, gives tonal samples a
+transposition to the track key, and returns the browser path for
+`load_sound`. Add the folder as a Place in Live's browser once so those
+paths load.
+
+```bash
+npm run cli -- samples scan
+npm run cli -- samples pick kick --genre deep_house --character short,round
+npm run cli -- samples pick bass --genre melodic_techno --character dark --key F
+```
+
+## Vocals
+
+`ABLETON_VOCALS_EXPERT.md` is integrated as `agent/prompts/vocals.md`, which
+states plainly what the bridge can do (load vocal samples, write chops for a
+Simpler, insert and automate native devices, throws via send automation,
+returns) and what it cannot (comping, warping, Auto Shift on audio, clip
+gain, reversing or printing audio). `agent/src/vocals.ts` writes chop phrases
+by the document's rules (anchor note, repeated motif, at most four pitches,
+space, a changed ending; `write_part part: vocal_chop`), checks them against
+its "chop sounds random" tree, and maps its hook transformation ladder onto
+any arrangement (`arrangement action: vocal_plan`).
+
+## Composition and effects
 
 `COMPOSITION.md`, `EDM-COMPOSITION.md` and `EFFECTS.md` are integrated as
 agent prompts (`agent/prompts/composition.md`, `agent/prompts/effects.md`),
@@ -315,7 +402,7 @@ Live's shared undo stack.
 ## Testing
 
 ```bash
-npm run test:all     # 395 TypeScript + 120 Python tests, no Ableton required
+npm run test:all     # 402 TypeScript + 120 Python tests, no Ableton required
 npm test             # TypeScript only
 npm run test:python  # Live-side handlers only
 npm run typecheck
