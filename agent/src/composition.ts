@@ -30,6 +30,7 @@ import {
   type Pattern,
 } from './patterns.js';
 import type { Note } from '../../bridge/src/protocol.js';
+import { drumPattern, type DrumOptions } from './drums.js';
 
 export interface Command {
   command: string;
@@ -136,6 +137,11 @@ export function createTechnoDrumKit(
 ): Command[] {
   const bars = options.bars ?? 4;
   const seed = options.seed ?? seedFrom('techno-kit');
+  const fourFour = !options.signature || (options.signature.numerator === 4 && options.signature.denominator === 4);
+  if (fourFour) {
+    // DRUMS.md's driven 909 grid: ghost kick, ghost snare, accented hats, open hats that own their steps.
+    return writePattern(drumPattern('techno', { bars, seed }), { ...target, bars, createClip: true, name: 'Drums' });
+  }
   const pattern = mergePatterns(
     fourOnTheFloorKick({ bars, signature: options.signature, seed }),
     offbeatHat({ bars, signature: options.signature, seed: seed + 1, open: true }),
@@ -149,6 +155,12 @@ export function createTechnoDrumKit(
     createClip: true,
     name: 'Drums',
   });
+}
+
+/** A DRUMS.md genre pattern (house, techno, hiphop, trap, electro) written into a clip. */
+export function createDrumPattern(target: ClipTarget, genre: string, options: DrumOptions = {}): Command[] {
+  const pattern = drumPattern(genre, options);
+  return writePattern(pattern, { ...target, bars: pattern.length_beats / 4, createClip: true, name: `Drums ${genre}` });
 }
 
 export interface BasslineOptions extends GrooveOptions {

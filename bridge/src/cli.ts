@@ -16,6 +16,8 @@ import { analyzeBass, formatBassProfile } from '../../qc/src/bass.js';
 import { applyEffect, findEffect, loadCodex } from './fx.js';
 import { identifyEffect } from '../../qc/src/identify.js';
 import { checkArrangement, formatPlan, planArrangement, styleNames } from '../../agent/src/arrangement.js';
+import { checkDrumPattern, drumGenres, drumGrids, drumPattern, formatGrid, type DrumOptions, type Energy, type Variant } from '../../agent/src/drums.js';
+import { createDrumPattern } from '../../agent/src/composition.js';
 import { genreSummary, loadReferenceSets, scanLibrary } from '../../qc/src/library.js';
 import { buildArrangement, resolveReferenceFiles, type ResolvedReferences } from './workflows.js';
 import { PROFILES } from '../../agent/src/mastering/profiles.js';
@@ -128,6 +130,9 @@ Effects (agent/knowledge/effects.json):
       Which effect an audio excerpt sounds like, from onset spacing, pitch and brightness.
 
 Arrangement (agent/knowledge/styles.json):
+  ableton-agent drums show <genre> [--phrase] [--energy e] [--variant A|A'|B|F]   DRUMS.md grid and checks
+  ableton-agent drums write <genre> --track <id> [--slot n] [--bars n] [--phrase] [--energy e]
+                  [--variant v] [--swing 0-0.5] [--humanize] [--chance] [--seed n]
   ableton-agent arrangement plan <style> [--roles kick,bass,...]   Sections, energy, roles, checks
   ableton-agent arrangement build <style> [--map kick=12,bass=15,...] [--replace] [--dry-run]
       Lay each track's slot-0 loop across the sections its role plays in (Live 11+).
@@ -329,6 +334,9 @@ async function main(argv: string[]): Promise<number> {
 
     case 'arrangement':
       return arrangement(rest);
+
+    case 'drums':
+      return drums(rest);
 
     case 'bass': {
       const options = [...rest];
@@ -684,6 +692,51 @@ async function fx(argv: string[]): Promise<number> {
     default:
       throw new Error('Unknown fx subcommand. Try: list, show, apply, identify.');
   }
+}
+
+async function drums(argv: string[]): Promise<number> {
+  const args = [...argv];
+  const phrase = takeFlag(args, '--phrase');
+  const humanize = takeFlag(args, '--humanize');
+  const chance = takeFlag(args, '--chance');
+  const [energy] = takeOption(args, '--energy');
+  const [variant] = takeOption(args, '--variant');
+  const [swing] = takeOption(args, '--swing');
+  const [bars] = takeOption(args, '--bars');
+  const [seed] = takeOption(args, '--seed');
+  const [track] = takeOption(args, '--track');
+  const [slot] = takeOption(args, '--slot');
+  const [sub, genre, ...extra] = args;
+  if (!sub || !genre) throw new Error(`Usage: drums show|write <genre>. Genres: ${drumGenres().join(', ')}`);
+  if (extra.length) throw new Error(`Unexpected arguments: ${extra.join(' ')}`);
+  const options: DrumOptions = {
+    phrase,
+    humanize,
+    chance,
+    energy: energy as Energy | undefined,
+    variant: variant as Variant | undefined,
+    swing: swing ? parseNumber('--swing', swing) : undefined,
+    bars: bars ? parseInteger('--bars', bars) : undefined,
+    seed: seed ? parseInteger('--seed', seed) : undefined,
+  };
+  const findings = checkDrumPattern(drumPattern(genre, options), genre);
+  const checks = findings.length ? findings.map((f) => `  [${f.severity.toUpperCase()}] ${f.message}`).join('\n') : '  no findings';
+  if (sub === 'show') {
+    process.stdout.write(`${formatGrid(drumGrids(genre, options))}\n\nChecks:\n${checks}\n`);
+    return 0;
+  }
+  if (sub !== 'write') throw new Error('Unknown drums subcommand. Try: show, write.');
+  if (!track) throw new Error('drums write needs --track <id>.');
+  const target = { track_id: parseInteger('--track', track), clip_slot: slot ? parseInteger('--slot', slot) : 0 };
+  try {
+    await post('live.snapshot_clip', { ...target, label: `before drums ${genre}` });
+  } catch {
+    // Empty slot: nothing to keep.
+  }
+  await post('transaction', { atomic: true, commands: createDrumPattern(target, genre, options) });
+  const { notes } = (await post('live.get_notes', target)) as { notes: unknown[] };
+  process.stdout.write(`Wrote ${notes.length} ${genre} notes to track ${target.track_id} slot ${target.clip_slot}.\nChecks:\n${checks}\n`);
+  return 0;
 }
 
 async function arrangement(argv: string[]): Promise<number> {

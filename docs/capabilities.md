@@ -34,6 +34,7 @@ reports a success it did not achieve.
 | Returns     | create return tracks (Live 12)                                     |
 | Effects     | build 31 codex effects from native devices, automation and generated MIDI |
 | Identify    | classify an audio excerpt's effect from onset spacing, pitch and brightness |
+| Drums       | DRUMS.md genre grooves (909 house/techno, 808 hip-hop/trap/electro), A/A'/B/F variation, fills, energy layers, role-based swing/humanise/chance, pattern checks |
 | Mastering   | Master-chain roles with safe ranges, display-unit writes, decision log, checkpoints |
 | QC          | offline loudness, true peak, spectrum, stereo and integrity of exported files |
 | Meters      | Live's display meters per track (a clipping probe, not loudness)  |

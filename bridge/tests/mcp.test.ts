@@ -120,7 +120,7 @@ describe('MCP server', () => {
       expect(names).toContain(expected);
     }
     const { prompts } = await client.listPrompts();
-    expect(prompts.map((p) => p.name)).toEqual(expect.arrayContaining(['system', 'composition', 'effects', 'mastering']));
+    expect(prompts.map((p) => p.name)).toEqual(expect.arrayContaining(['system', 'composition', 'effects', 'mastering', 'drums']));
     const { resources } = await client.listResources();
     expect(resources.map((r) => r.uri)).toContain('troublemaker://effects-codex');
   });
@@ -161,6 +161,18 @@ describe('MCP server', () => {
     ) as { note_count: number };
     expect(result.note_count).toBe(5);
     expect(notes.every((n) => n.pitch === 42)).toBe(true);
+  });
+
+  it('writes a DRUMS.md genre groove and returns its grid and checks', async () => {
+    const result = await client.callTool({
+      name: 'write_part',
+      arguments: { track_id: 1, clip_slot: 0, part: 'drums', genre: 'house', bars: 1 },
+    });
+    const [summary, grid, checks] = (result.content as Array<{ text: string }>).map((c) => c.text);
+    expect(JSON.parse(summary!).note_count).toBe(notes.length);
+    expect(notes.filter((n) => n.pitch === 36).map((n) => n.start_time)).toEqual([0, 1, 2, 3]);
+    expect(grid).toContain('BD');
+    expect(checks).toMatch(/no findings/);
   });
 
   it('sets a fader in dB through its display', async () => {

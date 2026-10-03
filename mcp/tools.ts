@@ -36,11 +36,13 @@ import {
   createFourOnFloorKick,
   createOffbeatHat,
   createRollingBass,
+  createDrumPattern,
   createTechnoDrumKit,
   writePattern,
   type Command,
 } from '../agent/src/composition.js';
 import { bassFromFeel, euclideanPattern, polyrhythm } from '../agent/src/patterns.js';
+import { checkDrumPattern, drumGenres, drumGrids, drumPattern, formatGrid } from '../agent/src/drums.js';
 import type { ChainState, Decision } from '../agent/src/mastering/policy.js';
 
 export interface McpClient {
@@ -275,6 +277,7 @@ export function createMcpServer(client: McpClient): McpServer {
     'kick',
     'hats',
     'drum_kit',
+    'drums',
     'bass',
     'chords',
     'build_up',
@@ -288,7 +291,9 @@ export function createMcpServer(client: McpClient): McpServer {
     {
       title: 'Generate a part',
       description:
-        'Generate a part into a clip slot: kick (four on the floor), hats (offbeat), drum_kit, bass (rolling, ' +
+        'Generate a part into a clip slot: drums (a DRUMS.md genre groove - genre house/techno/hiphop/trap/electro, ' +
+        'energy, variant A/A\'/B/F or phrase=true for a 16-bar A/A\'/B/F phrase, swing, humanize, chance), ' +
+        'kick (four on the floor), hats (offbeat), drum_kit, bass (rolling, ' +
         'needs root), chords (needs root; degrees e.g. [1,6,3,7]), build_up, euclidean (hits/steps/pitch), ' +
         'polyrhythm (a:b), bass_from_reference (copy a reference track\'s bass rhythm, accents and pitches). ' +
         'Replaces the clip in that slot; the previous clip is snapshotted when there was one.',
@@ -297,6 +302,13 @@ export function createMcpServer(client: McpClient): McpServer {
         clip_slot: slot,
         part: z.enum(PARTS),
         bars: z.number().int().min(1).max(64).optional(),
+        genre: z.string().optional().describe(`drums: ${drumGenres().join(', ')}`),
+        energy: z.enum(['low', 'medium', 'high', 'peak', 'break']).optional().describe('drums: which voices play'),
+        variant: z.enum(['A', "A'", 'B', 'F']).optional().describe('drums: canonical, subtle change, stronger change, fill'),
+        phrase: z.boolean().optional().describe('drums: a 16-bar A/A\'/B/F phrase ending in a fill'),
+        swing: z.number().min(0).max(0.5).optional().describe('drums: fraction of a 16th, hats and percussion only'),
+        humanize: z.boolean().optional().describe('drums: role-based microtiming; main kicks stay on the grid'),
+        chance: z.boolean().optional().describe('drums: trigger chance on ghosts and percussion only'),
         root: z.string().optional().describe('Key root, e.g. "F" or "A#"'),
         scale: z.string().optional().describe('minor, major, dorian, phrygian, ...'),
         degrees: z.array(z.number().int().min(1).max(7)).optional().describe('chords'),
@@ -348,6 +360,26 @@ export function createMcpServer(client: McpClient): McpServer {
           case 'build_up':
             commands = createBuildUp(target, groove);
             break;
+          case 'drums': {
+            const genre = args.genre ?? 'techno';
+            const options = {
+              bars: args.bars,
+              seed: args.seed,
+              energy: args.energy,
+              variant: args.variant,
+              phrase: args.phrase,
+              swing: args.swing,
+              humanize: args.humanize,
+              chance: args.chance,
+            };
+            commands = createDrumPattern(target, genre, options);
+            const findings = checkDrumPattern(drumPattern(genre, options), genre);
+            notes = [
+              formatGrid(drumGrids(genre, { ...options, bars: Math.min(options.bars ?? 2, 2) })),
+              findings.length ? findings.map((f) => `[${f.severity}] ${f.message}`).join('\n') : 'Drum checks: no findings.',
+            ];
+            break;
+          }
           case 'euclidean': {
             if (args.hits === undefined || args.steps === undefined || args.pitch === undefined) {
               throw new Error('euclidean needs hits, steps and pitch.');
@@ -1007,6 +1039,7 @@ export function createMcpServer(client: McpClient): McpServer {
     ['composition', 'composition.md', 'Composition and arrangement practice (COMPOSITION.md, EDM-COMPOSITION.md).'],
     ['effects', 'effects.md', 'Production effects practice (EFFECTS.md).'],
     ['mastering', 'mastering.md', 'Club mastering practice (MIXING.md).'],
+    ['drums', 'drums.md', '808/909 drum programming practice (DRUMS.md).'],
   ];
   for (const [name, file, description] of prompts) {
     const path = join(ROOT, 'agent', 'prompts', file);
@@ -1024,6 +1057,7 @@ export function createMcpServer(client: McpClient): McpServer {
   const files: Array<[string, string, string]> = [
     ['effects-codex', 'agent/knowledge/effects.json', 'The 34-effect codex with Live recipes.'],
     ['styles', 'agent/knowledge/styles.json', 'Arrangement style templates.'],
+    ['drum-patterns', 'agent/knowledge/drum-patterns.json', 'DRUMS.md genre grids, velocity tiers, A/A\'/B/F phrase.'],
     ['reference-sets', 'config/reference-sets.json', 'Named reference-track sets and their profiles.'],
   ];
   for (const [name, file, description] of files) {

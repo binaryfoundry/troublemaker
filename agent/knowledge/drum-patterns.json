@@ -1,0 +1,152 @@
+{
+  "source": "DRUMS.md - original teaching patterns, not transcriptions of recordings",
+  "legend": {
+    "X": "strong, velocity 110-127",
+    "x": "normal, velocity 85-109",
+    "g": "ghost or light, velocity 40-75",
+    "o": "open hi-hat, normal strength",
+    "R": "32nd roll replacing this step",
+    ".": "rest"
+  },
+  "velocity_tiers": {
+    "accent": [120, 127],
+    "strong": [105, 119],
+    "normal": [85, 104],
+    "light": [65, 84],
+    "ghost": [35, 64]
+  },
+  "note_map": {
+    "BD": 36,
+    "RS": 37,
+    "SD": 38,
+    "CP": 39,
+    "CH": 42,
+    "LT": 45,
+    "OH": 46,
+    "MT": 47,
+    "CY": 49,
+    "HT": 50,
+    "RD": 51,
+    "CB": 56
+  },
+  "roles": {
+    "BD": "structural",
+    "SD": "structural",
+    "CP": "structural",
+    "CH": "pulse",
+    "OH": "pulse",
+    "RD": "pulse",
+    "RS": "detail",
+    "CB": "detail",
+    "LT": "detail",
+    "MT": "detail",
+    "HT": "detail",
+    "CY": "detail"
+  },
+  "choke": [["CH", "OH"]],
+  "probability": {
+    "structural": 100,
+    "pulse": [90, 100],
+    "detail": [70, 95],
+    "ghost": [40, 80],
+    "fill": [20, 60]
+  },
+  "templates": {
+    "house": {
+      "machine": "909",
+      "tempo": [120, 128],
+      "swing": "hats and percussion only; straight to noticeably swung",
+      "backbeat": "CP",
+      "four_on_floor": true,
+      "bars": [
+        {
+          "BD": "X...X...X...X...",
+          "CP": "....X.......X...",
+          "OH": "..o...o...o...o.",
+          "CH": ".g.x.g.x.g.x.g.x"
+        }
+      ]
+    },
+    "techno": {
+      "machine": "909",
+      "tempo": [125, 135],
+      "swing": "straight through shuffled; parts need not share one swing",
+      "backbeat": "SD",
+      "four_on_floor": true,
+      "ghost_kick_offset_ms": [3, 8],
+      "bars": [
+        {
+          "BD": "X...X...X.g.X...",
+          "SD": "....x.......x..g",
+          "CH": "xgxgXgxgxgxgXgxg",
+          "OH": "..o...o...o...o."
+        }
+      ]
+    },
+    "hiphop": {
+      "machine": "808",
+      "tempo": [80, 100],
+      "swing": "move selected 16ths late rather than swinging everything",
+      "backbeat": "SD",
+      "four_on_floor": false,
+      "bars": [
+        {
+          "BD": "X..g..X...g.X...",
+          "SD": "....X......gX...",
+          "CH": "x.x.x.xgx.x.x.Xg"
+        },
+        {
+          "BD": "X....X..g..X..g.",
+          "SD": "....X......gX...",
+          "CH": "x.x.x.x.xgx.x.xg"
+        }
+      ]
+    },
+    "trap": {
+      "machine": "808",
+      "tempo": [130, 170],
+      "swing": "tight grid; rolls and small offsets supply detail",
+      "backbeat": "CP",
+      "half_time": true,
+      "four_on_floor": false,
+      "bars": [
+        {
+          "BD": "X....x....x...X.",
+          "CP": "........X.......",
+          "CH": "x.x.x.x.x.x.x.xR"
+        },
+        {
+          "BD": "X..x.....X....x.",
+          "CP": "........X.......",
+          "CH": "x.x.x.xRx.x.x.xR"
+        }
+      ]
+    },
+    "electro": {
+      "machine": "808",
+      "tempo": [120, 135],
+      "swing": "fairly straight, with targeted syncopation",
+      "backbeat": "SD",
+      "four_on_floor": false,
+      "bars": [
+        {
+          "BD": "X..x..X.X....X..",
+          "SD": "....X.......X...",
+          "CP": "....x.......X...",
+          "CH": "x.x.x.x.x.x.x.x.",
+          "OH": "...o.......o....",
+          "CB": "..x.......x....."
+        }
+      ]
+    }
+  },
+  "energy_layers": {
+    "low": ["BD", "CH"],
+    "medium": ["BD", "CH", "SD", "CP", "OH"],
+    "high": ["BD", "CH", "SD", "CP", "OH", "RD", "RS", "CB"],
+    "peak": ["BD", "CH", "SD", "CP", "OH", "RD", "RS", "CB", "CY"],
+    "break": ["CP", "SD", "CH", "OH", "RS", "CB"]
+  },
+  "phrase": ["A", "A", "A", "A'", "A", "A", "B", "A'", "A", "A", "A", "B", "A", "A'", "B", "F"],
+  "variation_share": { "A'": [0.1, 0.15], "B": [0.15, 0.25] }
+}

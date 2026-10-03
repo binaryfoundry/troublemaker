@@ -157,6 +157,20 @@ which releases the file (the WAV stays on disk). Without that, ffprobe gets
 checks `hasattr(Track, 'insert_device')`; True Peak mode is detected from the
 Limiter's parameters. Keep it that way, so upgrading Live needs no code change.
 
+## Drums
+
+Genre grids are data (`agent/knowledge/drum-patterns.json`), copied from
+DRUMS.md's step diagrams; `agent/src/drums.ts` turns them into notes.
+
+- The kick on the beat and the backbeat are structural: variation, swing,
+  humanisation and note chance never touch them. Tests enforce this.
+- Open and closed hat on the same step: the open hat plays (they share a
+  voice on a 909), and an open hat stops at the next closed hat. Choke groups
+  in the Drum Rack are not set through the API.
+- **Adding a genre:** add a template with 16-character rows per voice, its
+  backbeat voice and whether it is four-on-the-floor or half-time, a fill in
+  `fillGrid`, and make sure `checkDrumPattern` passes it.
+
 ## Composition and effects
 
 The effects codex (`agent/knowledge/effects.json`) is data, validated by

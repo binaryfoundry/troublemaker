@@ -137,7 +137,7 @@ see the same snapshots. Otherwise it starts its own bridge on port 8765.
 | --- | --- |
 | `live_status`, `get_project`, `get_selection`, `read_clip`, `get_devices` | Read the Set; ids for everything else |
 | `transform_clip` | Syncopate, straighten, thin, densify, humanize, swing, transpose, conform to key, vary, pre-drop gap. Snapshots first, applies atomically, reads back |
-| `write_part`, `write_notes` | Generate kick / hats / kit / bass / chords / build-up / Euclidean / polyrhythm, or a bass copied from a reference track |
+| `write_part`, `write_notes` | Generate DRUMS.md genre grooves (house / techno / hip-hop / trap / electro, with variation, fills and energy), kick / hats / bass / chords / build-up / Euclidean / polyrhythm, or a bass copied from a reference track |
 | `restore_snapshot` | Undo any edit by its snapshot id |
 | `find_sounds`, `load_sound` | Search Live's browser (Core Library kits such as the 808, presets, samples, your folders) and load onto a track; kits report their pads |
 | `set_mixer`, `set_device_parameter`, `insert_device`, `transport` | Faders in dB, parameters by displayed value or option, native devices, playback |
@@ -189,6 +189,25 @@ reference median, true peak, clipping, tonal balance by band, low-end mono
 compatibility and the master-chain rules. See
 [docs/mastering.md](docs/mastering.md) for the workflow, the template chain to
 put on Master, and what changes when you upgrade to Live 12.
+
+## Drums
+
+`DRUMS.md` is integrated as `agent/prompts/drums.md`, the genre grids in
+`agent/knowledge/drum-patterns.json` and the generator in
+`agent/src/drums.ts`: 909 house and techno, 808 hip-hop, trap and electro,
+with velocity tiers, A/A'/B/F variation (only hats, ghosts and percussion
+move), genre fills, energy layers, swing and humanisation by role (main
+kicks stay on the grid), note chance on ornaments only, and a checker for
+the measurable parts of DRUMS.md's validation list.
+
+```bash
+npm run cli -- drums show techno                      # the grid, as DRUMS.md draws it
+npm run cli -- drums show house --phrase              # 16 bars: A A A A' | A A B A' | A A A B | A A' B F
+npm run cli -- drums write trap --track 36 --bars 2 --humanize
+```
+
+Through MCP: `load_sound` an 808 or 909 kit, then `write_part` with
+`part: drums` and a `genre`.
 
 ## Composition and effects
 
@@ -244,8 +263,8 @@ qc/src/                       offline audio QC: ffmpeg loudness + PCM analysis
 bridge/tests/                 unit, protocol and golden musical tests
 agent/src/                    music theory, pattern generation, transforms
 agent/src/mastering/          profiles, reference median, QC policy, reports
-agent/prompts/                system, music-editing, composition, effects, mastering
-agent/knowledge/              effects codex and style templates (JSON)
+agent/prompts/                system, music-editing, composition, effects, mastering, drums
+agent/knowledge/              effects codex, style templates, drum grids (JSON)
 agent/tools/                  LLM tool definitions
 schemas/                      command, response and project-state JSON Schema
 devices/                      semantic hints for common Live devices
@@ -285,7 +304,7 @@ Live's shared undo stack.
 ## Testing
 
 ```bash
-npm run test:all     # 304 TypeScript + 118 Python tests, no Ableton required
+npm run test:all     # 326 TypeScript + 120 Python tests, no Ableton required
 npm test             # TypeScript only
 npm run test:python  # Live-side handlers only
 npm run typecheck
