@@ -24,7 +24,17 @@ import {
   type PlannedSection,
   type RoleSource,
 } from '../../agent/src/arrangement.js';
-import { inferTrackRole } from '../../agent/src/composition.js';
+import { inferTrackRole, writePattern } from '../../agent/src/composition.js';
+import {
+  checkDrumPattern,
+  drumGrids,
+  drumPattern,
+  formatGrid,
+  kitMapFromPads,
+  remapToKit,
+  type DrumFinding,
+  type DrumOptions,
+} from '../../agent/src/drums.js';
 import {
   applySwing,
   compareMaterial,
@@ -321,5 +331,73 @@ export async function transformClip(client: LiveClient, request: TransformReques
     snapshot_id: snapshot.snapshot_id,
     verification: compareMaterial(before, after),
     dryRun: false,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Drums
+// ---------------------------------------------------------------------------
+
+export interface DrumWrite {
+  genre: string;
+  note_count: number;
+  snapshot_id: string | null;
+  kit: string;
+  grid: string;
+  findings: DrumFinding[];
+}
+
+/**
+ * Write a DRUMS.md groove into a clip on the pads the track's kit really
+ * has: canonical notes are remapped by pad name (the 909 Core Kit's note 50
+ * is a ride, not the canonical high tom), and voices the kit lacks are
+ * reported rather than played on the wrong pad.
+ */
+export async function writeDrums(
+  client: LiveClient,
+  target: { track_id: number; clip_slot: number },
+  genre: string,
+  options: DrumOptions = {},
+): Promise<DrumWrite> {
+  const pattern = drumPattern(genre, options);
+  const findings = checkDrumPattern(pattern, genre);
+  let kit = 'No Drum Rack on this track: canonical DRUMS.md notes (BD 36, SD 38, CP 39, CH 42, OH 46, LT 43, MT 47, HT 50).';
+  let toWrite = pattern;
+  try {
+    const { devices } = (await client.post('live.get_devices', { track_id: target.track_id })) as {
+      devices: Array<{ device_id: number; class_name: string | null }>;
+    };
+    const rack = devices.find((d) => d.class_name === 'DrumGroupDevice');
+    if (rack) {
+      const { pads } = (await client.post('live.get_drum_pads', { track_id: target.track_id, device_id: rack.device_id })) as {
+        pads: Array<{ note: number; name: string }>;
+      };
+      const map = kitMapFromPads(pads);
+      const remapped = remapToKit(pattern, map);
+      toWrite = remapped.pattern;
+      kit = `Remapped to the kit's pads ${JSON.stringify(map.notes)}` +
+        (remapped.dropped.length ? `; no pad for ${remapped.dropped.join(', ')}, so those hits were left out.` : '.');
+    }
+  } catch {
+    // No device information: keep the canonical notes.
+  }
+  let snapshot: string | null = null;
+  try {
+    snapshot = ((await client.post('live.snapshot_clip', { ...target, label: `before drums ${genre}` })) as { snapshot_id: string }).snapshot_id;
+  } catch {
+    // Empty slot: nothing to keep.
+  }
+  await client.post('transaction', {
+    atomic: true,
+    commands: writePattern(toWrite, { ...target, bars: toWrite.length_beats / 4, createClip: true, name: `Drums ${genre}` }),
+  });
+  const { notes } = (await client.post('live.get_notes', target)) as { notes: unknown[] };
+  return {
+    genre,
+    note_count: notes.length,
+    snapshot_id: snapshot,
+    kit,
+    grid: formatGrid(drumGrids(genre, { ...options, bars: Math.min(options.bars ?? 2, 2), phrase: false })),
+    findings,
   };
 }

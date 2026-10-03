@@ -159,17 +159,21 @@ Limiter's parameters. Keep it that way, so upgrading Live needs no code change.
 
 ## Drums
 
-Genre grids are data (`agent/knowledge/drum-patterns.json`), copied from
-DRUMS.md's step diagrams; `agent/src/drums.ts` turns them into notes.
+Grids are data (`agent/knowledge/drum-patterns.json`), copied from
+DRUMS.md; rows are one character per step or space-separated tokens, where
+a number is an exact velocity. `agent/src/drums.ts` turns them into notes.
 
-- The kick on the beat and the backbeat are structural: variation, swing,
-  humanisation and note chance never touch them. Tests enforce this.
-- Open and closed hat on the same step: the open hat plays (they share a
-  voice on a 909), and an open hat stops at the next closed hat. Choke groups
-  in the Drum Rack are not set through the API.
-- **Adding a genre:** add a template with 16-character rows per voice, its
-  backbeat voice and whether it is four-on-the-floor or half-time, a fill in
-  `fillGrid`, and make sure `checkDrumPattern` passes it.
+- Anchors (the kick on the beat, primary kicks, the backbeat) never move in
+  variation, swing, humanisation or chance. Tests enforce anchor retention.
+- Swing is a pair ratio, not the Groove Pool amount. Keep the wording exact.
+- Canonical notes are DRUMS.md's 909-compatible map; `writeDrums`
+  (`bridge/src/workflows.ts`) remaps them to the track's Drum Rack by pad
+  name. The 909 Core Kit's note 50 is a ride: never assume a pad.
+- On a shared step the open hat plays, and an open hat stops at the next
+  closed hat. Choke groups in the Drum Rack are not set through the API.
+- **Adding a genre:** a template with `steps`, `meter`, backbeat voice,
+  four-on-the-floor or half-time, a `fill` kind, and rows; then
+  `checkDrumPattern` must pass it with no findings above info.
 
 ## Composition and effects
 

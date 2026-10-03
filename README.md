@@ -192,18 +192,19 @@ put on Master, and what changes when you upgrade to Live 12.
 
 ## Drums
 
-`DRUMS.md` is integrated as `agent/prompts/drums.md`, the genre grids in
-`agent/knowledge/drum-patterns.json` and the generator in
-`agent/src/drums.ts`: 909 house and techno, 808 hip-hop, trap and electro,
-with velocity tiers, A/A'/B/F variation (only hats, ghosts and percussion
-move), genre fills, energy layers, swing and humanisation by role (main
-kicks stay on the grid), note chance on ornaments only, and a checker for
-the measurable parts of DRUMS.md's validation list.
+`DRUMS.md` is integrated as `agent/prompts/drums.md`, the grids in
+`agent/knowledge/drum-patterns.json` and `agent/src/drums.ts`: 909 house and
+techno, 808 hip-hop, trap and electro, plus 8-step electro, 12-step triplet
+and 6/8 grids. Velocity by role with accent kept separate, A/A'/B/F
+variation that never moves anchors, fills that resolve, swing as a pair
+ratio (50 straight, 66.7 triplet; not the Groove Pool amount), a laid-back
+feel, flams, ratchets, note chance on ornaments only, and DRUMS.md's hard
+checks. Patterns are remapped to the pads the track's Drum Rack really has.
 
 ```bash
-npm run cli -- drums show techno                      # the grid, as DRUMS.md draws it
-npm run cli -- drums show house --phrase              # 16 bars: A A A A' | A A B A' | A A A B | A A' B F
-npm run cli -- drums write trap --track 36 --bars 2 --humanize
+npm run cli -- drums show house                       # the grid, with exact velocities
+npm run cli -- drums show techno --phrase             # 16 bars: A A A A' | A A B A' | A A A B | A A' B F
+npm run cli -- drums write house --track 36 --swing 56 --laid-back
 ```
 
 Through MCP: `load_sound` an 808 or 909 kit, then `write_part` with
@@ -304,7 +305,7 @@ Live's shared undo stack.
 ## Testing
 
 ```bash
-npm run test:all     # 330 TypeScript + 120 Python tests, no Ableton required
+npm run test:all     # 339 TypeScript + 120 Python tests, no Ableton required
 npm test             # TypeScript only
 npm run test:python  # Live-side handlers only
 npm run typecheck

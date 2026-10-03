@@ -175,6 +175,23 @@ describe('MCP server', () => {
     expect(checks).toMatch(/no findings/);
   });
 
+  it("plays a drum fill on the pads of the track's Drum Rack, not on assumed notes", async () => {
+    live.handlers.set('live.get_devices', () => ({ devices: [{ device_id: 9, name: '909 Core Kit', class_name: 'DrumGroupDevice' }] }));
+    live.handlers.set('live.get_drum_pads', () => ({
+      pads: [[36, 'Bass Drum'], [39, 'Hand Clap'], [42, 'Closed Hi Hat'], [44, 'Low Tom'], [45, 'Mid Tom'], [46, 'Open Hi Hat'], [47, 'Hi Tom'], [50, 'Ride'], [51, 'Ride']]
+        .map(([note, name]) => ({ note, name })),
+    }));
+    const result = await client.callTool({
+      name: 'write_part',
+      arguments: { track_id: 1, clip_slot: 0, part: 'drums', genre: 'house', variant: 'F', bars: 1 },
+    });
+    const summary = JSON.parse((result.content as Array<{ text: string }>)[0]!.text) as { kit: string };
+    expect(summary.kit).toMatch(/Remapped/);
+    const pitches = new Set(notes.map((n) => n.pitch));
+    expect(pitches.has(47)).toBe(true);
+    expect(pitches.has(50)).toBe(false);
+  });
+
   it('writes a cycle arpeggio whose notes all come from the progression', async () => {
     const result = await client.callTool({
       name: 'write_part',

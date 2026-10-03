@@ -25,6 +25,8 @@ export interface PatternEvent {
   duration: number;
   velocity: number;
   probability?: number;
+  /** Machine-style accent, kept apart from velocity (DRUMS.md). Not sent to Live. */
+  accent?: boolean;
 }
 
 export interface Pattern {

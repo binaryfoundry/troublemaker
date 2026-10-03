@@ -17,9 +17,8 @@ import { applyEffect, findEffect, loadCodex } from './fx.js';
 import { identifyEffect } from '../../qc/src/identify.js';
 import { checkArrangement, formatPlan, planArrangement, styleNames } from '../../agent/src/arrangement.js';
 import { checkDrumPattern, drumGenres, drumGrids, drumPattern, formatGrid, type DrumOptions, type Energy, type Variant } from '../../agent/src/drums.js';
-import { createDrumPattern } from '../../agent/src/composition.js';
 import { genreSummary, loadReferenceSets, scanLibrary } from '../../qc/src/library.js';
-import { buildArrangement, resolveReferenceFiles, type ResolvedReferences } from './workflows.js';
+import { buildArrangement, resolveReferenceFiles, writeDrums, type ResolvedReferences } from './workflows.js';
 import { PROFILES } from '../../agent/src/mastering/profiles.js';
 import type { ChainState, Decision } from '../../agent/src/mastering/policy.js';
 
@@ -132,7 +131,7 @@ Effects (agent/knowledge/effects.json):
 Arrangement (agent/knowledge/styles.json):
   ableton-agent drums show <genre> [--phrase] [--energy e] [--variant A|A'|B|F]   DRUMS.md grid and checks
   ableton-agent drums write <genre> --track <id> [--slot n] [--bars n] [--phrase] [--energy e]
-                  [--variant v] [--swing 0-0.5] [--humanize] [--chance] [--seed n]
+                  [--variant v] [--swing 50-75] [--laid-back] [--humanize] [--chance] [--seed n]
   ableton-agent arrangement plan <style> [--roles kick,bass,...]   Sections, energy, roles, checks
   ableton-agent arrangement build <style> [--map kick=12,bass=15,...] [--replace] [--dry-run]
       Lay each track's slot-0 loop across the sections its role plays in (Live 11+).
@@ -699,6 +698,7 @@ async function drums(argv: string[]): Promise<number> {
   const phrase = takeFlag(args, '--phrase');
   const humanize = takeFlag(args, '--humanize');
   const chance = takeFlag(args, '--chance');
+  const laidBack = takeFlag(args, '--laid-back');
   const [energy] = takeOption(args, '--energy');
   const [variant] = takeOption(args, '--variant');
   const [swing] = takeOption(args, '--swing');
@@ -715,7 +715,8 @@ async function drums(argv: string[]): Promise<number> {
     chance,
     energy: energy as Energy | undefined,
     variant: variant as Variant | undefined,
-    swing: swing ? parseNumber('--swing', swing) : undefined,
+    swingPercent: swing ? parseNumber('--swing', swing) : undefined,
+    feel: laidBack ? 'laid_back' : undefined,
     bars: bars ? parseInteger('--bars', bars) : undefined,
     seed: seed ? parseInteger('--seed', seed) : undefined,
   };
@@ -728,14 +729,8 @@ async function drums(argv: string[]): Promise<number> {
   if (sub !== 'write') throw new Error('Unknown drums subcommand. Try: show, write.');
   if (!track) throw new Error('drums write needs --track <id>.');
   const target = { track_id: parseInteger('--track', track), clip_slot: slot ? parseInteger('--slot', slot) : 0 };
-  try {
-    await post('live.snapshot_clip', { ...target, label: `before drums ${genre}` });
-  } catch {
-    // Empty slot: nothing to keep.
-  }
-  await post('transaction', { atomic: true, commands: createDrumPattern(target, genre, options) });
-  const { notes } = (await post('live.get_notes', target)) as { notes: unknown[] };
-  process.stdout.write(`Wrote ${notes.length} ${genre} notes to track ${target.track_id} slot ${target.clip_slot}.\nChecks:\n${checks}\n`);
+  const written = await writeDrums({ post }, target, genre, options);
+  process.stdout.write(`Wrote ${written.note_count} ${genre} notes to track ${target.track_id} slot ${target.clip_slot}.\n${written.kit}\nChecks:\n${checks}\n`);
   return 0;
 }
 

@@ -22,6 +22,7 @@ import {
   resolveReferenceFiles,
   transformClip,
   TRANSFORMS,
+  writeDrums,
   type ReferenceRequest,
 } from '../bridge/src/workflows.js';
 import { runQc } from '../qc/src/run.js';
@@ -36,14 +37,13 @@ import {
   createFourOnFloorKick,
   createOffbeatHat,
   createRollingBass,
-  createDrumPattern,
   createTechnoDrumKit,
   writePattern,
   type Command,
 } from '../agent/src/composition.js';
 import { bassFromFeel, cycleArp, euclidean, euclideanPattern, polyrhythm } from '../agent/src/patterns.js';
 import { progression } from '../agent/src/music-theory.js';
-import { checkDrumPattern, drumGenres, drumGrids, drumPattern, formatGrid } from '../agent/src/drums.js';
+import { drumGenres } from '../agent/src/drums.js';
 import type { ChainState, Decision } from '../agent/src/mastering/policy.js';
 
 export interface McpClient {
@@ -309,7 +309,8 @@ export function createMcpServer(client: McpClient): McpServer {
         energy: z.enum(['low', 'medium', 'high', 'peak', 'break']).optional().describe('drums: which voices play'),
         variant: z.enum(['A', "A'", 'B', 'F']).optional().describe('drums: canonical, subtle change, stronger change, fill'),
         phrase: z.boolean().optional().describe('drums: a 16-bar A/A\'/B/F phrase ending in a fill'),
-        swing: z.number().min(0).max(0.5).optional().describe('drums: fraction of a 16th, hats and percussion only'),
+        swing_percent: z.number().min(50).max(75).optional().describe('drums: pair ratio, 50 straight, 66.7 triplet; hats and percussion only. Not the Groove Pool amount'),
+        feel: z.enum(['straight', 'laid_back']).optional().describe('drums: laid_back = clap +3 ms, open hat +4 ms'),
         humanize: z.boolean().optional().describe('drums: role-based microtiming; main kicks stay on the grid'),
         chance: z.boolean().optional().describe('drums: trigger chance on ghosts and percussion only'),
         contour: z.array(z.number().int().min(0).max(12)).optional().describe('arp: indices into chord tones, e.g. [0,2,1,3,2]'),
@@ -338,6 +339,25 @@ export function createMcpServer(client: McpClient): McpServer {
     (args) =>
       guarded(async () => {
         const target = { track_id: args.track_id, clip_slot: args.clip_slot };
+        if (args.part === 'drums') {
+          const written = await writeDrums(client, target, args.genre ?? 'techno', {
+            bars: args.bars,
+            seed: args.seed,
+            energy: args.energy,
+            variant: args.variant,
+            phrase: args.phrase,
+            swingPercent: args.swing_percent,
+            feel: args.feel,
+            humanize: args.humanize,
+            chance: args.chance,
+          });
+          const { grid, findings, ...summary } = written;
+          return text(
+            summary,
+            grid,
+            findings.length ? findings.map((f) => `[${f.severity}] ${f.message}`).join('\n') : 'Drum checks: no findings.',
+          );
+        }
         const groove = { bars: args.bars, seed: args.seed };
         let commands: Command[];
         let notes: string[] = [];
@@ -389,26 +409,6 @@ export function createMcpServer(client: McpClient): McpServer {
             });
             commands = writePattern(arp, { ...target, bars, createClip: true, name: 'Arp cycles' });
             notes = [`The line repeats after ${arp.repeatsAfterSteps} sixteenths (${(arp.repeatsAfterSteps / 16).toFixed(1)} bars); the clip is ${bars} bars.`];
-            break;
-          }
-          case 'drums': {
-            const genre = args.genre ?? 'techno';
-            const options = {
-              bars: args.bars,
-              seed: args.seed,
-              energy: args.energy,
-              variant: args.variant,
-              phrase: args.phrase,
-              swing: args.swing,
-              humanize: args.humanize,
-              chance: args.chance,
-            };
-            commands = createDrumPattern(target, genre, options);
-            const findings = checkDrumPattern(drumPattern(genre, options), genre);
-            notes = [
-              formatGrid(drumGrids(genre, { ...options, bars: Math.min(options.bars ?? 2, 2) })),
-              findings.length ? findings.map((f) => `[${f.severity}] ${f.message}`).join('\n') : 'Drum checks: no findings.',
-            ];
             break;
           }
           case 'euclidean': {

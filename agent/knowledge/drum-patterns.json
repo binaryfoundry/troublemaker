@@ -1,19 +1,14 @@
 {
-  "source": "DRUMS.md - original teaching patterns, not transcriptions of recordings",
+  "source": "DRUMS.md (current revision: 'Autonomous Drum-Machine Pattern Agent'); templates marked first_revision come from its earlier revision. All are original teaching patterns, not transcriptions.",
   "legend": {
-    "X": "strong, velocity 110-127",
-    "x": "normal, velocity 85-109",
-    "g": "ghost or light, velocity 40-75",
-    "o": "open hi-hat, normal strength",
-    "R": "32nd roll replacing this step",
-    ".": "rest"
-  },
-  "velocity_tiers": {
-    "accent": [120, 127],
-    "strong": [105, 119],
-    "normal": [85, 104],
-    "light": [65, 84],
-    "ghost": [35, 64]
+    "X": "accented / primary strike",
+    "x": "normal strike",
+    "g": "ghost or secondary strike",
+    "o": "open hi-hat",
+    "R": "ratchet: a 1/32 roll replacing this step",
+    "F": "flam: main strike on the step, a second ~30 ms after",
+    "..": "rest (also '.')",
+    "number": "exact MIDI velocity"
   },
   "note_map": {
     "BD": 36,
@@ -21,13 +16,27 @@
     "SD": 38,
     "CP": 39,
     "CH": 42,
-    "LT": 45,
+    "LT": 43,
     "OH": 46,
     "MT": 47,
     "CY": 49,
     "HT": 50,
     "RD": 51,
     "CB": 56
+  },
+  "kit_pad_names": {
+    "BD": "bass drum|kick|\\bbd\\b",
+    "RS": "rim",
+    "SD": "snare|\\bsd\\b",
+    "CP": "clap",
+    "CH": "closed.*hat|hat.*closed|\\bch\\b",
+    "OH": "open.*hat|hat.*open|\\boh\\b",
+    "LT": "low tom|lo tom|floor tom",
+    "MT": "mid tom",
+    "HT": "hi tom|high tom",
+    "CY": "crash|cymbal",
+    "RD": "ride",
+    "CB": "cow ?bell"
   },
   "roles": {
     "BD": "structural",
@@ -43,36 +52,61 @@
     "HT": "detail",
     "CY": "detail"
   },
-  "choke": [["CH", "OH"]],
+  "velocity": {
+    "kick_primary": [105, 127],
+    "kick_secondary": [70, 88],
+    "snare_primary": [105, 124],
+    "clap_primary": [95, 122],
+    "snare_ghost": [25, 60],
+    "hat_body": [55, 90],
+    "hat_accent": [85, 112],
+    "hat_ghost": [48, 64],
+    "open_hat": [75, 110],
+    "percussion": [55, 100],
+    "percussion_accent": [90, 110],
+    "percussion_ghost": [30, 70],
+    "ratchet": [60, 96]
+  },
   "probability": {
-    "structural": 100,
     "pulse": [90, 100],
     "detail": [70, 95],
     "ghost": [40, 80],
     "fill": [20, 60]
   },
+  "feel": {
+    "straight": {},
+    "laid_back": { "CP": 3, "OH": 4 }
+  },
+  "flam_ms": 30,
   "templates": {
     "house": {
       "machine": "909",
-      "tempo": [120, 128],
-      "swing": "hats and percussion only; straight to noticeably swung",
+      "tempo": [118, 128],
+      "swing_percent": [50, 58],
       "backbeat": "CP",
       "four_on_floor": true,
+      "steps": 16,
+      "meter": "4/4",
+      "fill": "tom_run",
       "bars": [
         {
-          "BD": "X...X...X...X...",
-          "CP": "....X.......X...",
-          "OH": "..o...o...o...o.",
-          "CH": ".g.x.g.x.g.x.g.x"
+          "BD": "120 .. .. .. 116 .. .. .. 120 .. .. .. 116 .. .. ..",
+          "CP": ".. .. .. .. 112 .. .. .. .. .. .. .. 116 .. .. ..",
+          "CH": ".. 67 .. 82 .. 65 .. 88 .. 68 .. 84 .. 64 .. 92",
+          "OH": ".. .. 96 .. .. .. 92 .. .. .. 98 .. .. .. 101 .."
         }
       ]
     },
     "techno": {
+      "source": "first_revision",
       "machine": "909",
-      "tempo": [125, 135],
-      "swing": "straight through shuffled; parts need not share one swing",
+      "tempo": [125, 140],
+      "swing_percent": [50, 55],
       "backbeat": "SD",
       "four_on_floor": true,
+      "steps": 16,
+      "meter": "4/4",
+      "fill": "snare_run",
       "ghost_kick_offset_ms": [3, 8],
       "bars": [
         {
@@ -83,12 +117,33 @@
         }
       ]
     },
-    "hiphop": {
+    "electro_8": {
       "machine": "808",
-      "tempo": [80, 100],
-      "swing": "move selected 16ths late rather than swinging everything",
+      "tempo": [90, 120],
+      "swing_percent": [52, 62],
       "backbeat": "SD",
       "four_on_floor": false,
+      "steps": 8,
+      "meter": "4/4",
+      "fill": "tom_run",
+      "bars": [
+        {
+          "BD": "122 .. .. 88 .. 114 .. ..",
+          "SD": ".. .. 118 .. .. .. 122 ..",
+          "CH": "88 61 76 58 91 63 80 67"
+        }
+      ]
+    },
+    "hiphop": {
+      "source": "first_revision",
+      "machine": "808",
+      "tempo": [80, 100],
+      "swing_percent": [52, 62],
+      "backbeat": "SD",
+      "four_on_floor": false,
+      "steps": 16,
+      "meter": "4/4",
+      "fill": "pickup",
       "bars": [
         {
           "BD": "X..g..X...g.X...",
@@ -103,12 +158,16 @@
       ]
     },
     "trap": {
+      "source": "first_revision",
       "machine": "808",
-      "tempo": [130, 170],
-      "swing": "tight grid; rolls and small offsets supply detail",
+      "tempo": [135, 155],
+      "swing_percent": [50, 56],
       "backbeat": "CP",
       "half_time": true,
       "four_on_floor": false,
+      "steps": 16,
+      "meter": "4/4",
+      "fill": "rolls",
       "bars": [
         {
           "BD": "X....x....x...X.",
@@ -123,11 +182,15 @@
       ]
     },
     "electro": {
+      "source": "first_revision",
       "machine": "808",
       "tempo": [120, 135],
-      "swing": "fairly straight, with targeted syncopation",
+      "swing_percent": [50, 54],
       "backbeat": "SD",
       "four_on_floor": false,
+      "steps": 16,
+      "meter": "4/4",
+      "fill": "percussion_exchange",
       "bars": [
         {
           "BD": "X..x..X.X....X..",
@@ -138,15 +201,53 @@
           "CB": "..x.......x....."
         }
       ]
+    },
+    "triplet_12": {
+      "machine": "808",
+      "tempo": [90, 130],
+      "swing_percent": null,
+      "backbeat": "SD",
+      "four_on_floor": false,
+      "steps": 12,
+      "meter": "4/4",
+      "fill": "tom_run",
+      "bars": [
+        {
+          "BD": "121 .. .. .. .. .. 116 .. 87 .. .. ..",
+          "SD": ".. .. .. 118 .. .. .. .. .. 122 .. ..",
+          "CH": "88 54 65 84 52 67 90 55 65 87 53 69"
+        }
+      ]
+    },
+    "six_eight": {
+      "machine": "808",
+      "tempo": [90, 140],
+      "swing_percent": null,
+      "backbeat": "SD",
+      "four_on_floor": false,
+      "steps": 6,
+      "meter": "6/8",
+      "fill": "tom_run",
+      "bars": [
+        {
+          "BD": "121 .. .. .. 82 ..",
+          "SD": ".. .. .. 118 .. ..",
+          "CH": "90 55 64 88 54 67"
+        }
+      ]
     }
   },
   "energy_layers": {
     "low": ["BD", "CH"],
     "medium": ["BD", "CH", "SD", "CP", "OH"],
-    "high": ["BD", "CH", "SD", "CP", "OH", "RD", "RS", "CB"],
-    "peak": ["BD", "CH", "SD", "CP", "OH", "RD", "RS", "CB", "CY"],
+    "high": ["BD", "CH", "SD", "CP", "OH", "RD", "RS", "CB", "LT", "MT", "HT"],
+    "peak": ["BD", "CH", "SD", "CP", "OH", "RD", "RS", "CB", "LT", "MT", "HT", "CY"],
     "break": ["CP", "SD", "CH", "OH", "RS", "CB"]
   },
   "phrase": ["A", "A", "A", "A'", "A", "A", "B", "A'", "A", "A", "A", "B", "A", "A'", "B", "F"],
-  "variation_share": { "A'": [0.1, 0.15], "B": [0.15, 0.25] }
+  "variation_share": { "A'": [0.1, 0.15], "B": [0.15, 0.25] },
+  "checks": {
+    "ghost_hierarchy_min": 30,
+    "anchor_retention_min": 0.9
+  }
 }
