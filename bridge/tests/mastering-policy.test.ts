@@ -60,6 +60,12 @@ describe('policy', () => {
     expect(ids(result)).toContain('loudness-ok');
   });
 
+  it('reports a silent capture as a capture failure, with no mix findings', () => {
+    const result = evaluate({ target: analysis({ lufs: -70, tp: -120, sp: -120 }), profile: techno });
+    expect(result.verdict).toBe('FAIL');
+    expect(ids(result)).toEqual(['silent']);
+  });
+
   it('fails a true-peak over and says when it is inter-sample', () => {
     const result = evaluate({ target: analysis({ tp: -0.4, sp: -1.0 }), profile: techno });
     expect(result.verdict).toBe('FAIL');

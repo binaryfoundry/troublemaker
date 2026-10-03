@@ -136,6 +136,13 @@ export class MasterCapture {
           await this.transport.send('live.fire_scene', { scene_id: options.scene_id });
         }
       } else if (options.start_beat !== undefined) {
+        // Tracks that played Session clips ignore the Arrangement until
+        // Back to Arrangement is pressed; the capture would be silent.
+        try {
+          await this.transport.send('live.back_to_arrangement');
+        } catch (error) {
+          if (!(error instanceof BridgeError) || error.code !== 'UNKNOWN_COMMAND') throw error;
+        }
         await this.transport.send('live.stop');
         await this.transport.send('live.set_song_time', { beat: options.start_beat });
         await this.transport.send('live.continue_playing');

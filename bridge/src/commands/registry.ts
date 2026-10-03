@@ -137,6 +137,10 @@ const SUMMARIES: Record<CommandName, { summary: string; mutates?: boolean; bridg
     summary: 'Record a fixed length into an empty slot of an armed track.',
     mutates: true,
   },
+  'live.back_to_arrangement': {
+    summary: "Press Back to Arrangement, so tracks that played Session clips follow the Arrangement again.",
+    mutates: true,
+  },
   'live.browse': { summary: "List or search Live's browser: drums, instruments, sounds, samples, user folders." },
   'live.load_browser_item': {
     summary: 'Load a browser item (kit, preset, device, sample) onto a track.',

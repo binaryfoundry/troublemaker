@@ -496,6 +496,7 @@ class Song(LiveObject):
         self.current_song_time = 0.0
         self.metronome = False
         self.loop = False
+        self.back_to_arranger = False
         self.can_undo = True
         self.can_redo = False
 

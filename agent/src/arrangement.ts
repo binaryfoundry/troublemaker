@@ -40,9 +40,41 @@ export function styleNames(): string[] {
   return Object.keys(loadStyles().styles);
 }
 
+export type SectionFunction = 'intro' | 'build' | 'peak' | 'break' | 'outro' | 'other';
+
+/** What a section is for, from its name as the style templates spell it. */
+export function sectionFunction(name: string): SectionFunction {
+  const n = name.toLowerCase();
+  if (/intro/.test(n)) return 'intro';
+  if (/outro/.test(n)) return 'outro';
+  if (/break|reset|breakdown/.test(n)) return 'break';
+  if (/build|groove|development|rise/.test(n)) return 'build';
+  if (/peak|main|drop|variation/.test(n)) return 'peak';
+  return 'other';
+}
+
+const ALL_ROLES = ['kick', 'hats', 'bass', 'clap', 'chords', 'lead', 'atmosphere'];
+
+/**
+ * Roles for the first and second half of each kind of section
+ * (COMPOSITION.md): a DJ intro and outro are beat-led so another record can
+ * be mixed against them; a build layers parts in; the break drops the kick
+ * and bass and lets the harmony and motif carry the tension; the peak plays
+ * everything. Splitting in halves gives a change every 16 bars.
+ */
+const LAYERS: Record<Exclude<SectionFunction, 'other'>, [string[], string[]]> = {
+  intro: [['kick', 'hats'], ['kick', 'hats', 'atmosphere']],
+  build: [['kick', 'hats', 'bass', 'atmosphere'], ['kick', 'hats', 'bass', 'atmosphere', 'clap', 'chords']],
+  peak: [ALL_ROLES, ALL_ROLES],
+  break: [['atmosphere', 'chords'], ['atmosphere', 'chords', 'lead']],
+  outro: [['kick', 'hats', 'bass', 'atmosphere'], ['kick', 'hats']],
+};
+
 /**
  * A plan from a style template. `roles` lists the parts the track actually
- * has; each section plays the ones its energy calls for.
+ * has. Sections of 16 bars or more are split into two halves with their own
+ * layers; sections whose name says nothing about their job fall back to the
+ * parts their energy calls for.
  */
 export function planArrangement(style: string, options: { roles?: string[] } = {}): PlannedSection[] {
   const template = loadStyles().styles[style];
@@ -50,14 +82,24 @@ export function planArrangement(style: string, options: { roles?: string[] } = {
     throw new RangeError(`Unknown style '${style}'. Known: ${styleNames().join(', ')}.`);
   }
   const available = options.roles;
+  const keep = (wanted: string[]) => (available ? wanted.filter((r) => available.includes(r)) : [...wanted]);
+  const planned: PlannedSection[] = [];
   let bar = 1;
-  return template.sections.map((section) => {
-    const wanted = partsForEnergy(section.energy);
-    const roles = available ? wanted.filter((r) => available.includes(r)) : wanted;
-    const planned = { name: section.name, startBar: bar, bars: section.bars, energy: section.energy, roles };
+  for (const section of template.sections) {
+    const fn = sectionFunction(section.name);
+    if (fn === 'other') {
+      planned.push({ name: section.name, startBar: bar, bars: section.bars, energy: section.energy, roles: keep(partsForEnergy(section.energy)) });
+    } else if (section.bars >= 16 && section.bars % 16 === 0) {
+      const half = section.bars / 2;
+      const [first, second] = LAYERS[fn];
+      planned.push({ name: section.name, startBar: bar, bars: half, energy: section.energy, roles: keep(first) });
+      planned.push({ name: `${section.name} b`, startBar: bar + half, bars: half, energy: section.energy, roles: keep(second) });
+    } else {
+      planned.push({ name: section.name, startBar: bar, bars: section.bars, energy: section.energy, roles: keep(LAYERS[fn][1]) });
+    }
     bar += section.bars;
-    return planned;
-  });
+  }
+  return planned;
 }
 
 export interface ArrangementFinding {
@@ -112,6 +154,19 @@ export function checkArrangement(sections: PlannedSection[]): ArrangementFinding
         severity: 'info',
         bar: b.startBar,
         message: `'${b.name}' swaps ${added + removed} parts at similar energy; check it is not changing too much at once.`,
+      });
+    }
+  }
+
+  // DJs mix in and out over the beat; a kickless intro or outro gives them nothing.
+  const hasKick = sections.some((s) => s.roles.includes('kick'));
+  for (const s of sections) {
+    const fn = sectionFunction(s.name);
+    if (hasKick && (fn === 'intro' || fn === 'outro') && !s.roles.includes('kick')) {
+      findings.push({
+        severity: 'review',
+        bar: s.startBar,
+        message: `'${s.name}' has no kick. A DJ ${fn} needs the beat to mix against.`,
       });
     }
   }

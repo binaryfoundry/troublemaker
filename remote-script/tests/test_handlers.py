@@ -808,6 +808,15 @@ class TestEndToEndWorkflow(HandlerTestCase):
 
 
 
+
+class TestBackToArrangement(HandlerTestCase):
+    def test_returns_tracks_to_the_arrangement(self):
+        self.song.back_to_arranger = True
+        self.assertTrue(self.call("live.get_transport")["session_overrides_arrangement"])
+        result = self.call("live.back_to_arrangement")
+        self.assertTrue(result["was_overridden"])
+        self.assertFalse(self.call("live.get_transport")["session_overrides_arrangement"])
+
 class TestBrowser(HandlerTestCase):
     def setUp(self):
         HandlerTestCase.setUp(self)

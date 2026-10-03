@@ -69,6 +69,9 @@ export interface EvaluateInput {
   delivery?: { sampleRate?: number; bitDepth?: number };
 }
 
+/** Below this a capture holds nothing: BS.1770 gating bottoms out at -70. */
+const SILENT_LUFS = -60;
+
 export function evaluate(input: EvaluateInput): Evaluation {
   const { target, profile, reference } = input;
   const findings: Finding[] = [];
@@ -102,6 +105,19 @@ export function evaluate(input: EvaluateInput): Evaluation {
       area: 'file',
       message: 'One channel is silent.',
       action: 'Check the export routing and channel configuration.',
+    });
+  }
+  // A silent capture is a routing or playback failure, not a mix to judge.
+  const silent = target.loudness.integratedLufs <= SILENT_LUFS;
+  if (silent) {
+    add({
+      id: 'silent',
+      severity: 'fail',
+      area: 'file',
+      message: `The file is silent (${target.loudness.integratedLufs.toFixed(1)} LUFS).`,
+      action:
+        'Nothing was playing during the capture. For an Arrangement capture, check Back to Arrangement and that ' +
+        'clips sit at that position; for a scene, check it holds clips. No mix findings are given for silence.',
     });
   }
   if (target.whole.integrity.clippedRuns > 0) {
@@ -363,6 +379,8 @@ export function evaluate(input: EvaluateInput): Evaluation {
       });
     }
   }
+
+  if (silent) findings.splice(0, findings.length, ...findings.filter((f) => f.id === 'silent' || (f.area === 'file' && f.id !== 'silent-channel')));
 
   const verdict: Verdict = findings.some((f) => f.severity === 'fail')
     ? 'FAIL'

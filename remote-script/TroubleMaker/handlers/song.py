@@ -185,6 +185,8 @@ def get_transport(ctx, args):
         "tempo": float(song.tempo),
         "metronome": bool(song.metronome),
         "loop": bool(song.loop),
+        # True while launched Session clips keep tracks off the Arrangement.
+        "session_overrides_arrangement": bool(lom.safe(lambda: song.back_to_arranger, False)),
     }
 
 
@@ -201,6 +203,19 @@ def stop(ctx, args):
 def continue_playing(ctx, args):
     ctx.song.continue_playing()
     return get_transport(ctx, {})
+
+
+def back_to_arrangement(ctx, args):
+    """Press 'Back to Arrangement': tracks that played Session clips follow
+    the Arrangement again. Without it, Arrangement playback stays silent on
+    every track a scene has touched."""
+    song = ctx.song
+    before = bool(lom.safe(lambda: song.back_to_arranger, False))
+    try:
+        song.back_to_arranger = False
+    except Exception as exc:
+        raise errors.LiveError("Live refused 'Back to Arrangement': %s" % (exc,))
+    return {"was_overridden": before, "session_overrides_arrangement": bool(lom.safe(lambda: song.back_to_arranger, False))}
 
 
 def set_song_time(ctx, args):
@@ -252,6 +267,7 @@ COMMANDS = {
     "live.continue_playing": continue_playing,
     "live.stop_all_clips": stop_all_clips,
     "live.set_song_time": set_song_time,
+    "live.back_to_arrangement": back_to_arrangement,
     "live.set_metronome": set_metronome,
     "live.undo": undo,
     "live.redo": redo,

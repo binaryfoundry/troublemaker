@@ -183,6 +183,29 @@ describe('arrangement', () => {
     expect(checkArrangement(plan).some((f) => f.severity === 'review')).toBe(false);
   });
 
+  it('gives each section its job: beat-led intro and outro, kickless break, full peak', () => {
+    const plan = planArrangement('melodic_techno');
+    const at = (bar: number) => plan.find((s) => bar >= s.startBar && bar < s.startBar + s.bars)!;
+    expect(at(1).roles).toEqual(['kick', 'hats']);
+    expect(at(17).roles).toContain('atmosphere');
+    expect(at(97).roles).not.toContain('kick');
+    expect(at(97).roles).not.toContain('bass');
+    expect(at(113).roles).toContain('lead');
+    expect(at(129).roles).toHaveLength(7);
+    expect(at(185).roles).toEqual(['kick', 'hats']);
+    // Something changes every 16 bars.
+    for (const s of plan) expect(s.bars).toBeLessThanOrEqual(24);
+    expect(checkArrangement(plan).some((f) => f.severity === 'review')).toBe(false);
+  });
+
+  it('flags a DJ intro without a kick', () => {
+    const findings = checkArrangement([
+      { name: 'Intro', startBar: 1, bars: 16, energy: 0.3, roles: ['hats'] },
+      { name: 'Peak', startBar: 17, bars: 16, energy: 1, roles: ['hats', 'kick'] },
+    ]);
+    expect(findings.map((f) => f.message).join(' ')).toMatch(/no kick/);
+  });
+
   it('only plays roles the track has', () => {
     const plan = planArrangement('melodic_techno', { roles: ['kick', 'bass', 'chords', 'hats'] });
     for (const s of plan) expect(s.roles.every((r) => ['kick', 'bass', 'chords', 'hats'].includes(r))).toBe(true);
