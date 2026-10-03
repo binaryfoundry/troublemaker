@@ -120,7 +120,7 @@ describe('MCP server', () => {
       expect(names).toContain(expected);
     }
     const { prompts } = await client.listPrompts();
-    expect(prompts.map((p) => p.name)).toEqual(expect.arrayContaining(['system', 'composition', 'effects', 'mastering', 'drums']));
+    expect(prompts.map((p) => p.name)).toEqual(expect.arrayContaining(['system', 'composition', 'effects', 'mastering', 'drums', 'basslines', 'chords', 'edm-tips']));
     const { resources } = await client.listResources();
     expect(resources.map((r) => r.uri)).toContain('troublemaker://effects-codex');
   });

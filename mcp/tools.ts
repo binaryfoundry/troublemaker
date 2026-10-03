@@ -43,6 +43,7 @@ import {
 import { bassFromFeel, cycleArp, euclidean, euclideanPattern, polyrhythm } from '../agent/src/patterns.js';
 import { progression } from '../agent/src/music-theory.js';
 import { drumGenres } from '../agent/src/drums.js';
+import { checkMelody, motifMelody } from '../agent/src/melody.js';
 import { checkChords, chordKnowledge, chordTemplate, voiceLeadingReport, voiceProgression, type VoicedChord } from '../agent/src/chords.js';
 import { bassPattern, bassPatternNames, checkBassline, mergeRepeats } from '../agent/src/basslines.js';
 import type { ChainState, Decision } from '../agent/src/mastering/policy.js';
@@ -281,6 +282,7 @@ export function createMcpServer(client: McpClient): McpServer {
     'drum_kit',
     'drums',
     'arp',
+    'melody',
     'bass',
     'bassline',
     'chords',
@@ -299,6 +301,8 @@ export function createMcpServer(client: McpClient): McpServer {
         'energy, variant A/A\'/B/F or phrase=true for a 16-bar A/A\'/B/F phrase, swing, humanize, chance), ' +
         'bassline (a BASSLINES.md pattern - house_offbeat, rolling_techno, dnb_sub... - transposed to root, form=true for ' +
         'A/A2/B/A3 development, checked against the kick), ' +
+        'melody (motif-first hook: rhythm on one note, chord tones on strong beats, A A A\' B, resolves to the tonic; ' +
+        'needs root, chords from symbols/template/degrees), ' +
         'arp (cycle arpeggio over a voice-led progression: contour, accent, octave and rest cycles of different ' +
         'lengths drift against the bar; needs root), kick (four on the floor), hats (offbeat), drum_kit, bass (rolling, ' +
         'needs root), chords (voice-led: symbols, a CHORDS.md template H01-H08, or root + degrees), build_up, euclidean (hits/steps/pitch), ' +
@@ -322,6 +326,7 @@ export function createMcpServer(client: McpClient): McpServer {
         accent_steps: z.number().int().min(2).optional(),
         octave_cycle: z.array(z.number().int().min(-24).max(24)).optional().describe('arp: semitone offsets cycle, default [0,0,12,0,0,0,0]'),
         rests_per_bar: z.number().int().min(0).max(12).optional().describe('arp: rests in each 16-step cycle (default 3)'),
+        motif_notes: z.number().int().min(2).max(9).optional().describe('melody: notes in the one-bar rhythmic motif (default 5)'),
         beats_per_chord: z.number().positive().optional().describe('arp/chords: default 8 (two bars)'),
         pattern: z.string().optional().describe(`bassline: ${bassPatternNames().join(', ')}`),
         form: z.boolean().optional().describe('bassline: A / A2 / B / A3 development across the clip'),
@@ -425,6 +430,19 @@ export function createMcpServer(client: McpClient): McpServer {
             const pattern = bassPattern(args.pattern, { root: args.root, octave: args.octave_shift ?? 0, bars: args.bars, form: args.form, seed: args.seed });
             commands = writePattern(pattern, { ...target, bars: pattern.length_beats / 4, createClip: true, name: `Bass ${args.pattern}` });
             notes = [`${args.pattern}: ${pattern.spec.purpose} (written at ${pattern.spec.tempo} BPM, ${pattern.spec.genre}).`];
+            break;
+          }
+          case 'melody': {
+            if (!args.root) throw new Error('melody needs a root (the key), e.g. "F".');
+            const beatsPerChord = args.beats_per_chord ?? 4;
+            const chords = args.symbols?.length || args.template
+              ? voiceProgression(args.symbols?.length ? args.symbols : chordTemplate(args.template!).progression, { beatsPerChord }).map((c) => c.pitches)
+              : progression(args.root, args.scale ?? 'minor', args.degrees ?? [1, 6, 3, 7], { voicing: 'seventh' });
+            const melodyOptions = { chords, beatsPerChord, root: args.root, scale: args.scale, bars: args.bars, hits: args.motif_notes, seed: args.seed };
+            const melody = motifMelody(melodyOptions);
+            commands = writePattern(melody, { ...target, bars: melody.length_beats / 4, createClip: true, name: 'Melody' });
+            const findings = checkMelody(melody, melodyOptions);
+            notes = [findings.length ? findings.map((f) => `[${f.severity}] ${f.message}`).join('\n') : 'Melody checks: no findings.'];
             break;
           }
           case 'arp': {
@@ -1133,6 +1151,7 @@ export function createMcpServer(client: McpClient): McpServer {
     ['mastering', 'mastering.md', 'Club mastering practice (MIXING.md).'],
     ['drums', 'drums.md', '808/909 drum programming practice (DRUMS.md).'],
     ['chords', 'chords.md', 'Chord progressions and voice leading (CHORDS.md).'],
+    ['edm-tips', 'edm-tips.md', 'EDM Tips decision trees, guardrails and QA (EDM-TIPS.md).'],
     ['basslines', 'basslines.md', 'Bassline writing, kick/bass and low-end practice (BASSLINES.md).'],
   ];
   for (const [name, file, description] of prompts) {
