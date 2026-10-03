@@ -44,6 +44,7 @@ import {
 import { bassFromFeel, cycleArp, euclidean, euclideanPattern, polyrhythm } from '../agent/src/patterns.js';
 import { progression } from '../agent/src/music-theory.js';
 import { drumGenres } from '../agent/src/drums.js';
+import { checkChops, vocalChop, vocalPlan } from '../agent/src/vocals.js';
 import { selectionKnowledge, soundBrief } from '../agent/src/sound-selection.js';
 import { checkMelody, motifMelody, templateMotif, varyMotif, type MotifVariation } from '../agent/src/melody.js';
 import { checkChords, chordKnowledge, chordRhythm, chordTemplate, evolveVoicing, templateInKey, voiceLeadingReport, voiceProgression, type ChordRhythm, type VoicedChord } from '../agent/src/chords.js';
@@ -285,6 +286,7 @@ export function createMcpServer(client: McpClient): McpServer {
     'drums',
     'arp',
     'melody',
+    'vocal_chop',
     'bass',
     'bassline',
     'chords',
@@ -303,6 +305,8 @@ export function createMcpServer(client: McpClient): McpServer {
         'energy, variant A/A\'/B/F or phrase=true for a 16-bar A/A\'/B/F phrase, swing, humanize, chance), ' +
         'bassline (a BASSLINES.md pattern - house_offbeat, rolling_techno, dnb_sub... - transposed to root, form=true for ' +
         'A/A2/B/A3 development, checked against the kick), ' +
+        'vocal_chop (a chop phrase for a Simpler holding a vocal fragment: anchor note, one repeated motif, at most four ' +
+        'pitches, space, a changed ending; needs root), ' +
         'melody (motif-first hook: rhythm on one note, chord tones on strong beats, A A A\' B, resolves to the tonic; ' +
         'needs root, chords from symbols/template/degrees), ' +
         'arp (cycle arpeggio over a voice-led progression: contour, accent, octave and rest cycles of different ' +
@@ -437,6 +441,17 @@ export function createMcpServer(client: McpClient): McpServer {
             const pattern = bassPattern(args.pattern, { root: args.root, octave: args.octave_shift ?? 0, bars: args.bars, form: args.form, seed: args.seed });
             commands = writePattern(pattern, { ...target, bars: pattern.length_beats / 4, createClip: true, name: `Bass ${args.pattern}` });
             notes = [`${args.pattern}: ${pattern.spec.purpose} (written at ${pattern.spec.tempo} BPM, ${pattern.spec.genre}).`];
+            break;
+          }
+          case 'vocal_chop': {
+            if (!args.root) throw new Error('vocal_chop needs a root (the key), e.g. "F".');
+            const chop = vocalChop({ root: args.root, scale: args.scale, bars: args.bars, hits: args.motif_notes, register: 60 + 12 * (args.octave_shift ?? 0), seed: args.seed });
+            commands = writePattern(chop, { ...target, bars: chop.length_beats / 4, createClip: true, name: 'Vocal chops' });
+            const findings = checkChops(chop);
+            notes = [
+              'Pitches assume the Simpler plays the fragment at its own pitch on C3 (MIDI 60) and the fragment is the key note; transpose the clip if not.',
+              findings.length ? findings.map((f) => `[${f.severity}] ${f.message}`).join('\n') : 'Chop checks: no findings.',
+            ];
             break;
           }
           case 'melody': {
@@ -1123,9 +1138,9 @@ export function createMcpServer(client: McpClient): McpServer {
       title: 'Arrangement',
       description:
         `Plan a full track from a style template (plan), or lay the Session loops in slot 0 onto the Arrangement ` +
-        `following that plan (build). Roles come from track names or an explicit map. Styles: ${styleNames().join(', ')}.`,
+        `following that plan (build), or show where a vocal appears, disappears and transforms across it (vocal_plan). Roles come from track names or an explicit map. Styles: ${styleNames().join(', ')}.`,
       inputSchema: {
-        action: z.enum(['plan', 'build']),
+        action: z.enum(['plan', 'build', 'vocal_plan']),
         style: z.string(),
         roles: z.array(z.string()).optional().describe('plan: which roles exist'),
         map: z.record(id).optional().describe('build: role -> track_id, e.g. {"kick": 12, "bass": 15}'),
@@ -1138,6 +1153,11 @@ export function createMcpServer(client: McpClient): McpServer {
         if (args.action === 'plan') {
           const plan = planArrangement(args.style, args.roles ? { roles: args.roles } : {});
           return text(formatPlan(plan, checkArrangement(plan)));
+        }
+        if (args.action === 'vocal_plan') {
+          // ABLETON_VOCALS_EXPERT.md: where the vocal appears, disappears and transforms.
+          const cues = vocalPlan(planArrangement(args.style, args.roles ? { roles: args.roles } : {}));
+          return text(cues.map((c) => `bar ${String(c.startBar).padStart(3)}  ${c.section.padEnd(18)} ${c.treatment}`).join('\n'));
         }
         const built = await buildArrangement(client, {
           style: args.style,
@@ -1185,6 +1205,7 @@ export function createMcpServer(client: McpClient): McpServer {
     ['mastering', 'mastering.md', 'Club mastering practice (MIXING.md).'],
     ['drums', 'drums.md', '808/909 drum programming practice (DRUMS.md).'],
     ['chords', 'chords.md', 'Chord progressions and voice leading (CHORDS.md).'],
+    ['vocals', 'vocals.md', 'Electronic vocals: roles, chops, throws, the hook ladder, what the API can and cannot do (ABLETON_VOCALS_EXPERT.md).'],
     ['sound-selection', 'sound-selection.md', 'Choosing sources before processing: briefs, shortlists, hot-swap auditions (Ableton_Sound_Selection_Expert.md).'],
     ['progressive-house', 'progressive-house.md', 'Progressive house in the Eric Prydz / Pryda tradition, originality first (ERIC.md).'],
     ['melodic-techno', 'melodic-techno.md', 'Melodic techno production practice (MELODIC-TECHNO.md).'],
