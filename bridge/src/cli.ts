@@ -15,7 +15,8 @@ import { compareFiles, runAb } from '../../qc/src/ab.js';
 import { analyzeBass, formatBassProfile } from '../../qc/src/bass.js';
 import { applyEffect, findEffect, loadCodex } from './fx.js';
 import { identifyEffect } from '../../qc/src/identify.js';
-import { checkArrangement, formatPlan, planArrangement, styleNames } from '../../agent/src/arrangement.js';
+import { formatPlan, planArrangement, styleNames } from '../../agent/src/arrangement.js';
+import { checkStylePlan } from '../../agent/src/artists.js';
 import { checkDrumPattern, drumGenres, drumGrids, drumPattern, formatGrid, type DrumOptions, type Energy, type Variant } from '../../agent/src/drums.js';
 import { genreSummary, loadReferenceSets, scanLibrary } from '../../qc/src/library.js';
 import { buildArrangement, resolveReferenceFiles, sampleLibraryConfig, shortlistLocalSamples, writeDrums, type ResolvedReferences } from './workflows.js';
@@ -783,7 +784,7 @@ async function arrangement(argv: string[]): Promise<number> {
 
   if (sub === 'plan') {
     const plan = planArrangement(style, rolesText ? { roles: rolesText.split(',').map((r) => r.trim()) } : {});
-    process.stdout.write(`${formatPlan(plan, checkArrangement(plan))}\n`);
+    process.stdout.write(`${formatPlan(plan, checkStylePlan(style, plan))}\n`);
     return 0;
   }
   if (sub !== 'build') throw new Error('Unknown arrangement subcommand. Try: plan, build.');

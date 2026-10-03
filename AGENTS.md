@@ -219,6 +219,12 @@ next to the data.
   supplied: only the rules they state are encoded.
 - Documents that cite YouTube references they could not see mark those
   fields unresolved; do not fill them in.
+- Artist documents (JON_HOPKINS.md, TINLICKER.md) live in
+  `agent/knowledge/artists.json`; a style template names its artist through
+  the profile's `style`, and `checkStylePlan` adds that artist's tests to the
+  generic arrangement rules. A style that is not DJ-first sets
+  `dj_friendly: false` with its reason. Use `checkStylePlan`, not
+  `checkArrangement`, wherever a style is known.
 
 ## Gotchas
 

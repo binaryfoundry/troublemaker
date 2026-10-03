@@ -120,9 +120,10 @@ describe('MCP server', () => {
       expect(names).toContain(expected);
     }
     const { prompts } = await client.listPrompts();
-    expect(prompts.map((p) => p.name)).toEqual(expect.arrayContaining(['system', 'composition', 'effects', 'mastering', 'drums', 'basslines', 'chords', 'edm-tips', 'melodic-techno', 'progressive-house', 'sound-selection', 'vocals']));
+    expect(prompts.map((p) => p.name)).toEqual(expect.arrayContaining(['system', 'composition', 'effects', 'mastering', 'drums', 'basslines', 'chords', 'edm-tips', 'melodic-techno', 'progressive-house', 'sound-selection', 'vocals', 'jon-hopkins', 'tinlicker']));
     const { resources } = await client.listResources();
     expect(resources.map((r) => r.uri)).toContain('troublemaker://effects-codex');
+    expect(resources.map((r) => r.uri)).toContain('troublemaker://artists');
   });
 
   it('serves the system prompt from agent/prompts', async () => {

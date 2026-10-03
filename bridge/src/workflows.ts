@@ -18,12 +18,12 @@ import {
 } from '../../qc/src/library.js';
 import {
   arrangementCommands,
-  checkArrangement,
   planArrangement,
   type ArrangementFinding,
   type PlannedSection,
   type RoleSource,
 } from '../../agent/src/arrangement.js';
+import { checkStylePlan } from '../../agent/src/artists.js';
 import { inferTrackRole, writePattern } from '../../agent/src/composition.js';
 import {
   checkDrumPattern,
@@ -174,7 +174,7 @@ export async function buildArrangement(
   }
 
   const plan = planArrangement(options.style, { roles: Object.keys(sources) });
-  const findings = checkArrangement(plan);
+  const findings = checkStylePlan(options.style, plan);
   const commands = arrangementCommands(plan, sources);
   const roles = Object.fromEntries(Object.entries(sources).map(([r, s]) => [r, s.track_id]));
   if (options.dryRun) return { plan, findings, roles, placed: 0, dryRun: true };

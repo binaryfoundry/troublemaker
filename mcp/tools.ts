@@ -32,7 +32,8 @@ import { runAb } from '../qc/src/ab.js';
 import { analyzeBass, formatBassProfile } from '../qc/src/bass.js';
 import { identifyEffect } from '../qc/src/identify.js';
 import { genreSummary, loadReferenceSets, scanLibrary } from '../qc/src/library.js';
-import { checkArrangement, formatPlan, planArrangement, styleNames } from '../agent/src/arrangement.js';
+import { formatPlan, planArrangement, styleNames } from '../agent/src/arrangement.js';
+import { checkStylePlan } from '../agent/src/artists.js';
 import {
   createBuildUp,
   createFourOnFloorKick,
@@ -1175,7 +1176,7 @@ export function createMcpServer(client: McpClient): McpServer {
       guarded(async () => {
         if (args.action === 'plan') {
           const plan = planArrangement(args.style, args.roles ? { roles: args.roles } : {});
-          return text(formatPlan(plan, checkArrangement(plan)));
+          return text(formatPlan(plan, checkStylePlan(args.style, plan)));
         }
         if (args.action === 'vocal_plan') {
           // ABLETON_VOCALS_EXPERT.md: where the vocal appears, disappears and transforms.
@@ -1232,6 +1233,8 @@ export function createMcpServer(client: McpClient): McpServer {
     ['sound-selection', 'sound-selection.md', 'Choosing sources before processing: briefs, shortlists, hot-swap auditions (Ableton_Sound_Selection_Expert.md).'],
     ['progressive-house', 'progressive-house.md', 'Progressive house in the Eric Prydz / Pryda tradition, originality first (ERIC.md).'],
     ['melodic-techno', 'melodic-techno.md', 'Melodic techno production practice (MELODIC-TECHNO.md).'],
+    ['jon-hopkins', 'jon-hopkins.md', 'Jon Hopkins-inspired production: process, transformation, orbiting rhythm, journeys (JON_HOPKINS.md).'],
+    ['tinlicker', 'tinlicker.md', 'Tinlicker-inspired melodic/progressive house: song first, bass motion, kick/bass system (TINLICKER.md).'],
     ['edm-tips', 'edm-tips.md', 'EDM Tips decision trees, guardrails and QA (EDM-TIPS.md).'],
     ['basslines', 'basslines.md', 'Bassline writing, kick/bass and low-end practice (BASSLINES.md).'],
   ];
@@ -1253,6 +1256,7 @@ export function createMcpServer(client: McpClient): McpServer {
     ['styles', 'agent/knowledge/styles.json', 'Arrangement style templates.'],
     ['sound-selection', 'agent/knowledge/sound-selection.json', 'Role and genre selection data.'],
     ['melodic-techno', 'agent/knowledge/melodic-techno.json', 'MELODIC-TECHNO.md motif, chord loop, automation lanes, returns, device fallbacks.'],
+    ['artists', 'agent/knowledge/artists.json', 'JON_HOPKINS.md and TINLICKER.md profiles: hierarchies, cycles, tests, diagnostics, anti-patterns.'],
     ['chord-progressions', 'agent/knowledge/chord-progressions.json', 'CHORDS.md progression templates H01-H08.'],
     ['bass-patterns', 'agent/knowledge/bass-patterns.json', 'BASSLINES.md pattern library and checks.'],
     ['drum-patterns', 'agent/knowledge/drum-patterns.json', 'DRUMS.md genre grids, velocity tiers, A/A\'/B/F phrase.'],

@@ -63,7 +63,7 @@
         {
           "name": "Main B",
           "bars": 32,
-          "energy": 1.0
+          "energy": 1
         },
         {
           "name": "Outro",
@@ -398,7 +398,7 @@
         {
           "name": "Peak B",
           "bars": 48,
-          "energy": 1.0
+          "energy": 1
         },
         {
           "name": "Outro",
@@ -542,7 +542,7 @@
         {
           "name": "Main Peak",
           "bars": 32,
-          "energy": 1.0,
+          "energy": 1,
           "roles": [
             "kick",
             "perc",
@@ -719,7 +719,7 @@
         {
           "name": "Final",
           "bars": 32,
-          "energy": 1.0,
+          "energy": 1,
           "roles": [
             "kick",
             "hats",
@@ -745,6 +745,311 @@
             "atmosphere"
           ],
           "note": "back to rhythm for the DJ"
+        }
+      ]
+    },
+    "tinlicker": {
+      "source": "TINLICKER.md long-form structure (section 20): intro, establishment, development, breakdown, rebuild, payoff with layers revealed after 8 bars, second development with a new counterline, outro that keeps the groove and drops the melodic focus",
+      "tempo": [
+        122,
+        126
+      ],
+      "tempo_default": 124,
+      "priority": "Emotional chord movement, bass movement, kick/bass groove, one primary motif - then trajectory, atmosphere and detail",
+      "defining_idea": "a 3-6 note motif and a 2-4 chord loop whose bass line, not chord complexity, carries the lift",
+      "harmony": [
+        "natural_minor",
+        "dorian"
+      ],
+      "sections": [
+        {
+          "name": "Intro",
+          "bars": 16,
+          "energy": 0.25,
+          "roles": [
+            "kick",
+            "hats",
+            "perc",
+            "atmosphere"
+          ],
+          "note": "groove first, DJ-friendly entry, restrained harmony"
+        },
+        {
+          "name": "Intro b",
+          "bars": 16,
+          "energy": 0.3,
+          "roles": [
+            "kick",
+            "hats",
+            "perc",
+            "atmosphere",
+            "lead"
+          ],
+          "note": "the motif as a filtered ghost"
+        },
+        {
+          "name": "Establishment",
+          "bars": 16,
+          "energy": 0.45,
+          "roles": [
+            "kick",
+            "hats",
+            "perc",
+            "clap",
+            "bass",
+            "lead",
+            "atmosphere"
+          ],
+          "note": "bass becomes clear, full drum identity, pluck/arp introduced"
+        },
+        {
+          "name": "Development",
+          "bars": 16,
+          "energy": 0.6,
+          "roles": [
+            "kick",
+            "hats",
+            "perc",
+            "clap",
+            "bass",
+            "chords",
+            "lead",
+            "atmosphere"
+          ],
+          "note": "harmony established, brighter timbre, added percussion, tension begins"
+        },
+        {
+          "name": "Breakdown",
+          "bars": 16,
+          "energy": 0.35,
+          "roles": [
+            "chords",
+            "lead",
+            "atmosphere"
+          ],
+          "note": "kick and sub out; the harmony and motif exposed; it should still work with only pad, motif and texture"
+        },
+        {
+          "name": "Rebuild",
+          "bars": 8,
+          "energy": 0.55,
+          "roles": [
+            "hats",
+            "perc",
+            "chords",
+            "lead",
+            "atmosphere"
+          ],
+          "note": "rhythmic clues return, rising filter, percussion acceleration - the kick stays out until the drop"
+        },
+        {
+          "name": "Drop",
+          "bars": 8,
+          "energy": 0.85,
+          "roles": [
+            "kick",
+            "hats",
+            "clap",
+            "bass",
+            "lead",
+            "atmosphere"
+          ],
+          "note": "kick and bass return decisively, the hook clear; supporting layers held back"
+        },
+        {
+          "name": "Drop b",
+          "bars": 24,
+          "energy": 0.9,
+          "roles": [
+            "kick",
+            "hats",
+            "perc",
+            "clap",
+            "bass",
+            "chords",
+            "lead",
+            "atmosphere"
+          ],
+          "note": "the held-back layers revealed after 8 bars"
+        },
+        {
+          "name": "Second Development",
+          "bars": 16,
+          "energy": 0.95,
+          "roles": [
+            "kick",
+            "hats",
+            "perc",
+            "clap",
+            "bass",
+            "chords",
+            "lead",
+            "counter",
+            "atmosphere"
+          ],
+          "note": "variation, not copy/paste: a new counterline, a changed bass ending, different percussion"
+        },
+        {
+          "name": "Outro",
+          "bars": 16,
+          "energy": 0.4,
+          "roles": [
+            "kick",
+            "hats",
+            "perc",
+            "bass",
+            "atmosphere"
+          ],
+          "note": "melodic focus removed, groove retained"
+        },
+        {
+          "name": "Outro b",
+          "bars": 16,
+          "energy": 0.25,
+          "roles": [
+            "kick",
+            "hats",
+            "perc"
+          ],
+          "note": "progressively simplify for the next record"
+        }
+      ]
+    },
+    "hopkins_journey": {
+      "source": "JON_HOPKINS.md arrangement blueprint (section 18) as emotional states (section 11.1). Its timings are converted to bars at 126 BPM and rounded to the 8-bar grid; the document says bar lengths follow the musical need, so treat these as a trajectory, not a formula.",
+      "tempo": [
+        118,
+        130
+      ],
+      "tempo_default": 126,
+      "dj_friendly": false,
+      "$dj_friendly": "JON_HOPKINS.md opens with environment and closes with integration rather than DJ beat-only intros and outros, so the kickless intro/outro rule does not apply.",
+      "priority": "Emotion, identity and trajectory before sound; transformation over surface imitation",
+      "defining_idea": "one simple emotional seed carried for minutes while its source, space, density and damage keep changing",
+      "harmony": [
+        "natural_minor",
+        "dorian"
+      ],
+      "sections": [
+        {
+          "name": "Intro (orientation)",
+          "bars": 24,
+          "energy": 0.15,
+          "roles": [
+            "atmosphere",
+            "lead"
+          ],
+          "note": "environment / seed: texture and a fragment of the motif"
+        },
+        {
+          "name": "Build: pulse",
+          "bars": 24,
+          "energy": 0.35,
+          "roles": [
+            "kick",
+            "perc",
+            "atmosphere",
+            "lead"
+          ],
+          "note": "the pulse appears - ideally caused by something already present"
+        },
+        {
+          "name": "Build: hypnosis",
+          "bars": 32,
+          "energy": 0.5,
+          "roles": [
+            "kick",
+            "perc",
+            "bass",
+            "lead",
+            "atmosphere"
+          ],
+          "note": "motif and bass establish hypnosis"
+        },
+        {
+          "name": "Build: rhythmic systems",
+          "bars": 32,
+          "energy": 0.65,
+          "roles": [
+            "kick",
+            "perc",
+            "hats",
+            "toms",
+            "bass",
+            "lead",
+            "atmosphere"
+          ],
+          "note": "orbiting loops of different lengths accumulate"
+        },
+        {
+          "name": "Peak: pressure",
+          "bars": 24,
+          "energy": 0.85,
+          "roles": [
+            "kick",
+            "hats",
+            "perc",
+            "toms",
+            "clap",
+            "bass",
+            "lead",
+            "atmosphere"
+          ],
+          "note": "pressure, distortion, instability - comfort before discomfort"
+        },
+        {
+          "name": "Breakdown: rupture",
+          "bars": 24,
+          "energy": 0.3,
+          "roles": [
+            "chords",
+            "atmosphere"
+          ],
+          "note": "rupture or opening: negative space; the bass leaves"
+        },
+        {
+          "name": "Peak: expansion",
+          "bars": 32,
+          "energy": 1,
+          "roles": [
+            "kick",
+            "hats",
+            "perc",
+            "toms",
+            "clap",
+            "bass",
+            "chords",
+            "lead",
+            "counter",
+            "atmosphere"
+          ],
+          "note": "emotional melodic expansion"
+        },
+        {
+          "name": "Transformed return",
+          "bars": 32,
+          "energy": 0.75,
+          "roles": [
+            "kick",
+            "hats",
+            "perc",
+            "bass",
+            "chords",
+            "lead",
+            "atmosphere"
+          ],
+          "note": "the opening material returns transformed"
+        },
+        {
+          "name": "Outro (integration)",
+          "bars": 24,
+          "energy": 0.2,
+          "roles": [
+            "atmosphere",
+            "lead",
+            "perc"
+          ],
+          "note": "decompression and exit"
         }
       ]
     }

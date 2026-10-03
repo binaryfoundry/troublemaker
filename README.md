@@ -269,6 +269,33 @@ arrangement (a controlled reveal: lead withheld until the breakdown, low end
 held back through the rebuild) and the `progressive_rolling` and
 `progressive_octave` basslines.
 
+## Artist-inspired production
+
+`JON_HOPKINS.md` and `TINLICKER.md` are integrated as the `jon-hopkins` and
+`tinlicker` prompts, the `artists` resource (`agent/knowledge/artists.json`:
+decision hierarchies, cycle lengths, tests, diagnostics, anti-patterns) and
+`agent/src/artists.ts`. Both are production grammars for original music,
+never melodies or arrangements to copy.
+
+- `arrangement plan tinlicker` - 168 bars at 124 BPM: groove-first intro,
+  breakdown without kick or sub, an 8-bar kickless rebuild, a drop that holds
+  layers back for 8 bars, a second development with a new counterline. The
+  plan is checked against TINLICKER.md's 16-bar, breakdown and drop tests.
+- `arrangement plan hopkins_journey` - 248 bars of emotional states
+  (orientation, pulse, hypnosis, rhythmic systems, pressure, rupture,
+  expansion, transformed return, integration). Its environment intro is not
+  held to the DJ beat-led rule; the plan is checked for negative space, a
+  bass that leaves, and comfort before discomfort.
+- `orbitRealignment` / `modulationRealignment` say when loops or automation
+  cycles of different lengths line up again (16 against 15, 12, 7 and 10
+  steps: 105 bars).
+- `pickupBass(roots)` writes Tinlicker's bass motion: offbeat eighths on each
+  root, a scale-step pickup into every chord change, an octave jump at phrase
+  ends.
+
+The prompts say what the bridge cannot do here (re-using a resampled print,
+recording the world, groups) and treat unverified devices as detect-then-fall-back.
+
 ## Sound selection
 
 `Ableton_Sound_Selection_Expert.md` is integrated as

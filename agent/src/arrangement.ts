@@ -32,7 +32,7 @@ interface StyleSection {
 }
 
 interface StyleFile {
-  styles: Record<string, { tempo: [number, number]; sections: StyleSection[] }>;
+  styles: Record<string, { tempo: [number, number]; sections: StyleSection[]; dj_friendly?: boolean }>;
   arrangement_rules: { change_every_bars: number; max_static_bars: number };
 }
 
@@ -119,8 +119,12 @@ export interface ArrangementFinding {
   message: string;
 }
 
-/** Apply the arrangement rules to a plan. */
-export function checkArrangement(sections: PlannedSection[]): ArrangementFinding[] {
+/**
+ * Apply the arrangement rules to a plan. `djFriendly: false` (a style that
+ * opens with environment rather than a beat, e.g. hopkins_journey) skips the
+ * beat-led intro/outro rule.
+ */
+export function checkArrangement(sections: PlannedSection[], options: { djFriendly?: boolean } = {}): ArrangementFinding[] {
   const rules = loadStyles().arrangement_rules;
   const findings: ArrangementFinding[] = [];
   if (sections.length === 0) return [{ severity: 'review', bar: 1, message: 'The arrangement is empty.' }];
@@ -170,7 +174,7 @@ export function checkArrangement(sections: PlannedSection[]): ArrangementFinding
   }
 
   // DJs mix in and out over the beat; a kickless intro or outro gives them nothing.
-  const hasKick = sections.some((s) => s.roles.includes('kick'));
+  const hasKick = options.djFriendly !== false && sections.some((s) => s.roles.includes('kick'));
   for (const s of sections) {
     const fn = sectionFunction(s.name);
     if (hasKick && (fn === 'intro' || fn === 'outro') && !s.roles.includes('kick')) {

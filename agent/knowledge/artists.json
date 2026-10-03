@@ -1,0 +1,102 @@
+{
+  "$comment": "Artist-inspired production profiles from JON_HOPKINS.md and TINLICKER.md. Numbers are the documents' own; where a document leaves something open the assumption is recorded beside it. These are production grammars for original music - never melodies, harmonies or arrangements to copy.",
+  "version": 1,
+  "artists": {
+    "jon_hopkins": {
+      "source": "JON_HOPKINS.md",
+      "prompt": "jon-hopkins",
+      "style": "hopkins_journey",
+      "motto": "Sketch quickly. Find the emotional seed. Transform it beyond the obvious. Commit. Build a world around it.",
+      "tempo": { "range": [118, 130], "default": 126, "$assumption": "JON_HOPKINS.md gives no tempo; the range brackets his techno-derived work and the default sets the bar lengths of the blueprint timings." },
+      "decision_hierarchy": ["emotion", "musical identity", "trajectory", "source character", "transformation", "rhythm", "space", "detail", "cleanliness", "loudness"],
+      "poles": {
+        "beauty": ["soft piano", "simple melodic cells", "suspended harmony", "open fifths", "slowly changing chords", "warm analogue-style tones", "environmental recordings", "wide reverberant space", "gentle high-frequency air", "slowly evolving pads", "long transitions", "imperfection"],
+        "discomfort": ["saturation", "clipping", "crushed transients", "bit reduction", "resonant filtering", "unstable modulation", "dense feedback", "pitch deformation", "harsh upper-mid texture", "noise", "abrupt rhythmic pressure", "asymmetrical loops", "unexpected negative space"]
+      },
+      "motif_notes": [3, 5],
+      "harmony_devices": ["add9", "sus2", "sus4", "open fifths", "octaves", "fourths", "major/minor ambiguity", "modal harmony", "slow bass-note changes beneath repeated upper notes", "gradual reharmonisation of a static motif"],
+      "harmonic_patience": "Avoid constant chord changes; a section gains power from harmonic patience.",
+      "groove_layers": ["fundamental pulse", "body", "irregular organic hits", "high-frequency motion", "ghost detail", "distorted rhythmic atmosphere"],
+      "orbiting_percussion": { "main_steps": 16, "loop_steps": [15, 12, 7, 10], "note": "The exact lengths are not sacred; layers should only fully realign after a long period." },
+      "modulation_cycle_bars": { "filter": 4, "pan": 5, "texture_gain": 7, "delay_feedback": 3 },
+      "microtiming": "A few ms of push/pull on organic layers; the kick and essential low end stay stable.",
+      "kick_chain": ["EQ Eight", "Saturator", "Drum Buss", "Utility"],
+      "bass_chain": ["instrument", "Auto Filter", "Saturator", "EQ Eight", "Compressor", "Utility"],
+      "bass_principle": "The bass is a musical event: it may glide, bend, distort, change pulse rate, shift octave, disappear for long periods and return transformed. Keep the deepest component clean; let character live higher up.",
+      "states": ["Orientation", "Hypnosis", "Pressure", "Destabilisation", "Collapse", "Release", "Transcendence", "Integration"],
+      "arc": ["beauty", "repetition", "subtle instability", "rhythmic pressure", "distortion", "saturation / chaos", "rupture", "clarity"],
+      "width_trajectory": { "intro": "narrow", "development": "moderate", "build": "wider", "climax": "extremely wide upper layers", "release": "sudden narrow focus", "resolution": "natural open stereo" },
+      "evolution_window_bars": [8, 32],
+      "hopkins_test": {
+        "source": ["Does at least one important sound have a non-obvious origin?", "Is there some real or human imperfection?"],
+        "motion": ["Does the sound change over time?", "Do different layers move at different speeds?"],
+        "rhythm": ["Is there more internal motion than a single grid loop?", "Does the groove feel physical?"],
+        "harmony": ["Is the emotional idea clear?", "Is the harmony patient enough?"],
+        "texture": ["Are clean and damaged sound both present?", "Is the damage purposeful?"],
+        "space": ["Are there distinct depth planes?", "Does width evolve?", "Are some important elements still intimate?"],
+        "arrangement": ["Is there a journey?", "Does each major section have a reason to arrive?", "Do transitions grow from existing material?"],
+        "contrast": ["Is there comfort and discomfort?", "Is there restraint before intensity?", "Is there release after pressure?"],
+        "originality": ["Does the track sound like an original work rather than a recreation of a specific Jon Hopkins record?"]
+      },
+      "diagnostics": {
+        "too generic": ["core source is just a preset", "nothing resampled", "no real-world material", "textures too clean", "all loops the same length", "every transition a standard riser", "melody over-written"],
+        "too clean": ["parallel saturation", "print and repitch", "noisy room layer", "degraded reverb return", "clipped transient layer", "distorted full-mix ghost", "field recording", "feedback texture"],
+        "muddy": ["too many long reverbs", "reverb sub energy", "overlapping low-mid pads", "stereo bass", "distorted layers stacked in 150-500 Hz", "full-mix resamples masking the direct signal"],
+        "flat": ["no long-range automation", "everything at the same width", "constant reverb amount", "no density changes", "no dynamic contrast", "bass never leaves", "distortion never leaves", "no silence or negative space"],
+        "techno but not hopkins": ["more emotional harmony", "more transformed acoustic material", "more environmental detail", "longer transition logic", "more resampled intermediate states", "subtler internal polyrhythm", "greater contrast between intimacy and violence"],
+        "ambient but not hopkins": ["clearer pulse", "stronger physical low end", "hidden rhythmic cycles", "sharper contrast", "moments of abrasive processing", "stronger narrative arc", "transitions caused by existing material"]
+      },
+      "improvement_priority": ["arrangement", "source sound", "resampling", "rhythm", "transition design", "automation", "mix cleanup", "mastering"],
+      "anti_patterns": ["sidechained supersaws", "random glitch plugins", "generic melodic techno", "endless arpeggiators", "giant reverb on everything", "constant distortion", "a four-on-the-floor kick plus pretty pad", "preset granular textures", "cinematic risers every 16 bars", "excessive mastering loudness", "lifeless quantisation", "copying the arrangement of Open Eye Signal", "copying the harmony of Emerald Rush"],
+      "references_unresolved": ["https://www.youtube.com/watch?v=9YcXAYw5dms", "https://www.youtube.com/watch?v=zTa7k5KJI9c", "https://www.youtube.com/watch?v=9FEpsltb6zY", "https://www.youtube.com/watch?v=ig-Mt6N22Vg", "https://www.youtube.com/watch?v=zAtj06KxuT8", "https://www.youtube.com/watch?v=Jy_Y2DO4i8A"]
+    },
+    "tinlicker": {
+      "source": "TINLICKER.md",
+      "prompt": "tinlicker",
+      "style": "tinlicker",
+      "motto": "Write a strong song first. Then make the production reveal it gradually.",
+      "tempo": { "range": [122, 126], "default": 124 },
+      "hierarchy": ["emotional chord movement", "bass movement", "kick/bass groove", "primary melodic motif", "arrangement trajectory", "vocal or human focal point", "atmospheric depth", "percussion character", "detailed sound design", "mastering loudness"],
+      "chords_per_progression": [2, 4],
+      "harmony": {
+        "modes": ["natural_minor", "dorian", "lydian (occasional brightness)"],
+        "colour": ["open fifths", "minor 7ths", "major 7ths", "add9", "sus2", "sus4", "pedal tones", "common tones", "inversions"],
+        "target": "The listener feels the harmony immediately but cannot say why it feels bittersweet."
+      },
+      "bass_motion": ["rising scale motion under sustained harmony", "inverted chords", "root -> second -> third movement", "pedal note beneath changing upper harmony", "bass arriving on the chord root after an anticipatory passing note"],
+      "bass_rhythm": ["offbeat notes", "syncopated 1/8 movement", "held note followed by a short answer", "pickup notes before the next chord", "one octave jump at phrase boundaries", "a repeated rhythm with changing pitches", "sparse note density with strong groove"],
+      "bass_layers": { "sub": "mono sine/triangle, tightly controlled length", "character": "saw/square/pulse, mild saturation, may be slightly wider above the low bass" },
+      "motif_notes": [3, 6],
+      "kick_bass": ["Treat kick and bass as one system: make the combined low end huge, not each part.", "The kick tail must not fill the gap before the next bass event: long bass, shorter kick; long subby kick, shorter bass.", "Sidechain with enough ducking for unmistakable separation, then back off until the pump is not cartoonish.", "A ghost sidechain trigger can keep the pump through transitions where the kick stops - deliberately, not by habit."],
+      "returns": ["A short room", "B main hall", "C long atmosphere", "D tempo delay", "E parallel character"],
+      "humanise_ms": [2, 10],
+      "humanise_never_ms": 40,
+      "mix_order": ["balance", "kick/bass relationship", "vocal or lead focus", "midrange separation", "drum clarity", "depth", "stereo field", "automation", "bus processing", "loudness"],
+      "tests": {
+        "sixteen_bar": ["what entered?", "what left?", "what changed?", "what became brighter or darker?", "what increased tension?", "what released tension?", "what is the listener waiting for?"],
+        "eight_bar_micro": ["percussion fill", "bass pickup", "chord inversion", "vocal fragment", "reverb throw", "kick dropout", "hat opening", "arp change", "filter motion"],
+        "drop": ["What was removed immediately before the drop?", "What low-frequency information returns?", "Which single element is the emotional payoff?", "Which layers are held back until bar 5 or 9?", "Is the kick/bass impact obvious at low monitoring volume?"],
+        "breakdown": ["Would the breakdown still work with only chord/pad, one motif and one vocal or texture?"]
+      },
+      "mix_audit": ["kick and bass are individually clear", "kick and bass become stronger together", "low bass is mono-compatible", "primary hook is obvious", "no unnecessary competing melody", "percussion has movement", "pads do not cloud the low mids", "reverb returns are EQ'd", "important vocals remain intelligible", "arrangement changes meaningfully over time", "breakdown has genuine contrast", "drop has physical impact", "stereo image survives mono", "top end is not brittle", "automation is audible but not gimmicky", "master retains transient movement"],
+      "anti_patterns": {
+        "generic melodic-techno overload": { "symptoms": ["huge saw stack", "rumble kick", "nonstop 1/16 arp", "giant cinematic breakdown", "predictable drop"], "fix": ["simplify", "increase groove", "reduce layers", "make harmony more intimate", "introduce organic texture", "create dry/wet contrast"] },
+        "anjunadeep wallpaper": { "symptoms": ["pretty pad", "soft kick", "anonymous bass", "lots of reverb", "no hook"], "fix": ["stronger bass movement", "more defined motif", "more confident kick", "shorter foreground sounds", "more arrangement contrast"] },
+        "trance creep": { "symptoms": ["supersaw chords", "excessive uplift", "snare roll", "huge riser", "full-spectrum drop"], "fix": ["reduce unison", "shorten envelopes", "darken top end", "bass groove instead of wall-of-sound", "preserve intimacy"] },
+        "tech-house creep": { "symptoms": ["vocal gimmick", "bass dominates harmony", "minimal emotional development", "dry percussion loop carries the track"], "fix": ["strengthen chords", "introduce an emotional motif", "long-range automation", "use atmosphere"] },
+        "muddy emotional mix": { "symptoms": ["every instrument has long reverb", "pad occupies 150-800 Hz", "bass tail overlaps kick", "vocal lacks foreground position"], "fix": ["shorten sources", "high-pass/shape effects", "shared reverbs", "dry focal points", "simplify layers"] }
+      },
+      "decision_rules": {
+        "boring": ["bass variation", "automation", "subtraction", "percussion response", "octave change", "reverb/delay change"],
+        "too busy": ["secondary melody", "duplicate pad layer", "unnecessary percussion", "permanent FX", "redundant bass harmonic layer"],
+        "lacks emotion": ["chord inversion", "bass motion", "top-note melody", "vocal texture", "breakdown contrast"],
+        "lacks power": ["kick", "bass envelope", "phase", "sidechain", "arrangement contrast", "transient preservation"],
+        "cheap": ["over-bright synths", "stock presets left unchanged", "identical reverb on every track", "static velocities", "excessive quantisation", "too many layers", "weak low-end balance", "no atmospheric depth"]
+      },
+      "drop_impact_order": ["remove more immediately before it", "improve kick/bass", "delay one supporting layer until bar 5", "shorten foreground synths", "widen only upper layers", "reduce breakdown sub energy", "automate reverb tail into silence", "add only one transition impact if still needed"],
+      "report_format": ["Changed", "Why", "Listen for", "Next highest-value move"],
+      "finish_rule": "Then remove at least 20% of what you initially added.",
+      "references_unresolved": ["https://www.youtube.com/watch?v=hBA_InIC-cg", "https://www.youtube.com/watch?v=cCcmc_fHCoM", "https://www.youtube.com/watch?v=Vd31jAf1gEY", "https://www.youtube.com/watch?v=tj4zPeLvz7Y", "https://www.youtube.com/watch?v=0b9TbpYspEI"]
+    }
+  }
+}
