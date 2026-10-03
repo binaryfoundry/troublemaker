@@ -75,3 +75,33 @@ describe('shortlist', () => {
     expect(found.shortlist.every((c) => !c.name.endsWith('Kick'))).toBe(true);
   });
 });
+
+describe('context-aware ranking', () => {
+  const sample = (name: string, tailMs: number, attackMs: number, subDb = -2) => ({
+    path: name, relative: `Pack/${name}`, name, role: 'kick', kind: null, loop: false, key: null, bpm: null,
+    attackMs, tailMs, subDb, brightDb: -30, centroidHz: 70, widthDb: -40, pitchHz: null, note: null,
+  });
+
+  it('rejects a kick whose tail runs into the bass, however deep it is', async () => {
+    const { rankSamples } = await import('../../agent/src/sound-selection.js');
+    const brief = soundBrief('kick', { character: ['deep'] });
+    const ranked = rankSamples([sample('Long Deep.wav', 556, 4, -1), sample('Short Deep.wav', 110, 6, -2)], brief, { maxTailMs: 118 });
+    expect(ranked[0]!.name).toBe('Short Deep.wav');
+    expect(ranked[1]!.why.join(' ')).toMatch(/runs past 118 ms/);
+  });
+
+  it('rejects a sound that cannot speak within the part\u2019s notes', async () => {
+    const { rankSamples } = await import('../../agent/src/sound-selection.js');
+    const brief = soundBrief('kick');
+    const ranked = rankSamples([sample('Slow.wav', 100, 130), sample('Fast.wav', 100, 5)], brief, { maxAttackMs: 41 });
+    expect(ranked[0]!.name).toBe('Fast.wav');
+  });
+
+  it('maps library paths to the Places Live lists', async () => {
+    const { placeResolver } = await import('../../bridge/src/workflows.js');
+    const client = { post: async () => ({ items: [{ name: 'EDM Tips Creative Toolkit' }] }) };
+    const resolve = await placeResolver(client, { root: 'D:/Samples', place_name: 'Samples' });
+    expect(resolve('EDM Tips Creative Toolkit/Drums/Kicks/k.wav')).toEqual(['EDM Tips Creative Toolkit', 'Drums', 'Kicks', 'k.wav']);
+    expect(resolve('Other Pack/k.wav')).toEqual(['Samples', 'Other Pack', 'k.wav']);
+  });
+});

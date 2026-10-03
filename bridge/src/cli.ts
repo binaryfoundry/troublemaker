@@ -135,7 +135,7 @@ Arrangement (agent/knowledge/styles.json):
   ableton-agent drums write <genre> --track <id> [--slot n] [--bars n] [--phrase] [--energy e]
                   [--variant v] [--swing 50-75] [--laid-back] [--humanize] [--chance] [--seed n]
   ableton-agent samples scan [folder]       Measure the local sample library (cached)
-  ableton-agent samples pick <role> [--genre g] [--character short,round] [--key F] [--loops]
+  ableton-agent samples pick <role> [--genre g] [--character short,round] [--key F] [--loops] [--pair <bass track>] [--part <track>]
   ableton-agent arrangement plan <style> [--roles kick,bass,...]   Sections, energy, roles, checks
   ableton-agent arrangement build <style> [--map kick=12,bass=15,...] [--replace] [--dry-run]
       Lay each track's slot-0 loop across the sections its role plays in (Live 11+).
@@ -706,6 +706,8 @@ async function samples(argv: string[]): Promise<number> {
   const [genre] = takeOption(args, '--genre');
   const [character] = takeOption(args, '--character');
   const [key] = takeOption(args, '--key');
+  const [pair] = takeOption(args, '--pair');
+  const [part] = takeOption(args, '--part');
   const [sub, target] = args;
   if (sub === 'scan') {
     const folder = target ?? sampleLibraryConfig()?.root;
@@ -719,9 +721,10 @@ async function samples(argv: string[]): Promise<number> {
   }
   if (sub !== 'pick' || !target) throw new Error('Usage: samples scan [folder] | samples pick <role> [--genre g] [--character a,b] [--key F] [--loops]');
   const brief = soundBrief(target, { genre, character: character?.split(',').map((w) => w.trim()) });
-  const found = await shortlistLocalSamples(brief, { root: key, loops });
+  const context = pair || part ? { pairTrackId: pair ? parseInteger('--pair', pair) : undefined, partTrackId: part ? parseInteger('--part', part) : undefined } : undefined;
+  const found = await shortlistLocalSamples(brief, { root: key, loops, client: { post }, context });
   if (!found) throw new Error('No sample library: set "root" in config/sample-library.json.');
-  process.stdout.write(`${brief.need}\n`);
+  process.stdout.write(`${brief.need}\n${found.context.map((n) => `  context: ${n}\n`).join('')}`);
   for (const s of found.samples) {
     process.stdout.write(`  ${s.score.toFixed(1).padStart(5)}  ${s.name.padEnd(40)} tail ${String(s.tailMs).padStart(4)} ms  attack ${String(s.attackMs).padStart(3)} ms  sub ${s.subDb} dB${s.transpose !== null ? `  transpose ${s.transpose}` : ''}\n         ${s.why.join('; ')}\n`);
   }

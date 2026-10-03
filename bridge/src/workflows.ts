@@ -450,16 +450,95 @@ export function sampleLibraryConfig(): SampleLibraryConfig | null {
   return config.root ? { root: config.root, place_name: config.place_name ?? 'Samples' } : null;
 }
 
+/**
+ * Browser paths for library files, from the Places Live actually lists: the
+ * library root itself, or folders inside it added one by one.
+ */
+export async function placeResolver(client: LiveClient | null, config: SampleLibraryConfig): Promise<(relative: string) => string[]> {
+  let places: string[] = [];
+  if (client) {
+    try {
+      places = ((await client.post('live.browse', { category: 'user_folders' })) as { items: Array<{ name: string }> }).items.map((i) => i.name);
+    } catch {
+      // Live not reachable: fall back to the configured name.
+    }
+  }
+  return (relative: string) => {
+    const parts = relative.split('/');
+    if (places.includes(parts[0]!)) return parts;
+    if (places.includes(config.place_name)) return [config.place_name, ...parts];
+    return [config.place_name, ...parts];
+  };
+}
+
+export interface SampleContext {
+  /** Kick: the bass track whose notes the kick tail must clear. */
+  pairTrackId?: number;
+  /** The track the sample will play on: its note lengths bound the tail. */
+  partTrackId?: number;
+}
+
+/** Tail limits from the part: a kick must end before the bass answers; a pulse wants a short sound. */
+export async function contextTails(client: LiveClient, role: string, context: SampleContext): Promise<{ maxTailMs?: number; minTailMs?: number; maxAttackMs?: number; notes: string[] }> {
+  const notes: string[] = [];
+  const { bpm } = (await client.post('live.get_tempo')) as { bpm: number };
+  const ms = (beats: number) => (beats * 60000) / bpm;
+  const read = async (track_id: number) =>
+    ((await client.post('live.get_notes', { track_id, clip_slot: 0 })) as { notes: Array<{ start?: number; start_time?: number; duration: number }> }).notes
+      .map((n) => ({ start: n.start ?? n.start_time ?? 0, duration: n.duration }));
+  let maxTailMs: number | undefined;
+  let minTailMs: number | undefined;
+  let maxAttackMs: number | undefined;
+  if (context.pairTrackId !== undefined && role === 'kick') {
+    const bass = await read(context.pairTrackId);
+    // The shortest distance from a beat to the next bass onset.
+    const gaps = [0, 1, 2, 3].map((beat) => {
+      const next = bass.map((n) => n.start % 4).filter((s) => s > beat + 1e-6).sort((a, b) => a - b)[0];
+      return next !== undefined ? next - beat : 1;
+    });
+    maxTailMs = ms(Math.min(...gaps));
+    notes.push(`the bass answers ${Math.round(maxTailMs)} ms after the kick, so the kick tail should end by then`);
+  }
+  if (context.partTrackId !== undefined) {
+    const part = await read(context.partTrackId);
+    if (part.length) {
+      const sorted = part.map((n) => n.duration).sort((a, b) => a - b);
+      const median = ms(sorted[Math.floor(sorted.length / 2)]!);
+      maxAttackMs = median * 0.5;
+      if (median < 400) {
+        maxTailMs = Math.min(maxTailMs ?? Infinity, median * 3);
+        notes.push(`the part plays short notes (${Math.round(median)} ms), so a long ringing sound would smear it`);
+      } else {
+        minTailMs = median * 0.5;
+        notes.push(`the part holds notes for ${Math.round(median)} ms, so the sound should sustain`);
+      }
+    }
+  }
+  return { maxTailMs, minTailMs, maxAttackMs, notes };
+}
+
 /** Measured samples from the local library ranked against a brief (scans once, then cached). */
 export async function shortlistLocalSamples(
   brief: SoundBrief,
-  options: { root?: string; limit?: number; loops?: boolean } = {},
-): Promise<{ library: string; samples: RankedSample[] } | null> {
+  options: { root?: string; limit?: number; loops?: boolean; client?: LiveClient; context?: SampleContext } = {},
+): Promise<{ library: string; samples: RankedSample[]; context: string[] } | null> {
   const config = sampleLibraryConfig();
   if (!config || !existsSync(config.root)) return null;
   const index = await scanSamples(config.root);
+  const tails = options.client && options.context ? await contextTails(options.client, brief.role, options.context) : { notes: [] as string[] };
+  const browserPath = await placeResolver(options.client ?? null, config);
   return {
     library: config.root,
-    samples: rankSamples(index.entries, brief, { limit: options.limit, root: options.root, libraryName: config.place_name, loops: options.loops }),
+    context: tails.notes,
+    samples: rankSamples(index.entries, brief, {
+      limit: options.limit,
+      root: options.root,
+      libraryName: config.place_name,
+      loops: options.loops,
+      maxTailMs: 'maxTailMs' in tails ? tails.maxTailMs : undefined,
+      minTailMs: 'minTailMs' in tails ? tails.minTailMs : undefined,
+      maxAttackMs: 'maxAttackMs' in tails ? tails.maxAttackMs : undefined,
+      browserPath,
+    }),
   };
 }

@@ -721,6 +721,8 @@ export function createMcpServer(client: McpClient): McpServer {
         limit: z.number().int().min(3).max(8).optional(),
         key: z.string().optional().describe('track key root, e.g. "F": tonal samples get a transposition to it'),
         loops: z.boolean().optional().describe('local library: loops instead of one-shots'),
+        pair_track_id: id.optional().describe('kick: the bass track - the kick tail must end before the bass answers'),
+        part_track_id: id.optional().describe('the track the sound will play: its note lengths bound the tail'),
       },
       annotations: { readOnlyHint: true },
     },
@@ -729,9 +731,16 @@ export function createMcpServer(client: McpClient): McpServer {
         const brief = soundBrief(args.role, { genre: args.genre, character: args.character, avoid: args.avoid });
         const found = await shortlistSounds(client, brief, args.limit ?? 8);
         // Measured local samples rank on transient, tail, sub, brightness and width, not just names.
-        const local = await shortlistLocalSamples(brief, { root: args.key, limit: args.limit ?? 8, loops: args.loops });
+        const local = await shortlistLocalSamples(brief, {
+          root: args.key,
+          limit: args.limit ?? 8,
+          loops: args.loops,
+          client,
+          context: { pairTrackId: args.pair_track_id, partTrackId: args.part_track_id },
+        });
         const samples = local && {
           library: local.library,
+          context: local.context,
           note: 'Load with load_sound category user_folders and the browserPath, once the library folder is a Place in Live\'s browser.',
           shortlist: local.samples.map((s) => ({
             name: s.name, browserPath: s.browserPath, score: s.score, why: s.why, transpose: s.transpose,

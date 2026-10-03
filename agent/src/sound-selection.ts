@@ -218,7 +218,20 @@ export interface RankedSample extends MeasuredSample {
 export function rankSamples(
   samples: MeasuredSample[],
   brief: SoundBrief,
-  options: { limit?: number; root?: string; libraryName?: string; loops?: boolean } = {},
+  options: {
+    limit?: number;
+    root?: string;
+    libraryName?: string;
+    loops?: boolean;
+    /** The tail must end before this (e.g. a kick before the next bass note). */
+    maxTailMs?: number;
+    /** The tail should last at least this (a sustained part needs a sustained sound). */
+    minTailMs?: number;
+    /** The sound must speak within this (a short note ends before a slow attack arrives). */
+    maxAttackMs?: number;
+    /** Map a sample's library path to its path in Live's browser. */
+    browserPath?: (relative: string) => string[];
+  } = {},
 ): RankedSample[] {
   const pool = samples.filter((s) => s.role === brief.role && (options.loops ?? false) === s.loop);
   if (!pool.length) return [];
@@ -250,10 +263,28 @@ export function rankSamples(
           why.push(`${word}: ${m} ${s[m]}`);
         }
       }
+      // Context outranks character: a tail that runs into the next note is the wrong sound.
+      if (options.maxTailMs !== undefined && s.tailMs > options.maxTailMs) {
+        const over = s.tailMs / options.maxTailMs - 1;
+        score -= 3 + 6 * over;
+        why.push(`tail ${s.tailMs} ms runs past ${Math.round(options.maxTailMs)} ms`);
+      } else if (options.maxTailMs !== undefined) {
+        score += 1;
+        why.push(`tail ${s.tailMs} ms fits before ${Math.round(options.maxTailMs)} ms`);
+      }
+      if (options.maxAttackMs !== undefined && s.attackMs > options.maxAttackMs) {
+        score -= 4;
+        why.push(`attack ${s.attackMs} ms is slower than the part's notes allow (${Math.round(options.maxAttackMs)} ms)`);
+      }
+      if (options.minTailMs !== undefined && s.tailMs < options.minTailMs) {
+        score -= 3;
+        why.push(`tail ${s.tailMs} ms shorter than the part's ${Math.round(options.minTailMs)} ms notes`);
+      }
       const name = words(s.name);
       for (const w of brief.keep) if (name.includes(w)) { score += 0.25; why.push(`named ${w}`); }
       const transpose = options.root ? transposeToKey(s.key ?? s.note, options.root) : null;
-      return { ...s, score: Math.round(score * 100) / 100, why, transpose, browserPath: [libraryName, ...s.relative.split('/')] };
+      const browserPath = options.browserPath ? options.browserPath(s.relative) : [libraryName, ...s.relative.split('/')];
+      return { ...s, score: Math.round(score * 100) / 100, why, transpose, browserPath };
     })
     .sort((a, b) => b.score - a.score)
     // The same sound filed twice under different names measures identically: show it once.
