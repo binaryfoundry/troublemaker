@@ -367,6 +367,7 @@ export function inferTrackRole(name: string): { role: string; confidence: number
     [/\b(hats?|hh|cymbals?|rides?)\b/, 'hats'],
     [/\b(percs?|percussion|shakers?|toms?|congas?|bongos?|tops?)\b/, 'perc'],
     [/\b(sub|bass|basses|808s?|reese)\b/, 'bass'],
+    [/\b(counter|counters|counter ?motif|answer)\b/, 'counter'],
     [/\b(leads?|arps?|melody|melodies|hooks?|top ?lines?)\b/, 'lead'],
     [/\b(chords?|pads?|keys|stabs?|rhodes|piano)\b/, 'chords'],
     [/\b(fx|risers?|sweeps?|impacts?|noise|atmos|ambient|textures?)\b/, 'atmosphere'],

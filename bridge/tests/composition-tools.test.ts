@@ -225,6 +225,33 @@ describe('arrangement', () => {
     expect(checkArrangement(plan).filter((f) => f.severity !== 'info')).toEqual([]);
   });
 
+  it('plans the long-form hypnotic curve measured from Cowgirl', () => {
+    const plan = planArrangement('hypnotic_long_form');
+    expect(plan.reduce((n, s) => n + s.bars, 0)).toBe(256);
+    const by = (name: string) => plan.find((s) => s.name === name)!;
+    expect(by('Build b').roles).toContain('lead');
+    expect(by('Plateau b').roles).toContain('counter');
+    expect(by('Plateau c').roles).not.toContain('chords');
+    expect(by('Plateau d').roles).toContain('chords');
+    expect(by('Breakdown').roles).not.toContain('kick');
+    expect(checkArrangement(plan).filter((f) => f.severity !== 'info')).toEqual([]);
+  });
+
+  it('lays short polymetric loops as whole copies that never spill into the next section', () => {
+    const plan = [
+      { name: 'A', startBar: 1, bars: 4, energy: 0.5, roles: ['perc'] },
+      { name: 'B', startBar: 5, bars: 4, energy: 0.5, roles: [] },
+    ];
+    const beats = arrangementCommands(plan, { perc: { track_id: 1, clip_slot: 0, length_beats: 3 } }).map((c) => c.args.beat as number);
+    expect(beats).toEqual([0, 3, 6, 9, 12]);
+    expect(Math.max(...beats) + 3).toBeLessThanOrEqual(16);
+  });
+
+  it('places a loop longer than its section once', () => {
+    const plan = [{ name: 'A', startBar: 1, bars: 4, energy: 0.5, roles: ['chords'] }];
+    expect(arrangementCommands(plan, { chords: { track_id: 2, clip_slot: 1, length_beats: 32 } }).map((c) => c.args.beat)).toEqual([0]);
+  });
+
   it('flags a break that differs from the drop only by the kick, and a final peak with nothing new', () => {
     const findings = checkArrangement([
       { name: 'Intro', startBar: 1, bars: 16, energy: 0.3, roles: ['kick', 'hats'] },

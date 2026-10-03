@@ -569,6 +569,184 @@
           "note": "remove the lead and emotional layers, simplify to groove, filters back to a DJ-friendly state"
         }
       ]
+    },
+    "hypnotic_long_form": {
+      "source": "Measured from Underworld's Cowgirl (2014 remaster, 127 BPM): a 64-bar gradual build, a long plateau at near-constant level, one late breakdown and a final stretch. The energy curve is measured; the roles are a melodic techno reading of it, not the original's parts.",
+      "tempo": [
+        124,
+        130
+      ],
+      "tempo_default": 127,
+      "priority": "One tonal centre held for minutes; development through the arpeggio's timbre, cycles and density rather than harmony",
+      "defining_idea": "an arpeggio whose cycles drift against the bar while its filter opens across the build",
+      "harmony": [
+        "natural_minor",
+        "dorian"
+      ],
+      "sections": [
+        {
+          "name": "Intro",
+          "bars": 16,
+          "energy": 0.25,
+          "roles": [
+            "kick",
+            "perc",
+            "atmosphere"
+          ],
+          "note": "kick, 3-against-4 rim, texture"
+        },
+        {
+          "name": "Build",
+          "bars": 16,
+          "energy": 0.3,
+          "roles": [
+            "kick",
+            "perc",
+            "atmosphere",
+            "hats",
+            "bass"
+          ],
+          "note": "hats and the pedal bass pulse"
+        },
+        {
+          "name": "Build b",
+          "bars": 16,
+          "energy": 0.4,
+          "roles": [
+            "kick",
+            "perc",
+            "atmosphere",
+            "hats",
+            "bass",
+            "lead"
+          ],
+          "note": "the arpeggio enters, heavily filtered"
+        },
+        {
+          "name": "Build c",
+          "bars": 16,
+          "energy": 0.55,
+          "roles": [
+            "kick",
+            "perc",
+            "atmosphere",
+            "hats",
+            "bass",
+            "lead",
+            "clap",
+            "toms"
+          ],
+          "note": "clap and the 5-step tom polymeter; the filter keeps opening"
+        },
+        {
+          "name": "Plateau",
+          "bars": 32,
+          "energy": 0.8,
+          "roles": [
+            "kick",
+            "hats",
+            "clap",
+            "perc",
+            "bass",
+            "lead",
+            "atmosphere"
+          ],
+          "note": "full groove with the open arpeggio; evolve it by automation, not parts"
+        },
+        {
+          "name": "Plateau b",
+          "bars": 32,
+          "energy": 0.85,
+          "roles": [
+            "kick",
+            "hats",
+            "clap",
+            "perc",
+            "bass",
+            "lead",
+            "counter",
+            "atmosphere"
+          ],
+          "note": "the counter-arpeggio interlocks on different cycle lengths"
+        },
+        {
+          "name": "Plateau c",
+          "bars": 32,
+          "energy": 0.85,
+          "roles": [
+            "kick",
+            "hats",
+            "clap",
+            "perc",
+            "toms",
+            "bass",
+            "lead",
+            "counter",
+            "atmosphere"
+          ],
+          "note": "toms polymeter returns under both arpeggios"
+        },
+        {
+          "name": "Plateau d",
+          "bars": 32,
+          "energy": 0.9,
+          "roles": [
+            "kick",
+            "hats",
+            "clap",
+            "perc",
+            "toms",
+            "bass",
+            "lead",
+            "counter",
+            "chords",
+            "atmosphere"
+          ],
+          "note": "harmony finally arrives over the pedal (late colour)"
+        },
+        {
+          "name": "Breakdown",
+          "bars": 16,
+          "energy": 0.5,
+          "roles": [
+            "chords",
+            "lead",
+            "counter",
+            "atmosphere"
+          ],
+          "note": "kick and bass out; arpeggios and harmony exposed"
+        },
+        {
+          "name": "Final",
+          "bars": 32,
+          "energy": 1.0,
+          "roles": [
+            "kick",
+            "hats",
+            "clap",
+            "perc",
+            "toms",
+            "bass",
+            "lead",
+            "counter",
+            "chords",
+            "atmosphere"
+          ],
+          "note": "everything, strongest"
+        },
+        {
+          "name": "Outro",
+          "bars": 16,
+          "energy": 0.3,
+          "roles": [
+            "kick",
+            "hats",
+            "perc",
+            "atmosphere"
+          ],
+          "note": "back to rhythm for the DJ"
+        }
+      ]
     }
   },
   "groove": {

@@ -251,7 +251,11 @@ export function arrangementCommands(
     for (const role of section.roles) {
       const source = sources[role];
       if (!source || source.length_beats <= 0) continue;
-      for (let beat = start; beat < end - 1e-9; beat += source.length_beats) {
+      // Loops shorter than the section go in as whole copies only, so a polymetric
+      // loop never spills into the next section; a loop as long as the section or
+      // longer is placed once at its start.
+      const whole = source.length_beats < end - start;
+      for (let beat = start; whole ? beat + source.length_beats <= end + 1e-9 : beat === start; beat += source.length_beats) {
         commands.push({
           command: 'live.place_clip_in_arrangement',
           args: { track_id: source.track_id, clip_slot: source.clip_slot, beat },
