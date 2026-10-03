@@ -9,7 +9,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { CHORD_FLOOR, pitchClass, voiceLead } from './music-theory.js';
+import { CHORD_FLOOR, pitchClass, scalePitches, voiceLead } from './music-theory.js';
 
 /** Intervals above the root for each quality, longest names first when matching. */
 const QUALITIES: Array<[string, number[]]> = [
@@ -230,4 +230,65 @@ export function checkChords(chords: VoicedChord[]): ChordFinding[] {
     }
   }
   return findings;
+}
+
+// ---------------------------------------------------------------------------
+// ERIC.md: chord rhythm, and progression by moving one voice
+// ---------------------------------------------------------------------------
+
+export type ChordRhythm = 'sustained' | 'offbeat_stabs' | 'eighth_pulse' | 'syncopated';
+
+/**
+ * The same voicings rendered as long sidechained chords, offbeat stabs, an
+ * eighth-note pulse or syncopated cells (3-3-2 style).
+ */
+export function chordRhythm(chords: VoicedChord[], rhythm: ChordRhythm = 'sustained'): {
+  length_beats: number;
+  events: Array<{ beat: number; pitch: number; duration: number; velocity: number }>;
+} {
+  const events: Array<{ beat: number; pitch: number; duration: number; velocity: number }> = [];
+  const cell = [0, 0.75, 1.5, 2.5, 3];
+  for (const chord of chords) {
+    const end = chord.beat + chord.beats;
+    const hits: Array<[number, number, number]> = [];
+    if (rhythm === 'sustained') hits.push([chord.beat, chord.beats * 0.98, 88]);
+    else if (rhythm === 'offbeat_stabs') for (let b = chord.beat + 0.5; b < end - 1e-9; b += 1) hits.push([b, 0.25, 96]);
+    else if (rhythm === 'eighth_pulse') for (let b = chord.beat; b < end - 1e-9; b += 0.5) hits.push([b, 0.35, Number.isInteger(b) ? 98 : 84]);
+    else {
+      for (let bar = chord.beat; bar < end - 1e-9; bar += 4) {
+        cell.forEach((offset, i) => {
+          const at = bar + offset;
+          const next = bar + (cell[i + 1] ?? 4);
+          if (at < end - 1e-9) hits.push([at, Math.min(next, end) - at - 0.1, i === 0 ? 100 : 88]);
+        });
+      }
+    }
+    for (const [beat, duration, velocity] of hits) for (const pitch of chord.pitches) events.push({ beat, pitch, duration, velocity });
+  }
+  return { length_beats: Math.max(...chords.map((c) => c.beat + c.beats)), events };
+}
+
+/**
+ * "Before adding a new chord, move one note inside the current voicing."
+ * Each step moves a single voice by one scale step, cycling from the top
+ * voice down, never doubling another voice; everything else holds.
+ */
+export function evolveVoicing(start: number[], steps: number, options: { root: string; scale?: string; beatsPerChord?: number; seed?: number }): VoicedChord[] {
+  const pool = scalePitches(options.root, options.scale ?? 'minor', Math.min(...start) - 12, Math.max(...start) + 12);
+  const per = options.beatsPerChord ?? 4;
+  let current = [...start].sort((a, b) => a - b);
+  const out: VoicedChord[] = [{ symbol: 'start', pitches: current, beat: 0, beats: per }];
+  let direction = (options.seed ?? 1) % 2 === 0 ? 1 : -1;
+  for (let i = 1; i <= steps - 1; i += 1) {
+    const voice = current.length - 1 - ((i - 1) % current.length);
+    const from = current[voice]!;
+    const index = pool.indexOf(pool.reduce((best, p) => (Math.abs(p - from) < Math.abs(best - from) ? p : best), pool[0]!));
+    let to = pool[index + direction] ?? from;
+    if (current.includes(to)) to = pool[index - direction] ?? from;
+    if (current.includes(to)) to = from;
+    current = current.map((p, v) => (v === voice ? to : p)).sort((a, b) => a - b);
+    out.push({ symbol: `move ${i}`, pitches: current, beat: i * per, beats: per });
+    direction = -direction;
+  }
+  return out;
 }

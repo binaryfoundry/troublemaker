@@ -9,9 +9,9 @@ import { bassPattern, bassPatternNames, checkBassline, developBar, mergeRepeats,
 import { bassFromFeel } from '../../agent/src/patterns.js';
 
 describe('bass pattern library', () => {
-  it('holds the eight BASSLINES.md patterns and the MELODIC-TECHNO.md bass', () => {
+  it('holds the BASSLINES.md, MELODIC-TECHNO.md and ERIC.md patterns', () => {
     expect(bassPatternNames()).toEqual([
-      'house_offbeat', 'house_harmonic', 'rolling_techno', 'sparse_techno', 'dnb_sub', 'dubstep_halftime_sub', 'ukg_shuffle', 'dnb_reese_upper', 'melodic_techno_syncopated',
+      'house_offbeat', 'house_harmonic', 'rolling_techno', 'sparse_techno', 'dnb_sub', 'dubstep_halftime_sub', 'ukg_shuffle', 'dnb_reese_upper', 'melodic_techno_syncopated', 'progressive_rolling', 'progressive_octave',
     ]);
     for (const name of bassPatternNames()) expect(bassPattern(name).events.length).toBeGreaterThan(0);
   });
@@ -47,6 +47,14 @@ describe('melodic techno bass', () => {
 
   it('moves into the track key from D', () => {
     expect(bassPattern('melodic_techno_syncopated', { root: 'F' }).events[0]!.pitch).toBe(41);
+  });
+});
+
+describe('progressive house basses', () => {
+  it('rolls between the kicks with short notes that do not restart into each other', () => {
+    const p = bassPattern('progressive_rolling', { root: 'F' });
+    expect(p.events.some((e) => Math.abs(e.beat - Math.round(e.beat)) < 1e-6)).toBe(false);
+    expect(checkBassline(p, { bpm: 126, kicks: [0, 1, 2, 3] })).toEqual([]);
   });
 });
 

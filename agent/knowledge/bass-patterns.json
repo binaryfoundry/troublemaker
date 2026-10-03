@@ -61,6 +61,19 @@
       "key": "D",
       "convention": "live",
       "grid": "— — D1/103 ~ — — — D1/78 — — A1/95 ~ — — — C2/82 | — — D1/106 ~ — — F1/84 — — — — C2/91 ~ — — A1/75"
+    },
+    "progressive_rolling": {
+      "genre": "progressive_house",
+      "tempo": 126,
+      "purpose": "ERIC.md: a one-note rolling pulse in the 16ths between kicks - simple, muscular and inseparable from the kick",
+      "grid": "— C2/88 C2/104 C2/94 | — C2/86 C2/106 C2/92 | — C2/88 C2/104 C2/94 | — C2/86 C2/108 C2/96",
+      "gate": 0.7
+    },
+    "progressive_octave": {
+      "genre": "progressive_house",
+      "tempo": 126,
+      "purpose": "ERIC.md: repeated root with octave displacement on the offbeat and a short answering note in the second half of the bar",
+      "grid": "— — C2/104 C3/82 | — — C2/102 — | — — C2/106 C3/84 | — G1/90 C2/100 —"
     }
   },
   "form": [

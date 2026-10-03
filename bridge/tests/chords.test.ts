@@ -105,3 +105,28 @@ describe('chord checks', () => {
     expect(checkChords(voiceProgression(chordTemplate('H01').progression)).filter((f) => f.severity === 'warn')).toEqual([]);
   });
 });
+
+describe('ERIC.md chord tools', () => {
+  it('renders one progression as sustained chords, offbeat stabs, an eighth pulse or syncopated cells', async () => {
+    const { chordRhythm } = await import('../../agent/src/chords.js');
+    const voiced = voiceProgression(['Fm', 'Db'], { beatsPerChord: 4 });
+    const starts = (r: Parameters<typeof chordRhythm>[1]) => [...new Set(chordRhythm(voiced, r).events.map((e) => e.beat))];
+    expect(starts('sustained')).toEqual([0, 4]);
+    expect(starts('offbeat_stabs')).toEqual([0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5]);
+    expect(starts('eighth_pulse')).toHaveLength(16);
+    expect(starts('syncopated')).toEqual([0, 0.75, 1.5, 2.5, 3, 4, 4.75, 5.5, 6.5, 7]);
+  });
+
+  it('moves exactly one voice by a scale step at each change, and never doubles a voice', async () => {
+    const { evolveVoicing } = await import('../../agent/src/chords.js');
+    const chain = evolveVoicing([53, 56, 60, 63], 6, { root: 'F' });
+    expect(chain).toHaveLength(6);
+    const fMinor = [5, 7, 8, 10, 0, 1, 3];
+    for (let i = 1; i < chain.length; i += 1) {
+      const a = chain[i - 1]!.pitches, b = chain[i]!.pitches;
+      expect(b.filter((p) => !a.includes(p)).length).toBeLessThanOrEqual(1);
+      expect(new Set(b).size).toBe(b.length);
+      for (const p of b) expect(fMinor).toContain(p % 12);
+    }
+  });
+});

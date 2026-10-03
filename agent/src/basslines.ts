@@ -20,6 +20,8 @@ interface BassPatternSpec {
   grid: string;
   /** Key the pattern is written in, if not the library's C. */
   key?: string;
+  /** Note length as a fraction of a 16th, when the style needs its own articulation. */
+  gate?: number;
   /** Octave naming the pattern uses: scientific (C4 = 60) by default, or Live's (C3 = 60). */
   convention?: 'scientific' | 'live';
 }
@@ -126,7 +128,7 @@ export function bassPattern(name: string, options: BassOptions = {}): Pattern & 
   const spec = k.patterns[name];
   if (!spec) throw new RangeError(`Unknown bass pattern '${name}'. Known: ${bassPatternNames().join(', ')}.`);
   const shift = (options.root ? transposeInterval(spec.key ?? k.key, options.root) : 0) + 12 * (options.octave ?? 0);
-  const bar = parseBassGrid(spec.grid, options.gate ?? k.default_gate, spec.convention ?? 'scientific').map((e) => ({ ...e, pitch: e.pitch + shift }));
+  const bar = parseBassGrid(spec.grid, options.gate ?? spec.gate ?? k.default_gate, spec.convention ?? 'scientific').map((e) => ({ ...e, pitch: e.pitch + shift }));
   const unitBeats = (spec.grid.split(/\s+/).filter((t) => t && t !== '|').length / 16) * 4;
   const sections = options.form ? k.form : ['A' as const];
   const perSection = options.form ? (options.barsPerSection ?? 2) : (options.bars ?? 1);

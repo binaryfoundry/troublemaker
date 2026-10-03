@@ -44,7 +44,7 @@ import { bassFromFeel, cycleArp, euclidean, euclideanPattern, polyrhythm } from 
 import { progression } from '../agent/src/music-theory.js';
 import { drumGenres } from '../agent/src/drums.js';
 import { checkMelody, motifMelody, templateMotif, varyMotif, type MotifVariation } from '../agent/src/melody.js';
-import { checkChords, chordKnowledge, chordTemplate, templateInKey, voiceLeadingReport, voiceProgression, type VoicedChord } from '../agent/src/chords.js';
+import { checkChords, chordKnowledge, chordRhythm, chordTemplate, evolveVoicing, templateInKey, voiceLeadingReport, voiceProgression, type ChordRhythm, type VoicedChord } from '../agent/src/chords.js';
 import { bassPattern, bassPatternNames, checkBassline, mergeRepeats } from '../agent/src/basslines.js';
 import type { ChainState, Decision } from '../agent/src/mastering/policy.js';
 
@@ -341,6 +341,8 @@ export function createMcpServer(client: McpClient): McpServer {
         symbols: z.array(z.string()).optional().describe('chords: chord symbols, e.g. ["F#m9","Dmaj7","Aadd9","E6/9sus4"]; "Gsus4→G" resolves inside one slot'),
         template: z.string().optional().describe(`chords: CHORDS.md template ${Object.entries(chordKnowledge().templates).map(([k, t]) => `${k} ${t.style}`).join('; ')}`),
         voicing: z.enum(['triad', 'seventh', 'ninth', 'sus2', 'sus4', 'power']).optional().describe('chords from degrees'),
+        chord_rhythm: z.enum(['sustained', 'offbeat_stabs', 'eighth_pulse', 'syncopated']).optional().describe('chords: how the voicings are played (ERIC.md)'),
+        one_voice: z.boolean().optional().describe('chords: keep the first voicing and move one note per change (needs root for the scale)'),
         bars_per_chord: z.number().int().min(1).optional(),
         octave: z.number().int().min(0).max(8).optional(),
         density: z.number().min(0).max(1).optional().describe('bass'),
@@ -409,11 +411,12 @@ export function createMcpServer(client: McpClient): McpServer {
               });
               voiced = led.map((pitches, i) => ({ symbol: `degree ${(args.degrees ?? [1, 6, 3, 7])[i]}`, pitches, beat: i * beatsPerChord, beats: beatsPerChord }));
             }
+            if (args.one_voice) {
+              // ERIC.md: move one note inside the voicing instead of changing chords.
+              voiced = evolveVoicing(voiced[0]!.pitches, Math.max(2, voiced.length), { root: args.root ?? 'C', scale: args.scale, beatsPerChord, seed: args.seed });
+            }
             const length = Math.max(...voiced.map((c) => c.beat + c.beats));
-            const pattern = {
-              length_beats: length,
-              events: voiced.flatMap((c) => c.pitches.map((pitch) => ({ beat: c.beat, pitch, duration: c.beats * 0.98, velocity: 88 }))),
-            };
+            const pattern = chordRhythm(voiced, (args.chord_rhythm ?? 'sustained') as ChordRhythm);
             commands = writePattern(pattern, { ...target, bars: length / 4, createClip: true, name: 'Chords' });
             const motion = voiceLeadingReport(voiced).map((st) => `${st.from} → ${st.to}: ${st.motion} semitones, ${st.commonTones} common`).join('; ');
             const findings = checkChords(voiced);
@@ -1154,6 +1157,7 @@ export function createMcpServer(client: McpClient): McpServer {
     ['mastering', 'mastering.md', 'Club mastering practice (MIXING.md).'],
     ['drums', 'drums.md', '808/909 drum programming practice (DRUMS.md).'],
     ['chords', 'chords.md', 'Chord progressions and voice leading (CHORDS.md).'],
+    ['progressive-house', 'progressive-house.md', 'Progressive house in the Eric Prydz / Pryda tradition, originality first (ERIC.md).'],
     ['melodic-techno', 'melodic-techno.md', 'Melodic techno production practice (MELODIC-TECHNO.md).'],
     ['edm-tips', 'edm-tips.md', 'EDM Tips decision trees, guardrails and QA (EDM-TIPS.md).'],
     ['basslines', 'basslines.md', 'Bassline writing, kick/bass and low-end practice (BASSLINES.md).'],

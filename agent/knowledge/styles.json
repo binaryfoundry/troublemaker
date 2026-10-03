@@ -406,6 +406,169 @@
           "energy": 0.3
         }
       ]
+    },
+    "progressive_house": {
+      "source": "ERIC.md DJ-friendly progressive blueprint (Pryda-leaning mode): a controlled reveal - establish, hint, add, withdraw, expose, intensify, release, rebuild, peak, dissolve",
+      "tempo": [
+        124,
+        128
+      ],
+      "tempo_default": 126,
+      "priority": "Groove, tonal identity, long-form development, automation, spatial depth, contrast - only then more layers",
+      "defining_idea": "a small motif (2-5 notes) whose meaning changes through filter, register, delay and withholding",
+      "harmony": [
+        "natural_minor",
+        "dorian"
+      ],
+      "progressions": [
+        [
+          1,
+          6,
+          3,
+          7
+        ],
+        [
+          1,
+          7,
+          6,
+          7
+        ]
+      ],
+      "sections": [
+        {
+          "name": "Intro",
+          "bars": 16,
+          "energy": 0.25,
+          "roles": [
+            "kick",
+            "perc",
+            "atmosphere"
+          ],
+          "note": "utility intro: kick, filtered percussion, a tiny hint of tonal material"
+        },
+        {
+          "name": "Groove",
+          "bars": 16,
+          "energy": 0.4,
+          "roles": [
+            "kick",
+            "perc",
+            "hats",
+            "bass",
+            "atmosphere"
+          ],
+          "note": "groove identity: bass becomes clear, hats establish motion, filtered motif hint"
+        },
+        {
+          "name": "Development",
+          "bars": 16,
+          "energy": 0.5,
+          "roles": [
+            "kick",
+            "perc",
+            "hats",
+            "clap",
+            "bass",
+            "chords",
+            "atmosphere"
+          ],
+          "note": "open the filter gradually; the chord/pluck cell appears"
+        },
+        {
+          "name": "Development b",
+          "bars": 16,
+          "energy": 0.6,
+          "roles": [
+            "kick",
+            "perc",
+            "hats",
+            "clap",
+            "bass",
+            "chords",
+            "atmosphere"
+          ],
+          "note": "second harmonic layer, FX punctuation at 8/16-bar boundaries, more of the motif - not full brightness"
+        },
+        {
+          "name": "Main A",
+          "bars": 32,
+          "energy": 0.8,
+          "roles": [
+            "kick",
+            "perc",
+            "hats",
+            "clap",
+            "bass",
+            "chords",
+            "atmosphere"
+          ],
+          "note": "first payoff: full kick/bass and main groove layers; the lead is not revealed yet"
+        },
+        {
+          "name": "Breakdown",
+          "bars": 16,
+          "energy": 0.35,
+          "roles": [
+            "chords",
+            "atmosphere"
+          ],
+          "note": "remove the low end, keep one tonal anchor, lengthen the reverb, expose the harmony"
+        },
+        {
+          "name": "Breakdown b",
+          "bars": 16,
+          "energy": 0.5,
+          "roles": [
+            "chords",
+            "atmosphere",
+            "lead"
+          ],
+          "note": "a tiny original lead cell enters near the end of the breakdown"
+        },
+        {
+          "name": "Rebuild",
+          "bars": 16,
+          "energy": 0.65,
+          "roles": [
+            "perc",
+            "hats",
+            "clap",
+            "chords",
+            "lead",
+            "atmosphere"
+          ],
+          "note": "rhythm returns in stages; noise and risers support but are not the build; low end held back"
+        },
+        {
+          "name": "Main Peak",
+          "bars": 32,
+          "energy": 1.0,
+          "roles": [
+            "kick",
+            "perc",
+            "hats",
+            "clap",
+            "bass",
+            "chords",
+            "lead",
+            "atmosphere"
+          ],
+          "note": "strongest bass, full chord/pluck relationship, the lead, brighter percussion"
+        },
+        {
+          "name": "Outro",
+          "bars": 16,
+          "energy": 0.3,
+          "roles": [
+            "kick",
+            "perc",
+            "hats",
+            "bass",
+            "atmosphere"
+          ],
+          "note": "remove the lead and emotional layers, simplify to groove, filters back to a DJ-friendly state"
+        }
+      ]
     }
   },
   "groove": {

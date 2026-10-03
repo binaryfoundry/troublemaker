@@ -212,6 +212,19 @@ describe('arrangement', () => {
     expect(checkArrangement(plan).filter((f) => f.severity !== 'info')).toEqual([]);
   });
 
+  it('plays the ERIC.md progressive house blueprint: lead withheld until the breakdown, everything at the peak', () => {
+    const plan = planArrangement('progressive_house');
+    const by = (name: string) => plan.find((s) => s.name === name)!;
+    expect(by('Intro').roles).toContain('kick');
+    expect(by('Main A').roles).not.toContain('lead');
+    expect(by('Breakdown').roles).not.toContain('kick');
+    expect(by('Breakdown b').roles).toContain('lead');
+    expect(by('Rebuild').roles).not.toContain('bass');
+    expect(by('Main Peak').roles).toHaveLength(8);
+    expect(plan.reduce((n, s) => n + s.bars, 0)).toBe(192);
+    expect(checkArrangement(plan).filter((f) => f.severity !== 'info')).toEqual([]);
+  });
+
   it('flags a break that differs from the drop only by the kick, and a final peak with nothing new', () => {
     const findings = checkArrangement([
       { name: 'Intro', startBar: 1, bars: 16, energy: 0.3, roles: ['kick', 'hats'] },
