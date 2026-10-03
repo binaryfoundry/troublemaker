@@ -1,795 +1,1176 @@
-# Drum-Machine Pattern Programming in Ableton Live: An Agent Guide to TR-808 and TR-909 Styles
+# Autonomous Drum-Machine Pattern Agent: Research Specification for Ableton Live, TR-808 and TR-909 Workflows
 
 ## Executive summary
 
-This guide defines an **execution-oriented method for an AI agent to design, program, vary, arrange and mix electronic drum patterns in Ableton Live**, with the Roland TR-808 and TR-909 as the primary stylistic reference points. It is deliberately version-agnostic: the core procedure relies on long-established Live concepts—MIDI clips, Drum Racks, sample playback, routing and audio effects—while features that may depend on Live edition or generation, such as per-note probability or Max for Live, are treated as optional enhancements rather than assumptions. In current Live documentation, Drum Racks provide note-specific chains, choke groups, per-chain effects and internal sends; dropping a sample onto an empty pad automatically creates a Simpler chain. citeturn15view0turn15view1
+The strongest architecture for the proposed `.md` is **not** “an AI that knows lots of drum patterns”. It should be specified as a constrained **rhythm designer, drum-machine programmer, Ableton implementer, critic and teacher**. Its internal representation should separate four layers that producers often conflate: **rhythmic structure**, **performance dynamics**, **timing/groove**, and **sound rendering**. That separation matters because the original Roland machines were not simply MIDI drum samplers: the TR-808 used an Accent level alongside its step-programming system, while the TR-909 added accented states on selected voices as well as Shuffle and Flam. Mapping all of that directly to continuous MIDI velocity loses part of the machines' programming logic. citeturn24search0turn24search1turn22view0
 
-The **808 and 909 should be understood as different rhythmic and timbral languages, not merely two sets of drum samples**. The original TR-808 synthesised its percussion through analogue circuitry, yielding deliberately electronic kicks, snares, hats, rimshots, cowbells and percussion; the TR-909 followed with a hybrid architecture, combining analogue-generated core drum sounds with early digital sampling for hats/cymbals. citeturn17search4turn17search1turn17search0 Their sequencing concepts also matter: the TR-808 established a highly influential step-programming workflow, while the TR-909 added conspicuous performance-oriented functions such as shuffle and flam. Roland's original manuals document the step-based programming model; the 808 manual, for example, illustrates a 16-step 4/4 pattern in which the quarter-note beats divide into sixteenths, while the 909 manual explicitly covers shuffle and flam. citeturn2view1turn3view1
+The agent should therefore maintain fields such as `accent`, `velocity`, `micro_offset_ms`, `probability`, `flam`, `substep` and `sound_variant` independently. MIDI velocity is the final performance/rendering layer rather than the sole representation of emphasis. This also translates particularly well to Ableton: Drum Rack gives each chain an assigned MIDI note; Simpler is optimised for one-shot playback; Sampler can switch samples by MIDI velocity and perform round-robin sample cycling; Impulse provides an eight-slot drum sampler with linked slots specifically suited to closed/open hi-hat choking; and Groove Pool modifies timing and velocity non-destructively until the groove is committed. citeturn17search0turn19view0turn19view1turn19view2turn19view3turn25view0
 
-For practical production, the useful distinction is:
+A second important design decision is to make **meter and subdivision explicit**. A phrase such as “12-step pattern” is not musically sufficient. The original TR-808 itself supported selectable pre-scales, and its manual demonstrates a 12-step measure in 3/4; it also describes a conventional 16-step 4/4 measure. Consequently, the agent should never infer that “12 steps” means one particular metre without additional metadata. citeturn21view0turn22view1 This report proposes canonical defaults—16 steps = one 4/4 bar of semiquavers, 8 steps = one 4/4 bar of quavers, 12 steps = one 4/4 bar of quaver triplets, and 6 steps = one 6/8 bar of quavers—but requires the agent to label these assumptions every time.
 
-| Reference | Rhythmic tendency | Sonic tendency | Particularly natural uses |
-|---|---|---|---|
-| **TR-808** | Sparse, syncopated, often spacious; strong relationship between kick and bass | Deep/decaying kick, synthetic snare, dry hats, rim, clap, cowbell/congas | Hip-hop, trap, electro, Miami bass and hybrid electronic styles. Roland documents the 808's foundational role in hip-hop and electro. citeturn19search2turn19search4 |
-| **TR-909** | Four-to-the-floor foundations, offbeat hats, shuffled percussion, flam/ghost detail | Punchier kick, cutting clap/snare, bright hats, crash/ride; highly effective when driven | House and techno are especially strongly associated with the 909 in Roland's historical material and production literature. citeturn17search19turn18search1turn18search8 |
-| **Modern hybrid** | Any combination; often 909 transient drums around an 808-derived low end | Layered or processed sounds rather than historical purity | Contemporary house/techno, experimental club music and modern hip-hop/trap. This is a production strategy rather than a claim about the original machines. |
+Research on groove also argues against a simplistic “more humanisation = more groove” policy. Witek and colleagues found an inverted-U relationship in which medium degrees of syncopation produced the strongest reported pleasure and desire to move. Senn and colleagues found that fully quantised and originally performed timing could both receive high groove ratings, while exaggerated microtiming reduced ratings; expert listeners were especially sensitive to such manipulations. citeturn17search3turn23search0 The agent should therefore prefer **controlled syncopation, stable metric anchors and small intentional deviations** to indiscriminate random timing.
 
-An expert agent should work in the following order:
+For Ableton Live, the recommended target is **Live 12**, with Push 3 support. Live 12 includes clip-based MIDI Transformations and Generators, with Rhythm able to generate patterns of up to 16 steps, while Velocity Shaper and Euclidean are included Max for Live MIDI Tools in Live Standard and Suite. Push 3 provides Drum Rack sequencing, 16 Velocities, variable step resolution, per-note velocity and microtiming editing, Repeat for rapid notes, and selective drum-pad quantisation. citeturn18search38turn25view2turn25view1turn26view0turn26view2
 
-**groove intent → pattern skeleton → sound selection/tuning → dynamics/accent → microtiming → variation → routing/processing → arrangement → validation.**
+**Critical source limitation:** the request refers to nine supplied YouTube URLs, but the URL strings themselves are not present in the conversation material accessible to this research pass. Their titles, techniques and timestamps are therefore **unspecified and cannot legitimately be reconstructed or fabricated**. The specification below reserves nine dataset records for those videos and defines exactly how they should be incorporated once the URLs are available. No purported YouTube timestamp in this report is invented.
 
-That order matters. A weak rhythm rarely becomes convincing merely through aggressive compression or saturation. Conversely, a very simple four-to-the-floor pattern can become compelling through small differences in velocity, sample decay, swing, ghost notes and arrangement. House examples from Ableton and Attack demonstrate how basic quarter-note kicks, backbeat claps and offbeat hats can form a complete rhythmic foundation, while techno examples show how a similarly simple 909 skeleton acquires movement through ghosts, saturation and timing differences. citeturn18search0turn18search1turn18search2
-
-**Agent success criterion:** after receiving a request such as “make a dirty 909 warehouse-techno groove” or “make a sparse electro 808 pattern”, the agent should be able to produce a playable MIDI design, state its tempo and loop length, map each instrument, specify velocities and microtiming, construct an appropriate Drum Rack, provide processing/routing instructions, create variations, and explain what to change when the result sounds weak, crowded, robotic or stylistically wrong.
-
-## Learning objectives, competencies and environment
-
-By the end of this guide, the agent should be competent in five connected areas: **rhythm construction, drum-machine idiom, Ableton execution, sonic treatment, and musical variation**. These competencies are more important than reproducing any particular historical pattern exactly.
-
-**Rhythm construction.** The agent should translate musical language into a step grid. In 4/4 on a sixteenth-note grid, use this invariant:
+The recommended filename is:
 
 ```text
-Beat:        1              2              3              4
-16th step:   1  2  3  4 |  5  6  7  8 |  9 10 11 12 | 13 14 15 16
-Subdivision: 1e &  a    |  2e &  a    |  3e &  a    |  4e &  a
+drum-machine-pattern-agent.md
 ```
 
-Therefore:
+Its central operating principle should be:
 
-```text
-Quarter-note kick: 1, 5, 9, 13
-Backbeat 2 & 4:    5, 13
-Offbeat eighths:   3, 7, 11, 15
-Eighth notes:      1, 3, 5, 7, 9, 11, 13, 15
-Sixteenths:        1–16
-```
+> Generate the simplest metrically convincing pattern first; establish anchors and dynamics; add groove deliberately; create controlled variations; translate them into reproducible Ableton/MIDI instructions; then self-evaluate before delivery.
 
-This mapping directly corresponds to the classic 16-step programming logic documented for the TR-808. citeturn2view1
+## Agent charter and required knowledge
 
-**Drum-machine idiom.** The agent should know when to use sparse 808 syncopation versus the stronger four-to-the-floor grammar associated with 909 house and techno, but must not treat genre conventions as rigid laws. Roland's histories trace the 808 through hip-hop and electro and the 909 through house/techno; actual records frequently hybridise machines, samples and processing. citeturn19search2turn17search19
+**Primary goal.** The agent should autonomously design, explain, transform, diagnose and implement electronic drum patterns while remaining explicit about musical assumptions and technical constraints. It should be able to answer both creative requests—“make me a rolling 909 groove with a restrained fill”—and implementation requests—“turn this pattern into a Drum Rack clip with the hats on MIDI 42/46 and show me how to perform it on Push”.
 
-**Ableton execution.** The agent must be able to turn a textual pattern into a MIDI clip, assign samples to Drum Rack pads, shape one-shots with Simpler or more complex sample sets with Sampler, construct choke relationships, use Groove Pool timing, set note velocities/probabilities where supported, and route individual chains or whole drum groups for processing. Ableton documents all of these as native workflows; Simpler's One-Shot mode is specifically designed for monophonic drum hits and short sampled phrases. citeturn15view0turn20view2turn20view1
+The agent's output contract should normally contain:
 
-**Sound treatment.** The agent should distinguish corrective processing from creative processing. EQ should solve spectral conflicts; saturation should deliberately alter harmonics/transients; compression should control dynamic relationships or glue groups; sidechain compression should create space when the kick and bass compete. Ableton explicitly describes Compressor sidechaining as a method for making bass or mixes move out of the way of a kick, while Drum Buss combines distortion, transient shaping and low-end enhancement for drums. citeturn15view2turn20view3
+| Layer | Required output |
+|---|---|
+| Musical context | Tempo, metre, bar count, genre/reference description and confidence |
+| Grid | Number of steps and precise subdivision |
+| Voice map | Voice name, MIDI note number, kit/source |
+| Events | Step/time, MIDI note, velocity, duration, accent state |
+| Groove | Swing model, timing offset, Groove Pool settings or explicit statement `straight` |
+| Articulation | Ghost, flam, ratchet/substep, choke, probability where applicable |
+| Variation | Base pattern plus at least one controlled derivative when requested |
+| Sound | 808/909 sound-selection and Ableton-device instructions |
+| Reproducibility | Drum Rack/Simpler/Sampler/Impulse/Push procedure |
+| Provenance | Source-backed fact versus agent-designed recommendation |
+| Self-critique | Density, anchor integrity, groove, collisions and mapping validation |
 
-**Variation and performance.** The agent should be able to turn one bar into a structured musical system rather than allowing the same loop to repeat indefinitely. Live supports groove-based timing and velocity variation, per-note probability in current versions, clip launch quantisation and Follow Actions; these mechanisms can support controlled variation without destroying the core rhythmic identity. citeturn21view0turn21view2turn13search1
+**Scope boundaries.** The core scope should cover TR-808- and TR-909-informed electronic rhythm programming, rather than pretending that all electronic drumming reduces to those two machines. The original 808 offers bass drum Level/Tone/Decay, snare Level/Tone/Snappy, tuned tom/conga voices, cymbal Tone/Decay, open-hat Decay and Accent Level. The 909 changes the bass-drum control set to Level/Tune/Decay/Attack and the snare to Level/Tune/Tone/Snappy, and provides Shuffle/Flam functions. citeturn24search0turn24search1 Those differences should be represented rather than treating “808” and “909” as interchangeable sample-pack labels.
 
-### Required environment
+The agent should **not** claim that stock Ableton processing magically reproduces an original analogue circuit. When working from an authentic one-shot recording, Simpler/Sampler controls reshape that recording; they do not recreate the source machine's electronics. Where an exact hardware-emulation claim is required, the model should distinguish between an actual Roland emulation/product and a sample-based approximation. Roland's own current software is explicitly presented as a recreation of the original machines, whereas a generic Drum Rack is fundamentally a sample/device container. citeturn24search5turn17search0
 
-The minimum environment is deliberately modest:
+**Required knowledge domains** should be encoded explicitly in the agent specification:
 
-| Component | Requirement | Agent guidance |
+| Domain | Agent must understand | Required behaviour |
 |---|---|---|
-| Ableton Live | Any edition/version containing the devices required for the chosen workflow | Do **not** assume a particular release. Check whether Drum Buss, Sampler, probability or Max for Live is available before depending on it. Use equivalent native/third-party processing when it is not. |
-| Drum sounds | 808/909 one-shots, an Ableton kit, or an instrument/plugin modelling those machines | Ableton's official **Drum Machines** Pack contains sampled classic machines as Drum Racks plus presets and MIDI clips. citeturn16search2 |
-| Monitoring | Headphones or monitors | Evaluate low-frequency decay carefully; an 808-style kick can consume substantial low-end space. |
-| Audio interface | Recommended, not conceptually mandatory | Required when recording or routing external hardware. |
-| MIDI pad/keyboard/controller | Optional | Useful for finger-drumming, velocity capture, clip launching and live automation. |
-| TR-808/TR-909 hardware or modern TR instrument | Optional | Authentic hardware is unnecessary for learning the rhythm grammar; samples or Roland's official software recreations are valid alternatives. Roland currently offers software TR-808/TR-909 instruments with DAW integration and pattern drag-and-drop. citeturn17search2turn17search0turn16search0turn16search1 |
-| Max for Live | Optional | Use only for generative/probabilistic systems not conveniently handled by standard MIDI editing. Max for Live is Ableton's integrated environment for custom MIDI/audio devices and tools. citeturn20view4 |
+| Meter and subdivision | 4/4, 3/4, 6/8, duple/triplet subdivisions, step grids | Never state a step count without metre/subdivision |
+| Backbeat and anchors | Strong beats, backbeat, offbeats, ostinati | Identify which events define the groove before altering it |
+| Syncopation | Metric expectation versus displaced emphasis | Increase complexity gradually rather than maximising it |
+| Swing/shuffle | Unequal paired subdivisions; groove templates | Separate mathematical swing ratio from Ableton control values |
+| Microtiming | Millisecond-scale deviation from grid | Apply intentionally and conservatively |
+| Dynamics | Velocity, accent, ghost notes, hierarchy | Distinguish structural accents from MIDI velocity |
+| Phrase design | Repetition, fills, turnarounds, variation | Maintain recognisability between variants |
+| Polyrhythm | Independent pulse groupings such as 3:4 | Explain common cycle and phase alignment |
+| TR-808 | Voices, Accent, pre-scale, fills, sound controls | Preserve 808-specific terminology and control logic |
+| TR-909 | Voices, per-voice accent logic, Shuffle, Flam | Support weak/accented hits and flam/substep concepts |
+| Drum Rack | Per-note chains, pads, effects and choke relationships | Build a predictable reusable map |
+| Simpler | One-Shot, Trigger/Gate, sample region, pitch/filter/envelope | Default to one-shot handling for isolated drum samples |
+| Sampler | Velocity/key/sample-select zones and round robin | Use for multisampled/dynamic kits |
+| Impulse | Eight sample slots, modulation and linked hat slots | Use when a compact eight-voice workflow is preferable |
+| MIDI effects/tools | Velocity, rhythm generation, Euclidean tools, transforms | Use generation as a starting point, not musical judgement |
+| Groove Pool | Base, Quantize, Timing, Random, Velocity, Global Amount | Keep groove non-destructive until accepted |
+| Push | Drum sequencing, 16 Velocities, Repeat, nudge/microtiming | Provide performable hardware workflow |
+| MIDI | 0–127 velocity/note/controller data and drum note maps | Prefer note numbers to ambiguous octave labels |
 
-### Internal MIDI mapping contract
+Research provides a useful policy for those musical decisions. Moderate syncopation is a better general target than either metric triviality or maximal displacement, while uncontrolled microtiming should not automatically be equated with “human feel”. citeturn17search3turn23search0 The specification should turn that evidence into an explicit rule:
 
-For agent-generated instructions, use **MIDI note numbers as the authoritative identifier** because octave labels can differ between hosts/controllers. The following is a practical internal convention, not a claim that every 808/909 plugin uses these exact assignments:
+```text
+GROOVE POLICY
 
-| Voice | MIDI no. | Agent label |
+1. Establish a metrically legible anchor layer.
+2. Add syncopation preferentially to non-anchor voices.
+3. Use velocity hierarchy before adding random timing.
+4. Treat timing deviations as intentional musical parameters.
+5. Never "humanise everything" by default.
+6. Prefer repeatable groove templates to uncontrolled randomness.
+7. Preserve a straight reference version for A/B evaluation.
+```
+
+There is also a strong historical basis for thinking in reusable **base pattern + variation/fill** terms. The TR-808 manual describes automatic introduction/fill-in functionality and multiple programmed rhythm patterns, while current Roland TR-909 software provides eight variations per pattern together with weak hits, flams, substeps and individual last-step settings. citeturn17search1turn25view3
+
+The autonomous workflow should therefore be:
+
+```mermaid
+flowchart LR
+    A[User brief] --> B[Resolve tempo, metre and grid]
+    B --> C[Choose 808, 909 or hybrid palette]
+    C --> D[Create metric anchor pattern]
+    D --> E[Build velocity and accent hierarchy]
+    E --> F[Apply groove or swing deliberately]
+    F --> G[Add ghosts, syncopation and percussion]
+    G --> H[Generate restrained variations and fills]
+    H --> I[Translate to MIDI and Ableton workflow]
+    I --> J[Run structural and stylistic tests]
+    J -->|Fail| D
+    J -->|Pass| K[Deliver base, variants and teaching notes]
+```
+
+## Pattern grammar, groove and concrete templates
+
+The agent should use a **canonical machine-readable pattern representation** internally, even when the final answer is displayed as a friendly grid.
+
+```yaml
+pattern:
+  id: "909_house_base_A"
+  kit: "TR-909-like"
+  tempo_bpm: 122
+  meter: "4/4"
+  bars: 1
+  steps: 16
+  subdivision: "1/16"
+  swing:
+    model: "pair_ratio"
+    percentage: 54
+  events:
+    - step: 1
+      voice: "BD"
+      midi_note: 36
+      velocity: 120
+      accent: true
+      probability: 1.0
+      offset_ms: 0
+      flam: false
+    - step: 5
+      voice: "CP"
+      midi_note: 39
+      velocity: 112
+      accent: false
+      probability: 1.0
+      offset_ms: 0
+      flam: false
+```
+
+The `accent` field is deliberately separate from `velocity`. That allows a machine-style accent structure to survive even if a particular sample or instrument later requires a different velocity mapping. This is especially appropriate given the 808's Accent Level architecture and the 909's accented voice states. citeturn24search0turn24search1
+
+**Canonical grid definitions proposed for this agent:**
+
+| Label | Canonical interpretation | Step duration | Important caveat |
+|---|---|---|---|
+| 16-step | One 4/4 bar | 1/16 | Conventional drum-machine grid |
+| 8-step | One 4/4 bar | 1/8 | Not “half of a 16-step bar” unless explicitly stated |
+| 12-step | One 4/4 bar | 1/8 triplet | Historical machines may use 12 steps differently |
+| 6-step | One 6/8 bar | 1/8 | Could alternatively mean a partial triplet phrase; must be labelled |
+| 32-step | One 4/4 bar | 1/32 | Useful for hat rolls and dense fills |
+
+The reason for recording both fields is historical as well as theoretical: the TR-808 manual explicitly explains that its pre-scale determines the number of steps per beat and shows a 12-step 3/4 example, while a separate example shows 16 steps filling a 4/4 bar. citeturn21view0turn22view1
+
+### Pattern comparison matrix
+
+The following tempo, velocity and swing figures are **agent starting windows, not universal genre definitions**. Roland's own tutorial material provides useful reference points—examples include 120 BPM house, 147 BPM half-time trap, 140 BPM dubstep and approximately 170–180 BPM for modern drum and bass—but styles obviously extend beyond those demonstrations. citeturn24search2turn24search3
+
+Here, `50%` swing ratio means equal halves of the paired subdivision; `66.7%` means the first component occupies two-thirds of the pair, corresponding mathematically to a 2:1 long-short relationship. This **must not be treated as numerically identical to Live's Groove Pool Timing value or Push Swing control**, which are application-specific amount controls. Ableton defines Groove Pool Timing as the amount by which the groove affects a clip rather than as a literal long/short timing ratio. citeturn25view0
+
+| Pattern family | Suggested grid | Starting tempo | Canonical swing ratio | Typical velocity starting bands |
+|---|---:|---:|---:|---|
+| 909 house | 16 | 118–128 BPM | 50–58% | kick 108–127; clap 100–122; hats 55–105 |
+| 909 techno | 16 | 125–140 BPM | 50–55% | kick 112–127; percussion 55–105 |
+| Electro / hip-hop | 8 or 16 | 90–120 BPM | 52–62% | anchors 100–125; ghosts 30–65 |
+| 808 half-time / trap | 16/32 | 135–155 BPM | 50–56% | kick/snare 105–127; hats 45–110 |
+| Triplet shuffle | 12 | 90–130 BPM | 66.7% by construction | anchors 105–125; inner triplets 45–80 |
+| 6/8 electronic | 6 or 12 | 90–140 BPM | triplet metre | anchors 100–125; inner pulse 45–80 |
+| Jungle / DnB | 16/32 | 155–180 BPM | 50–54% | heavy hits 95–120; lighter hits 65–90 |
+
+Velocity figures are proposed defaults because sample response varies substantially. Roland's own jungle tutorial illustrates this principle rather than a fixed universal number by distinguishing lighter and stronger kick velocities at approximately 70 and 100 in that particular example. citeturn24search3
+
+**Velocity policy for the agent:**
+
+| Function | Proposed range |
+|---|---:|
+| Main kick / snare anchor | 105–127 |
+| Secondary kick | 70–100 |
+| Main clap | 95–122 |
+| Snare ghost | 25–60 |
+| Closed-hat body | 55–90 |
+| Closed-hat accent | 85–112 |
+| Open hat | 75–110 |
+| Percussion body | 55–100 |
+| Percussion ghost | 30–70 |
+
+These should be interpreted as *musical roles*, not fixed instrument limits. Sampler's Velocity Zones respond to MIDI Note On values from 1–127, making it possible to turn those bands into genuinely different recordings rather than merely louder and quieter playback. citeturn19view3
+
+**16-step 909 house anchor**
+
+This is an original template designed for the agent, not a transcription of a copyrighted recording.
+
+| Voice | MIDI | Steps with velocity |
 |---|---:|---|
-| Kick / bass drum | 36 | BD |
-| Rim | 37 | RS |
-| Snare | 38 | SD |
-| Clap | 39 | CP |
-| Closed hi-hat | 42 | CH |
-| Low tom | 45 | LT |
-| Open hi-hat | 46 | OH |
-| Mid tom | 47 | MT |
-| Crash/cymbal | 49 | CY |
-| High tom | 50 | HT |
-| Ride, especially 909 kits | 51 | RD |
-| Cowbell | 56 | CB |
-
-When using a Roland plugin, imported kit or hardware interface, **inspect its actual note map and remap deliberately rather than assuming this table**. The Roland Cloud TR software, for example, supplies defined DAW/MIDI mappings and can place its pattern data into a DAW as MIDI. citeturn16search0turn16search1
-
-## Core rhythmic and sonic model
-
-The agent should treat a programmed drum groove as the interaction of **where, how hard, how late/early, how long and how often** each voice plays.
-
-**Rhythm** is the discrete placement of events. Begin with the minimum pattern that communicates the genre before adding decoration. A 909 house beat can function with quarter-note kick, clap on beats two and four and offbeat hats; Ableton's own Learning Music material presents a classic house beat on a 16-step grid at 120 BPM, and production examples repeatedly use that same skeleton. citeturn18search0turn18search6
-
-**Quantisation** means bringing notes towards a rhythmic grid. Full grid-lock is useful when establishing the skeleton; partial quantisation or selective manual displacement is preferable when retaining played feel. Live also allows groove-based non-destructive quantisation, so an agent can audition timing treatment before committing it. citeturn21view2
-
-Do not equate **quantised** with **bad**. Many classic electronic patterns derive strength from machine precision. Humanisation should therefore answer a musical problem rather than operate as an automatic randomiser.
-
-**Swing** changes the temporal relationship between subdivisions, commonly by delaying alternating subdivisions. Swing is especially important for 909-derived house and shuffled techno, and for many hip-hop grooves. The original TR-909 specifically provides shuffle; contemporary Live offers the Groove Pool, whose timing, random and velocity parameters can reshape MIDI clips non-destructively. citeturn3view1turn21view2turn21view3
-
-A critical convention issue: some production tutorials state swing as a ratio in which **50% means straight**—for example, Attack's techno tutorial specifies 50–65% under exactly that convention. That number is **not automatically equal to a Live Groove Pool control value**. Treat percentages from external tutorials as descriptions of feel, then audition the corresponding groove in Live rather than copying numbers blindly. citeturn18search2
-
-**Velocity** is a per-note MIDI value, conventionally 1–127, but it changes audible loudness only to the extent that the instrument is velocity-sensitive. A sample with no velocity-to-volume or velocity-to-filter mapping can sound virtually identical whether its MIDI velocity is 50 or 120. Simpler provides velocity-related response controls, so configure the instrument before relying on velocity as the mechanism for accents or ghosts. citeturn20view2
-
-Use a simple working hierarchy:
+| Kick | 36 | 1:120, 5:116, 9:120, 13:116 |
+| Clap | 39 | 5:112, 13:116 |
+| Closed hat | 42 | 2:67, 4:82, 6:65, 8:88, 10:68, 12:84, 14:64, 16:92 |
+| Open hat | 46 | 3:96, 7:92, 11:98, 15:101 |
 
 ```text
-120–127  exceptional accent / fill peak
-105–119  strong principal hit
- 85–104  normal hit
- 65–84   light supporting note
- 35–64   ghost note
+step:  01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16
+BD36: 120 .. .. .. 116 .. .. .. 120 .. .. .. 116 .. .. ..
+CP39:  .. .. .. .. 112 .. .. ..  .. .. .. .. 116 .. .. ..
+CH42:  .. 67 .. 82  .. 65 .. 88  .. 68 .. 84  .. 64 .. 92
+OH46:  .. .. 96 ..  .. .. 92 ..  .. .. 98 ..  .. .. 101 ..
 ```
 
-These ranges are **production starting points, not Roland specifications**.
+The core stylistic logic is deliberately straightforward: kick anchors remain stable and the hat velocities generate internal motion. A subsequent variant should alter the non-anchor layer before deleting structural kicks.
 
-**Accent is not synonymous with velocity.** On Roland-style sequencers, accent can be a shared step-level performance behaviour. Roland's software TR-909 documentation, for example, states that its accents apply on the same step across instruments; software implementations also expose concepts including weak beats, flam, substeps, last-step settings and shuffle. citeturn16search1 In a Live Drum Rack, recreate the *musical result* with velocity, instrument gain/envelopes, MIDI modulation or separate accented samples rather than pretending generic MIDI velocity is electrically identical to the original machine's accent circuit.
+**8-step electro / hip-hop skeleton**
 
-**Pattern length** determines how often rhythmic information repeats. Begin with one bar for highly repetitive dance foundations, two bars when kick/snare syncopation needs a call-and-response shape, and four bars only when the additional information is musically justified. At a sixteenth-note resolution in Live:
+| Voice | MIDI | Steps with velocity |
+|---|---:|---|
+| Kick | 36 | 1:122, 4:88, 6:114 |
+| Snare | 38 | 3:118, 7:122 |
+| Closed hat | 42 | 1:88, 2:61, 3:76, 4:58, 5:91, 6:63, 7:80, 8:67 |
 
 ```text
-16 steps = 1 bar of 4/4
-32 steps = 2 bars of 4/4
-64 steps = 4 bars of 4/4
+step:  01 02 03 04 05 06 07 08
+BD36: 122 .. .. 88 .. 114 .. ..
+SD38:  .. .. 118 .. ..  .. 122 ..
+CH42:  88 61 76 58 91  63 80 67
 ```
 
-This is a Live-grid convention. Historical TR machines had their own scale/prescale and pattern-length mechanisms; the original 808 manual, for example, also documents extended programming with first/second pattern parts rather than simply being a DAW-style linear clip. citeturn2view1turn3view3
+**12-step triplet template**
 
-Where supported, **different per-voice lengths** can deliberately produce phasing. A 15-step percussion voice against a 16-step kick shifts its alignment on each loop. Modern Roland software explicitly implements per-instrument LAST STEP behaviour; in Live, the same musical result can be created with independent MIDI clips/tracks, clip envelopes, sequencer devices or MIDI tools. citeturn16search1
+Canonical interpretation: one 4/4 bar divided into twelve quaver-triplet positions.
 
-**Probability** should be reserved principally for ornamental notes. In current Live, the Chance Editor can assign 0–100% triggering probability to MIDI notes and can form probability groups. citeturn21view0 Recommended logic:
+| Voice | MIDI | Steps with velocity |
+|---|---:|---|
+| Kick | 36 | 1:121, 7:116, 9:87 |
+| Snare | 38 | 4:118, 10:122 |
+| Closed hat | 42 | 1:88, 2:54, 3:65, 4:84, 5:52, 6:67, 7:90, 8:55, 9:65, 10:87, 11:53, 12:69 |
 
 ```text
-Structural kick / principal snare: 100%
-Main hats:                         90–100%
-Secondary percussion:             70–95%
-Ghost notes:                      40–80%
-Fills / unusual accents:          20–60%
+step:  01 02 03 04 05 06 07 08 09 10 11 12
+BD36: 121 .. .. .. .. .. 116 .. 87 ..  .. ..
+SD38:  .. .. .. 118 .. ..  .. .. .. 122 .. ..
+CH42:  88 54 65 84 52 67  90 55 65 87  53 69
 ```
 
-Do not put a genre-defining backbeat at 50% probability unless instability itself is the artistic intention. On versions without note Chance, create deterministic A/B/C clip variations instead.
+This template does not require additional swing because the triplet subdivision itself already establishes an unequal binary subdivision relationship.
 
-**Ghost notes** are quieter supporting events whose job is motion rather than emphasis. They work especially well immediately before or after a snare, between techno kick pulses, or as quiet syncopated kicks in hip-hop. Attack's techno programming example explicitly employs off-grid ghost kicks to introduce human rhythmic nuance. citeturn18search2
+**6-step 6/8 template**
 
-**Fills** should signal form. Use them before a new 4-, 8-, 16- or 32-bar phrase, not constantly. Viable 808/909 fill materials include snare flams, tom runs, hat bursts, extra kicks, crashes, open-hat changes and one-beat dropouts. Roland's 909 sequencer heritage includes flam, while the original 808 architecture included automatic fill-related functionality. citeturn3view1turn17search3
-
-**Layering** should assign each layer a job. For example:
+| Voice | MIDI | Steps with velocity |
+|---|---:|---|
+| Kick | 36 | 1:121, 5:82 |
+| Snare | 38 | 4:118 |
+| Closed hat | 42 | 1:90, 2:55, 3:64, 4:88, 5:54, 6:67 |
 
 ```text
-Kick layer A: low body / fundamental
-Kick layer B: short mid/high transient
-Clap: width/noise body
-Snare: centre impact
-Hat A: pulse
-Hat B: occasional brighter accent
+step:  01 02 03 04 05 06
+BD36: 121 .. .. .. 82 ..
+SD38:  .. .. .. 118 .. ..
+CH42:  90 55 64 88 54 67
 ```
 
-Do not simply stack three full-band kicks at equal level. Shorten or high-pass a transient layer where appropriate, line up important attacks, listen in mono, and avoid allowing multiple long low-frequency tails to occupy the same rhythmic space. Attack demonstrates a deliberately complementary short/long kick layering strategy in a 909-style house pattern rather than using two redundant full-spectrum kicks. citeturn18search1
-
-**808 bass versus 808 kick.** In modern hip-hop/trap vocabulary, “an 808” often means a long, pitched bass-drum-derived sub/bass part rather than only an unpitched one-shot. Roland's historical writing describes how producers exploited extended 808 kick decay until it became a dominant low-frequency musical element, and modern trap practice develops this further through tuned sustained notes. citeturn19search1turn19search2 Treat such a part as **bass instrumentation**: tune it, give it deliberate note lengths, and manage its overlap with any separate kick.
-
-## Ableton Live execution workflows
-
-The following procedures are the agent's default implementation path.
-
-**Build the 808/909 Drum Rack.**
-
-1. Create a MIDI track and load **Drum Rack**.
-2. Drag the chosen kick, snare, clap, closed hat, open hat and percussion samples to deliberately assigned pads. Live automatically creates a Simpler chain when a sample is dropped on an empty pad. citeturn15view1
-3. For drum one-shots, use **Simpler → One-Shot** unless there is a reason to require looped/polyphonic playback. One-Shot mode is expressly optimised for monophonic one-shot hits and short phrases. citeturn20view2
-4. Trim silence at sample starts and set envelopes before adding effects. A groove with sloppy sample start points cannot be fixed reliably by MIDI quantisation.
-5. Put closed and open hats in the same **Drum Rack Choke group** so that triggering the closed hat can cut off the open one. Live provides sixteen choke groups and explicitly cites open/closed hats as a use case. citeturn15view0
-6. Establish useful velocity response. For ghost-note-heavy patterns, ensure a lower incoming velocity genuinely reduces the output and, where desirable, slightly changes timbre.
-7. Tune the kick and toms to the track context. For long 808-derived bass sounds, tuning is mandatory rather than decorative.
-
-**Alternative: use Sampler.** Choose Sampler when the agent needs multiple velocity layers, multisamples, more elaborate key/velocity zoning or extended modulation. Sampler is Live's more comprehensive multisampling instrument, whereas Simpler is intentionally direct. citeturn20view2 For ordinary one-shot 808/909 programming, Simpler inside a Drum Rack is usually the faster solution.
-
-**Program the MIDI clip.**
-
-Set the clip grid to sixteenth notes and select a loop length. Start with a one-bar 16-step clip for house/techno or two bars for hip-hop/trap/electro patterns requiring longer syncopation.
-
-Use a three-pass method:
+**Ghost-note rule.** A ghost is not merely “a quiet main hit”. The agent should use it as connective material around a stronger event. A practical snare turnaround might be:
 
 ```text
-Pass A — skeleton
-Kick + principal snare/clap only.
-
-Pass B — pulse
-Closed/open hats, ride or shaker.
-
-Pass C — detail
-Ghosts, percussion, flam, probability, fill notes.
+step:      11  12  13  14  15  16
+SD38 vel:  38  52 119  ..  44  ..
+role:       g   g   A   .   g   .
 ```
 
-Do not introduce groove randomisation during Pass A. First determine whether the pattern works when mechanically quantised.
+where `g = ghost`, `A = primary accent`.
 
-For a **909 house skeleton**, programme:
+**Fill rule.** A default fill should affect the final quarter or half of a phrase and explicitly restore the base groove on the next downbeat. For a 16-step bar:
 
 ```text
-BD: 1, 5, 9, 13
-CP: 5, 13
-OH: 3, 7, 11, 15
+Base ending:
+steps 13 14 15 16
+BD36  116 .. .. ..
+OH46   .. .. 101 ..
+
+Fill ending:
+steps 13 14 15 16
+BD36  116 .. .. 105
+LT43   .. 78  .. ..
+MT47   .. .. 94 ..
+HT50   .. .. .. 112
+
+next bar step 1:
+BD36  124
 ```
 
-This is the familiar four-to-the-floor/offbeat-hat structure described in house teaching and 909 production material. citeturn18search0turn18search6turn18search1
+The fill modifies the phrase boundary without obscuring the return.
 
-For an **808 electro skeleton**, keep snare/clap on 2 and 4 but syncopate the kick around them rather than putting the kick on all four beats. Attack's 808-based electro example uses 125 BPM, straight timing as its initial specification and snare/clap on every second and fourth beat. citeturn19search0
-
-**Apply swing and humanisation.**
-
-Live's Groove Pool can change timing, random timing and velocity while remaining non-destructive until the groove is committed. Low Random settings are explicitly documented as a means of adding subtle humanisation to highly quantised electronic loops. citeturn21view2
-
-Agent rule:
+**Exact 4:3 polyrhythm on a 12-position common grid**
 
 ```text
-Never randomise the entire kit equally by default.
-
-Kick:      usually least timing randomisation
-Backbeat:  small or zero timing shift unless style calls for drag
-Hats:      strongest swing candidate
-Perc:      moderate swing/randomisation
-Ghosts:    intentionally variable
+steps:        01 02 03 04 05 06 07 08 09 10 11 12
+four-pulse:    X  .  .  X  .  .  X  .  .  X  .  .
+three-pulse:   X  .  .  .  X  .  .  .  X  .  .  .
 ```
 
-For hip-hop, manually moving selected sixteenth notes later often sounds more controlled than globally swinging every event. Native Instruments' hip-hop tutorial demonstrates this relationship between off-grid sixteenths and groove. citeturn18search3
+The four-pulse layer repeats every three positions; the three-pulse layer repeats every four. The agent must describe this mathematically rather than labelling an arbitrary syncopated sequence “polyrhythmic”.
 
-**Add probability only after the deterministic pattern works.**
+**Variation budget.** As an agent default, a “subtle variation” should modify no more than roughly 10–25% of non-anchor events, with anchor deletion requiring justification. This percentage is a proposed engineering constraint rather than a result from groove research. It keeps transformation measurable and prevents a requested “variation” becoming a different beat.
 
-Where the Live installation has the Chance Editor, assign probabilities to embellishments, not to essential beats. Live's current MIDI editor can set probability per note and randomise probability values within controlled ranges. citeturn21view0
-
-A robust two-bar example:
-
-```text
-Principal snare: 100%
-Offbeat open hat: 100%
-Extra closed hat before beat 4: 65%
-Ghost snare after beat 2: 55%
-End-of-bar percussion: 40%
+```mermaid
+flowchart TD
+    A[Base pattern] --> B[Preserve anchor events]
+    B --> C[Velocity variant]
+    B --> D[Timing or swing variant]
+    B --> E[Density or ghost-note variant]
+    B --> F[Timbre or decay variant]
+    C --> G[Phrase-end fill]
+    D --> G
+    E --> G
+    F --> G
+    G --> H[Reset to recognisable downbeat]
+    H --> I[Compare against base]
+    I -->|Too different| B
+    I -->|Clear relationship| J[Approved variant]
 ```
 
-**Use per-pad and bus routing.**
+This variation policy is also consistent with the broader research finding that rhythmic complexity can have an optimum rather than simply becoming more effective as complexity rises. citeturn17search3
 
-Drum Rack chains support their own processing and can feed Rack return chains; Live also supports conventional return tracks for shared effects. citeturn15view0turn4search7 A disciplined layout is:
+## Ableton Live, Roland sound design and MIDI implementation
 
-```text
-MIDI Drum Rack
-│
-├─ Kick chain   → corrective EQ / optional saturation
-├─ Snare chain  → EQ / saturation
-├─ Clap chain   → EQ / optional short reverb send
-├─ CH/OH        → HP/tonal EQ / optional saturation
-├─ Toms/Perc    → individual shaping
-│
-├─ Rack Return A → short room/plate
-└─ Rack Return B → parallel dirt
-        │
-        ▼
-Drums Group
-→ Drum Buss
-→ broad EQ if required
-→ bus compressor only if required
-→ output
-```
+The implementation layer should distinguish **historical machine controls** from **Ableton translation**.
 
-Do not insert every processor because it appears in the template. Bypass anything that is not solving a problem or creating an intentional effect.
-
-**EQ workflow.**
-
-First fix sound selection and envelope length. Then EQ. For 909-style kicks, remove unwanted mud only after judging the kick against the bass. For hats/percussion, remove genuinely unnecessary low-frequency information rather than applying extreme high-pass filtering automatically. For layered kicks, make each layer spectrally purposeful.
-
-Attack's production tutorials repeatedly demonstrate this functional approach: low-frequency material is removed from clap or high percussion layers, while kick tone is carved only where necessary to leave space for surrounding elements. citeturn18search1turn18search2turn19search0
-
-**Saturator workflow.**
-
-Ableton's Saturator is a waveshaping processor whose curves range from relatively smooth saturation to hard digital clipping; current versions also include a Bass Shaper intended for low-end material such as 808 kicks and synth bass. citeturn20view3
-
-For an agent:
-
-```text
-A/B at matched perceived loudness.
-Increase Drive until the desired harmonics/transient density appear.
-Reduce Output to compensate for gain.
-Check low-end integrity.
-Then choose Dry/Wet if parallel treatment is preferable.
-```
-
-For an 808 bass/kick, the objective is often **audibility on smaller speakers without replacing the fundamental with fuzz**. For 909 hats/claps, saturation can increase density and aggression, but excessive distortion can make the upper spectrum abrasive.
-
-**Drum Buss workflow.**
-
-Drum Buss combines drum-oriented compression, distortion, transient shaping and low-end enhancement; its Boom section can tune a resonant low-frequency enhancement, and its Transients control changes attack/sustain behaviour. citeturn20view3
-
-A conservative starting strategy—not a fixed preset—is:
-
-```text
-Drive:       low, increase until character appears
-Crunch:      minimal unless upper drums need aggression
-Transients:  small positive move for attack, negative when tails are cluttered
-Boom:        off initially; add only when the kit genuinely lacks low body
-Dry/Wet:     use for intensity control
-Output:      gain-match the bypassed signal
-```
-
-Do not automatically apply Boom to a kit already containing a long 808 sub.
-
-**Compression workflow.**
-
-Compression is optional. Use it for one of three explicit reasons:
-
-```text
-1. Control — contain an excessively dynamic voice.
-2. Glue    — gently relate several drum layers.
-3. Effect  — deliberately reshape or pump the envelope.
-```
-
-Ableton's Glue Compressor is designed principally for group/main-bus-style cohesion, while Drum Buss also contains its own fixed drum-oriented compressor. citeturn15view2turn20view3
-
-For drum-bus glue, aim first for **small audible movement rather than maximal gain reduction**. Attack's 909 tutorial gives a real-world example of slow attack, fast release and roughly 2–3 dB bus gain reduction, but that should be treated as one production example rather than a universal setting. citeturn18search1
-
-**Kick-to-bass sidechain workflow.**
-
-1. Place Compressor on the bass/808-bass track—not on the kick.
-2. Open the sidechain controls.
-3. Select the kick or an appropriate kick routing point as the external trigger.
-4. Lower Threshold until each kick produces the required ducking.
-5. Set Ratio according to how obvious the duck should be.
-6. Use sufficiently quick attack when the bass must clear the kick transient.
-7. Set Release by groove: too short can chatter; too long can hold the bass down into the next musical event.
-8. Gain-match and listen in context.
-
-Live's documentation specifically recommends kick-triggered sidechain compression to make basslines or even larger mixes leave room for a dance-music kick. citeturn15view2
-
-A practical starting window is roughly **1–10 ms attack and 50–200 ms release**, but this is an engineering starting point from this guide, not an Ableton specification; tempo, sample decay and desired pumping should determine the final values.
-
-**Step sequencing with hardware/controllers.** If a compatible controller exposes a step sequencer, preserve the same conceptual stages: enter structural notes first, then accents/velocity, then per-step detail. With no dedicated controller, the MIDI editor is already a complete step sequencer. Do not make Push or any specific hardware a requirement.
-
-## Genre pattern templates and MIDI diagrams
-
-The templates below are **original teaching patterns**, not MIDI transcriptions of copyrighted recordings. Their purpose is to encode genre grammar into instructions an agent can execute and then modify.
-
-Legend:
-
-```text
-X = strong note, roughly velocity 110–127
-x = normal note, roughly velocity 85–109
-g = ghost/light note, roughly velocity 40–75
-o = open hi-hat
-. = rest
-R = fast roll/subdivision added at finer grid
-```
-
-Tempo ranges are deliberately broad. Ableton's canonical learning example places classic house at 120 BPM; Attack demonstrates 909 house around 120–125 BPM, techno examples around 120–132 BPM depending subtype, and an 808 electro example at 125 BPM. Native Instruments demonstrates hip-hop at 87–88 BPM and trap at 130 BPM, while noting the characteristic use of 32nd-note hat rolls in trap. citeturn18search0turn18search1turn18search2turn18search8turn18search3turn18search6turn19search0
-
-| Genre | Useful starting tempo | Pattern length | Kick programming | Snare/clap | Hi-hats | Swing / timing | Typical treatment |
-|---|---:|---:|---|---|---|---|---|
-| **House** | 120–128 BPM | 1–2 bars | Four-to-floor: 1/5/9/13; occasional low-velocity pickup | Clap/snare on 5/13 | Open hats on 3/7/11/15; closed hats add sixteenth movement | Straight to noticeably swung depending subgenre; 909 grooves often benefit from hat/percussion swing | Mild saturation, short clap reverb, controlled kick, light bus glue. Ableton and Attack examples support this core structure. citeturn18search0turn18search1turn18search5 |
-| **Techno** | 125–135 BPM | 1–2 bars | Usually four-to-floor; ghosts can anticipate/follow main kicks | 2/4 backbeat, reduced backbeat, or textural clap depending style | Repetitive 8ths/16ths; rides/open hats can mark intensity | Straight through shuffled; different parts need not share identical swing | Saturation/distortion, transient shaping, carefully controlled high end; optional send/reverb texture. citeturn18search2turn18search8turn18search9 |
-| **Hip-hop** | 80–100 BPM | 2 bars | Syncopated around backbeat and sample/bass phrasing | Strong 2/4 commonly anchors groove | 8ths or 16ths with selected swung notes | Often deliberate swing or individually late notes rather than blanket randomisation | 808-derived low end, saturation, resampling/colour; leave space for sample/vocal. citeturn18search3turn18search6turn19search4 |
-| **Trap** | 130–170 BPM, frequently perceived in half-time | 2 bars | Sparse, syncopated; kick and long “808” bass may interlock instead of duplicate each other | Half-time clap/snare commonly centred on beat 3 | 8ths/16ths plus 32nd/triplet rolls and velocity shapes | Main grid often tight; rolls and small note offsets supply detail | Tuned long 808/sub, saturation/clipping as required, rigorous low-end management and selective ducking. A 130 BPM example with beat-3 claps and 32nd hat rolls appears in NI's pattern guide. citeturn18search6 |
-| **Electro** | 120–135 BPM | 1–2 bars | Broken/syncopated rather than four-to-floor | 2/4 remains a useful anchor | Crisp 8th/16th hats; open hats strategically placed | Often fairly straight, with targeted syncopation | 808 kick/snare/clap, cowbell/rim/conga colours, restrained saturation/drive. Attack's 808 electro example uses 125 BPM and straight timing. citeturn19search0turn19search2 |
-
-### House: 909-oriented
-
-```text
-Step   01 02 03 04 | 05 06 07 08 | 09 10 11 12 | 13 14 15 16
-BD      X  .  .  . |  X  .  .  . |  X  .  .  . |  X  .  .  .
-CP      .  .  .  . |  X  .  .  . |  .  .  .  . |  X  .  .  .
-OH      .  .  o  . |  .  .  o  . |  .  .  o  . |  .  .  o  .
-CH      .  g  .  x |  .  g  .  x |  .  g  .  x |  .  g  .  x
-```
-
-Equivalent event specification:
-
-| Voice | MIDI | Steps | Suggested velocities |
-|---|---:|---|---|
-| BD | 36 | 1, 5, 9, 13 | 118, 114, 116, 114 |
-| CP | 39 | 5, 13 | 108, 112 |
-| OH | 46 | 3, 7, 11, 15 | 94, 88, 98, 91 |
-| CH | 42 | 2, 4, 6, 8, 10, 12, 14, 16 | alternate approximately 60–90 |
-
-Put OH and CH in the same choke group. Apply swing mostly to the hat/percussion information rather than shifting all four kicks. The musical foundation reflects the classic house structure documented by Ableton and 909 tutorials; the exact velocities above are original recommendations. citeturn18search0turn18search1
-
-### Techno: driven 909
-
-```text
-Step   01 02 03 04 | 05 06 07 08 | 09 10 11 12 | 13 14 15 16
-BD      X  .  .  . |  X  .  .  . |  X  .  g  . |  X  .  .  .
-SD/CP   .  .  .  . |  x  .  .  . |  .  .  .  . |  x  .  .  g
-CH      x  g  x  g |  X  g  x  g |  x  g  x  g |  X  g  x  g
-OH      .  .  o  . |  .  .  o  . |  .  .  o  . |  .  .  o  .
-```
-
-The ghost kick at step 11 should be substantially quieter and can be nudged a few milliseconds away from the grid. This follows a technique documented in Attack's analogue-techno example, where 909-based ghost kicks are deliberately shifted to introduce nuance against the rigid four-to-floor foundation. citeturn18search2
-
-At higher energy, add a 909 ride on selected eighths or quarter notes rather than rewriting the kick pattern. Early/Detroit-style 909 production examples often gain complexity from interaction among rim, snare, hats and ride while keeping the kick intentionally functional. citeturn18search8
-
-### Hip-hop: 808-oriented, two bars
-
-```text
-BAR A
-Step   01 02 03 04 | 05 06 07 08 | 09 10 11 12 | 13 14 15 16
-BD      X  .  .  g |  .  .  X  . |  .  .  g  . |  X  .  .  .
-SD      .  .  .  . |  X  .  .  . |  .  .  .  g |  X  .  .  .
-CH      x  .  x  . |  x  .  x  g |  x  .  x  . |  x  .  X  g
-
-BAR B
-Step   01 02 03 04 | 05 06 07 08 | 09 10 11 12 | 13 14 15 16
-BD      X  .  .  . |  .  X  .  . |  g  .  .  X |  .  .  g  .
-SD      .  .  .  . |  X  .  .  . |  .  .  .  g |  X  .  .  .
-CH      x  .  x  . |  x  .  x  . |  x  g  x  . |  x  .  x  g
-```
-
-Start around 88–94 BPM. Apply timing displacement primarily to selected kicks and hats, not every note. Native Instruments' hip-hop demonstration uses 88 BPM and shows how sixteenth-note swing can be created by moving specific notes rather than making the whole pattern imprecise. citeturn18search3
-
-For a more vintage feel, reduce the number of hats instead of adding more velocity randomisation. For a modern low end, extend/tune the 808 kick or use a separate long 808-bass instrument.
-
-### Trap: 808 bass plus half-time snare
-
-```text
-BAR A — 16th-note structural grid
-Step   01 02 03 04 | 05 06 07 08 | 09 10 11 12 | 13 14 15 16
-BD      X  .  .  . |  .  x  .  . |  .  .  x  . |  .  .  X  .
-CP      .  .  .  . |  .  .  .  . |  X  .  .  . |  .  .  .  .
-CH      x  .  x  . |  x  .  x  . |  x  .  x  . |  x  .  x  R
-
-BAR B
-Step   01 02 03 04 | 05 06 07 08 | 09 10 11 12 | 13 14 15 16
-BD      X  .  .  x |  .  .  .  . |  .  X  .  . |  .  .  x  .
-CP      .  .  .  . |  .  .  .  . |  X  .  .  . |  .  .  .  .
-CH      x  .  x  . |  x  .  x  R |  x  .  x  . |  x  .  x  R
-```
-
-For each `R`, temporarily change the editor grid to 1/32 or a triplet grid and replace one ordinary hat with a short roll. A reputable trap-pattern tutorial demonstrates exactly this method—two-bar eighth-note hats, beat-three claps and selective 32nd-note rolls with velocity shaping. citeturn18search6
-
-Do **not** automatically put a separate kick beneath every long 808-bass note. Decide whether the bass sound already has enough transient. When both exist, align them only when reinforcement is required and use arrangement, envelope shaping or sidechain compression to prevent uncontrolled low-frequency overlap. Ableton documents kick-triggered bass ducking as a standard dance-music use of sidechain compression. citeturn15view2
-
-### Electro: TR-808-oriented
-
-```text
-Step   01 02 03 04 | 05 06 07 08 | 09 10 11 12 | 13 14 15 16
-BD      X  .  .  x |  .  .  X  . |  X  .  .  . |  .  X  .  .
-SD      .  .  .  . |  X  .  .  . |  .  .  .  . |  X  .  .  .
-CP      .  .  .  . |  x  .  .  . |  .  .  .  . |  X  .  .  .
-CH      x  .  x  . |  x  .  x  . |  x  .  x  . |  x  .  x  .
-OH      .  .  .  o |  .  .  .  . |  .  .  .  o |  .  .  .  .
-CB      .  .  x  . |  .  .  .  . |  .  .  x  . |  .  .  .  .
-```
-
-Electro should feel **broken and syncopated without becoming rhythmically vague**. The rigid snare/clap gives the listener a reference while kick, cowbell, rim and hat material create counter-rhythm. Roland traces the 808 directly through foundational electro, and a modern Attack recreation of a Cybotron-inspired groove uses Ableton's 808 kit at 125 BPM with snare/clap on beats two and four. citeturn19search2turn19search0
-
-### Quick pattern-generation algorithm for an agent
-
-For an unfamiliar brief, use:
-
-```text
-INPUT:
-  genre
-  desired_energy ∈ {low, medium, high}
-  machine_bias ∈ {808, 909, hybrid}
-  tempo
-  loop_bars
-
-1. Choose structural grammar:
-   house/techno → start with quarter kick
-   hip-hop      → start with 2/4 backbeat, then syncopate kick
-   trap         → start with half-time snare, then kick + 808 bass
-   electro      → start with 2/4 snare and broken kick
-
-2. Add pulse:
-   8th hats → sparse/clear
-   16th hats → driving
-   offbeat OH → house/techno propulsion
-
-3. Add at most 1–3 secondary motifs.
-
-4. Establish velocity hierarchy.
-
-5. Apply swing selectively.
-
-6. Add maximum 1–2 probabilistic ideas per bar initially.
-
-7. Duplicate to variation B.
-
-8. Change only 10–25% of events in B.
-
-9. Add fill C for phrase ending.
-
-10. Process only after A/B/C groove works dry.
-```
-
-The numerical limits in this algorithm are editorial constraints designed to stop an agent from over-programming; they are not specifications of the Roland machines.
-
-## Variation, arrangement, humanisation and performance
-
-A successful drum-machine pattern should contain both **identity** and **controlled instability**. Identity comes from notes that almost never change—the principal kick/snare relationship, for example. Instability comes from hats, ghosts, fills, timbre and occasional omissions.
-
-Use an **A/A′/B/F** pattern family rather than continually generating unrelated loops:
-
-```text
-A   = canonical groove
-A′  = A + one or two subtle changes
-B   = recognisable groove with a stronger rhythmic change
-F   = fill/turnaround
-
-Example 16-bar phrase:
-
-Bars  1–4   A  A  A  A′
-Bars  5–8   A  A  B  A′
-Bars  9–12  A  A  A  B
-Bars 13–16  A  A′ B  F
-```
-
-This keeps the listener oriented while allowing phrase-level development. In Live, these can be separate Session View clips or duplicated regions in Arrangement View. Clip launch quantisation and Follow Actions can automate controlled clip transitions, including probabilistic behaviour, where the installed Live version supports those features. citeturn13search1
-
-**Vary density before replacing the fundamental rhythm.** Effective transformations include:
-
-```text
-Low energy:
-kick + closed hat only
-
-Medium:
-+ clap/snare + open hats
-
-High:
-+ ride/shaker + more active 16ths
-
-Peak:
-+ crash, stronger accents, selected fills
-
-Break:
-remove kick or low end; retain clap/percussion cue
-
-Drop:
-restore kick and bass before reintroducing all decoration
-```
-
-For 909-based techno, adding a ride is often a more effective energy change than writing a new kick rhythm. For 808 hip-hop/electro, changing one syncopated kick or open-hat placement can create a larger perceived variation because the pattern is more spacious.
-
-**Use silence as an event.** Removing the kick for the last sixteenth, eighth, quarter beat or whole bar before a section change can create a stronger arrival than adding a dense fill.
-
-**Humanisation should be hierarchical.** Live's Groove Pool can introduce random timing and groove-derived velocity, and its documentation specifically recommends low Random amounts for subtle humanisation. citeturn21view2turn21view3 Nevertheless, randomisation should follow role:
-
-| Element | Timing | Velocity | Probability |
+| Function | Original TR-808 | Original TR-909 | Suggested Ableton translation |
 |---|---|---|---|
-| Main kick | Very stable | Small variation or none | 100% |
-| Main snare/clap | Stable or deliberately laid-back | Moderate accents possible | Usually 100% |
-| Closed hats | Good swing/microtiming target | Strong alternating pattern useful | Main hats high probability |
-| Open hats | Moderately stable | Vary modestly | Some omissions can work |
-| Ghosts | Freer | Low | Ideal probability target |
-| Percussion | Freer still | Broad variation | Often 50–95% |
-| Fill notes | Intentional, not random | Phrase-dependent | Can be conditional/low probability |
+| Kick pitch/timbre | Tone, Decay | Tune, Attack, Decay | Sample selection, Transpose, playback region, optional filter/transient processing |
+| Snare | Tone, Snappy | Tune, Tone, Snappy | Transpose/filter plus velocity-layered snare/noise components |
+| Tom pitch | Tuning | Tune | Simpler/Sampler Transpose |
+| Tom length | Limited original 808 control | Decay | Playback region / envelope |
+| Open-hat length | Decay | sound-dependent control architecture | One-Shot Fade Out or suitable sample variation |
+| Accent | Global Accent Level | accented states on selected voices + Total Accent | separate `accent` field driving velocity/sample layer |
+| Shuffle | Pattern/pre-scale possibilities rather than 909-style control | dedicated Shuffle | Groove Pool or explicit note offsets |
+| Flam | manual pattern construction | dedicated Flam function | doubled event, Note Echo, or manually offset note |
 
-**Velocity is not a substitute for sample variation.** A quieter playback of one exact sample is still recognisably the same waveform. For a more organic result, layer alternative hits, subtly alter pitch/decay, or use two related samples in alternation. Conversely, historical machine character may benefit from *less* variation than acoustic-drum simulation.
+Roland's technical specifications are the authority for the hardware control sets; notably, the 808 bass drum has Level/Tone/Decay, whereas the 909 bass drum has Level/Tune/Decay/Attack. citeturn24search0turn24search1 The original 909's Shuffle/Flam page also makes clear that the first flam hit remains on the step and the second follows it, and that flam is available to the bass drum, snare and tom voices. citeturn22view0 Current Roland 909 software makes flam spacing even more explicit, providing types spanning 20–48 ms after its zero-spacing type, as well as duplet, triplet and quadruplet substeps. citeturn25view3
 
-**Microtiming should establish relationships.** A good humanisation instruction is “move this ghost snare 8 ms late relative to the backbeat”; a poor instruction is “randomise everything ±12 ms”. The latter can smear kick/clap transients and weaken groove.
+**Ableton recipe: reusable Drum Rack**
 
-**Layer timing intentionally.** A clap layered with a snare need not start at the exact same sample. Offsetting one by a few milliseconds can widen the apparent transient or create a flam-like event, but increasing the offset too far produces an obvious double hit. Native Instruments' producer material also describes slight offsets, envelope changes and small rhythmic details as useful mechanisms for house groove. citeturn7search6
+1. Create a MIDI track and load **Drum Rack**. Each Drum Rack chain is triggered by its assigned MIDI note, and a chain may contain MIDI effects, an instrument and downstream audio effects. citeturn17search0
+2. Establish the MIDI map before composing. Put kick, rim, snare, clap, hats, toms and cymbals on a fixed map and save it as part of the project.
+3. Drop an isolated drum sample on a pad. Ableton automatically uses a Simpler when a sample is dropped onto a Drum Rack pad. citeturn17search0
+4. For an isolated one-shot, use **Simpler → One-Shot → Trigger** as the starting mode. Ableton describes One-Shot as monophonic and optimised for drum hits and short sampled phrases; with Trigger active, playback continues after note release. Fade In/Out can then shape the edges. citeturn19view0
+5. Keep Warp **off as the proposed default for isolated machine one-shots** unless tempo-dependent stretching is intentionally required. This is a production recommendation rather than a hardware-authenticity requirement.
+6. Place closed and open hats in a Drum Rack choke group so the closed hat terminates the open hat. On Push, individual Drum Rack pads expose choke-group settings. citeturn26view0
+7. Map the main editable controls to Rack macros: Kick Decay, Kick Tune, Snare Tone, Snappy/Noise, Hat Decay, Percussion Tune, Drive and FX Send. The exact macro ranges depend on the chosen samples and are therefore **unspecified until a kit is selected**.
+8. Save a clean rack and create a second “performance” version containing processing. Do not overwrite the reference kit.
 
-**Fills should be contrastive.** Examples:
+**Proposed Simpler starting settings**
 
-```text
-909 house:
-bar-end snare/clap grace note → crash on next downbeat
+These are practical starting points, not official 808/909 measurements:
 
-909 techno:
-16th snare/tom run in final half-beat
-or remove final kick then hit crash/ride at next bar
+| Voice | Playback | Warp | Velocity → Volume | Additional starting rule |
+|---|---|---:|---:|---|
+| 808 long kick | One-Shot / Trigger | Off | 25–40% | Preserve full natural tail; tune to track if bass functions harmonically |
+| 909 kick | One-Shot / Trigger | Off | 25–40% | Keep transient intact; expose Tune and tail length as macros |
+| Snare/clap | One-Shot / Trigger | Off | 40–70% | Use velocity layer when timbral change matters |
+| Closed hat | One-Shot / Trigger | Off | 55–85% | Short tail; choke open hat |
+| Open hat | One-Shot / Trigger | Off | 45–75% | Keep longer tail; choke from closed hat |
+| Toms | One-Shot / Trigger | Off | 35–60% | Expose transpose/tune |
+| Cymbal | One-Shot / Trigger | Off unless intentionally warped | 35–65% | Preserve tail unless arrangement needs shortening |
 
-808 hip-hop:
-kick pickup + open hat before next one
+Because Simpler's One-Shot Trigger mode ignores note length and continues playback after the MIDI note ends, it is particularly predictable for machine-drum sequencing. Gate mode is preferable when the agent specifically wants note duration to control the release behaviour. citeturn19view0
 
-trap:
-1/32 or triplet hat roll + pitch/velocity contour
+**Ableton recipe: multisampled accent behaviour with Sampler**
 
-electro:
-tom/conga/cowbell exchange across last quarter beat
-```
+For a kit where velocity should alter *timbre*, rather than merely level:
 
-The original 909's flam capability and current Roland software's weak/flam/substep facilities make this kind of per-step detail historically consistent with the TR sequencing tradition. citeturn3view1turn16search5
+1. Collect multiple recordings of the same voice—for example soft, medium and accented 909 snare hits.
+2. Place them in **Sampler** on the same MIDI key.
+3. Open the Zone Editor and choose Velocity.
+4. As a proposed starting map, assign soft `1–55`, medium `56–95`, hard `96–127`.
+5. Add small velocity crossfades if transitions are too abrupt.
+6. When several recordings exist at the same dynamic level, enable **Round Robin** and use Forward or Other mode.
+7. Keep the logical `accent=true/false` flag in the source pattern even though it now selects a velocity/timbre zone.
 
-**Live performance.** Build clips so that the performer can remove components as well as add them. A practical Session View layout is:
+Sampler officially supports MIDI velocity zones from 1–127, and its Round Robin function cycles alternate samples to create subtle differences in repetitive sounds. citeturn19view2turn19view3 This is one of the best Live-native methods for representing machine-like accented and repeated strikes without making every repeated event sample-identical.
 
-```text
-Scene        Drums clip               Function
-INTRO        HAT_A                    establish pulse
-GROOVE_A     FULL_A                   main groove
-GROOVE_A2    FULL_A_VARIANT           subtle change
-GROOVE_B     FULL_B                   alternate kick/percussion
-BREAK        NO_KICK                  transition
-BUILD        BUILD_16                 denser hats / snare
-FILL         FILL_1BAR                one-bar turnaround
-DROP         FULL_A_RIDE              peak return
-```
+**Ableton recipe: compact eight-voice Impulse setup**
 
-Set clip-launch quantisation so rhythmic clips enter at musically safe boundaries. Live's launch system exists precisely to synchronise clip triggering to defined rhythmic intervals. citeturn13search1
-
-Map a controller to **mute/solo, Drum Buss Dry/Wet or Drive, reverb send, delay send, filter, hat decay and fill/clip launch controls**, but limit simultaneous macro changes. The goal of performance control is legible musical transformation, not continuous parameter activity.
-
-When using probability live, preserve a deterministic emergency state: a clip containing the core kick/snare pattern at 100% probability. Random systems should be something the performer can exit instantly.
-
-## Troubleshooting, template structure and recommended resources
-
-The diagnostic principle is **fix the earliest cause in the signal chain**. Do not reach for master processing when the true problem is note placement or sample selection.
-
-| Symptom | Likely cause | Corrective sequence |
-|---|---|---|
-| Groove feels robotic | Every voice has identical velocity/timing; hats lack hierarchy | First vary hat velocity; then add selective groove/microtiming; only then add tiny randomisation. Live supports separate timing/random/velocity groove controls. citeturn21view2turn21view3 |
-| Groove feels sloppy | Too much random timing or swing applied to structural drums | Remove randomisation from kick/backbeat; reduce Groove Amount; reintroduce timing changes voice by voice. |
-| House groove does not propel | Missing/off-balance offbeat hats; kick decay wrong; swing contradicts hats | Reinstate quarter kick and offbeat hats, tune hat decay/choke, then audition swing. This skeleton is documented in classic house examples. citeturn18search0turn18search6 |
-| Techno lacks power | Kick sound/envelope weak; low-end overlap; too many decorative hits | Solo kick+bass, adjust sound/decay first, restore four-to-floor stability, then add layers. 909 techno examples commonly keep the kick deliberately straightforward. citeturn18search8turn18search2 |
-| 808 is huge but indistinct | Excessively long decay; sub and kick overlap; saturation is obscuring transient | Shorten decay or note length; tune; remove unnecessary lows from competing parts; then use controlled saturation/sidechain. |
-| Trap low end clicks or blurs | Overlapping long bass notes; bad sample start/end; excessive clipping | Correct envelopes/voice behaviour first, then tune notes and manage overlaps before processing. |
-| Hats sound fake | Same sample, same velocity, same decay on every event | Alternate dynamics; use choke groups; vary decay or sample choice; swing selected events. Drum Rack choke groups are intended for hat interactions. citeturn15view0 |
-| Hats smear together | Open hat is not being choked | Put open/closed hats into same Drum Rack choke group. citeturn15view0 |
-| Snare/clap is too wide or hollow | Layer phase/timing mismatch | Solo layers; align or intentionally separate starts; test each alone and in mono; retain only layers with distinct jobs. |
-| Drum bus is louder but not better | Processing is being judged with a level bias | Match processed output level to bypass; then decide whether Drum Buss/Saturator/compression actually improves tone. |
-| Saturation destroys the sub | Too much low-frequency drive | Reduce Drive; use parallel processing or frequency-conscious saturation; current Saturator provides low-frequency-oriented shaping controls including Bass Shaper. citeturn20view3 |
-| Sidechain pumps unnaturally | Release is mismatched to tempo; threshold/ratio excessive | Reduce gain reduction and set release so bass recovers musically between kick events. Live permits using the kick as an external compressor trigger. citeturn15view2 |
-| MIDI velocity has little audible effect | Instrument has insufficient velocity response | Configure Simpler/Sampler velocity modulation or use level/filter/alternate-sample mapping. citeturn20view2 |
-| Probability ruins the beat | Structural events have been made uncertain | Restore core kick/snare to 100%; reserve Chance for ornaments. Current Live supports per-note probability and grouped probability. citeturn21view0 |
-| Project opens with missing drums | Samples remain external to the Project | Use Live's File Manager or **Collect All and Save**; Ableton says external audio is copied into `Samples/Collected`, while used Max devices are collected into `Presets`. Plug-ins themselves must still be installed separately. citeturn21view4turn21view5 |
-
-### Recommended Ableton template structure
-
-Use **one Live Project for the drum-programming system or song**, with related Set versions inside that project. Live defines a Project as the folder that keeps associated Sets, samples and presets together and supports subfolders within it. citeturn21view5
-
-A robust agent-managed project might look like:
+Impulse holds eight drum samples and provides per-sample stretching, filtering, envelopes, saturation, pan, volume and velocity/random modulation. citeturn18search1 For an eight-voice performance kit:
 
 ```text
-TR_Drum_Agent_Project/
-│
-├── TR_Drum_Agent_Template.als
-├── Sets/
-│   ├── 808_Electro_v01.als
-│   ├── 808_HipHop_v01.als
-│   ├── 808_Trap_v01.als
-│   ├── 909_House_v01.als
-│   └── 909_Techno_v01.als
-│
-├── Samples/
-│   ├── Imported/
-│   │   ├── 808/
-│   │   │   ├── Kick/
-│   │   │   ├── Snare/
-│   │   │   ├── Clap/
-│   │   │   ├── Hats/
-│   │   │   └── Perc/
-│   │   └── 909/
-│   │       ├── Kick/
-│   │       ├── Snare/
-│   │       ├── Clap/
-│   │       ├── Hats/
-│   │       ├── Toms/
-│   │       └── Cymbals/
-│   └── Collected/              ← Live may populate via Collect All and Save
-│
-├── Presets/
-│   ├── Drum_Racks/
-│   │   ├── 808_AGENT.adg
-│   │   ├── 909_AGENT.adg
-│   │   └── HYBRID_AGENT.adg
-│   ├── Audio_Effects/
-│   └── Max_MIDI/
-│
-├── MIDI/
-│   ├── House/
-│   ├── Techno/
-│   ├── HipHop/
-│   ├── Trap/
-│   └── Electro/
-│
-└── Documentation/
-    ├── kit_mapping.md
-    ├── pattern_library.md
-    └── processing_notes.md
+Slot 1  Kick
+Slot 2  Snare
+Slot 3  Clap/Rim
+Slot 4  Low Tom
+Slot 5  Mid/High Tom
+Slot 6  Percussion
+Slot 7  Closed Hat
+Slot 8  Open Hat
 ```
 
-Live's actual project-management system may create/manage certain directories itself; the hierarchy above is therefore a **logical organisational proposal**, not a requirement to override Live's automatic folder management. After moving samples or changing internal organisation outside Live, use its File Manager to confirm references. Live's documentation warns that external references can break if their source files move and provides Collect All and Save specifically to prevent this. citeturn21view5turn21view4
+Put the two hats in slots 7 and 8 and enable Link. Ableton explicitly designed this link so that triggering one of those two slots can stop the other, reproducing the closed-hat/open-hat choke relationship. citeturn19view1
 
-Inside the template Set, use a track hierarchy such as:
+**Ableton recipe: Groove Pool**
 
-```text
-DRUMS
-├── TR DRUM RACK
-├── 808 BASS            [when bass is separate from rack kick]
-├── PERC EXTRA
-├── PRINT / RESAMPLE
-└── SIDECHAIN GHOST     [optional silent trigger pattern]
+A safe agent workflow is:
 
-Returns
-├── A SHORT ROOM
-├── B LONG/FX REVERB
-├── C DELAY
-└── D PARALLEL DIRT
-```
+1. Preserve an unswung clip named `*_STRAIGHT`.
+2. Apply the desired groove to a duplicate.
+3. Set **Base** to the relevant subdivision—for example 1/16 when modelling semiquaver swing.
+4. Use Quantize to establish how much straight quantisation precedes groove processing; Ableton defines 100% as snapping notes to the Base grid before groove is added. citeturn25view0
+5. Start **Timing** at approximately `25–50%` for restrained groove; this is an agent recommendation, not an Ableton-prescribed value.
+6. Start **Random** at `0–5%`. Increase only after A/B testing. Ableton warns that Random moves voices independently, meaning notes that began together can become separated from one another. citeturn25view0
+7. Start **Velocity** at approximately `10–25` when the groove itself contains useful dynamics. Ableton's Velocity control runs from `-100` to `+100`. citeturn19view5
+8. Keep **Global Amount** at `100%` during evaluation unless deliberately exaggerating; Live permits values up to 130%. citeturn19view6
+9. Do not press Commit until the groove has passed comparison with the straight source. Commit writes the groove into MIDI note positions and clears the clip's groove selection afterwards. citeturn19view5
 
-A silent or separately routed sidechain trigger can be useful when the audible kick pattern should change without changing the amount/timing of bass ducking. This is an advanced production technique rather than a Roland-specific requirement.
+The specification should forbid the agent from describing “Groove Timing = 55%” as the same thing as a theoretical 55% swing ratio. One is an amount of application; the other describes a relative subdivision duration.
 
-### Recommended samples, instruments and learning resources
+**Ableton MIDI tools and effects**
 
-**First choice: Ableton Drum Machines.** Ableton's official Drum Machines Pack contains meticulously sampled classic drum machines at 24-bit/96 kHz, packaged as Drum Racks with effects/routing plus MIDI patterns across electronic styles. It is particularly useful for an agent because it provides both sounds and examples of Live-native organisation. citeturn16search2
+Live 12's MIDI Tools distinguish **Transformations**, which operate on existing material, from **Generators**, which can create notes. The bundled Max for Live MIDI Tools include Velocity Shaper and Euclidean in Live Standard and Suite, and the Rhythm generator can work on an individual Drum Rack pad and use up to 16 steps. citeturn25view2turn18search38
 
-**First choice for an officially modelled Roland instrument: Roland Cloud TR-808 and TR-909.** Roland's software recreations model the original instruments and extend them with DAW-friendly features. Their manuals document pattern variations, shuffle, last-step controls and MIDI/audio drag-and-drop into a DAW. citeturn17search2turn17search0turn16search0turn16search1 These are preferable references when the objective is “Roland-style behaviour” rather than simply finding samples carrying an 808/909 label.
+A suitable autonomous-agent policy is:
 
-**High-quality third-party sample option: Samples From Mars.** Its catalogue currently includes dedicated 808 and 909 material as both WAV/sample and Ableton-oriented products; this is useful when a producer prefers recorded hardware samples to a modelled instrument. citeturn16search3 Treat it as a commercial third-party option, not as an authority on Roland specifications.
-
-**Free experimental supplement: MusicRadar SampleRadar.** MusicRadar has published royalty-free processed and hardware drum-machine sets that include 808/909 material. These are more appropriate for colour and experimentation than for building a historically neutral reference kit. citeturn16news47turn16news50
-
-**Pattern study: Ableton Learning Music.** Its browser-based classic-house lesson provides a simple 16-step visual reference and is unusually useful for validating basic MIDI-grid reasoning. citeturn18search0
-
-**Pattern study: Attack Magazine's Beat Dissected.** Its 909 house, analogue-techno, Detroit-techno and 808 electro tutorials expose the actual grid, tempo, swing assumptions, sample decisions and processing sequence rather than discussing genre only in broad terms. citeturn18search1turn18search2turn18search8turn19search0
-
-**Hip-hop/trap study: Native Instruments' drum programming material.** Its examples provide particularly clear descriptions of swing placement, trap's half-time clap relationship and 32nd-note hat-roll programming. citeturn18search3turn18search6
-
-### Optional Max for Live extension
-
-Use Max for Live only when standard Live probability, clip variants or grooves cannot express the desired system. For example, an agent might create a MIDI device that passes ghost notes according to a probability while always preserving structural notes. Ableton supports custom Max for Live MIDI devices and MIDI tools; Cycling '74 supplies the underlying Max MIDI programming documentation. citeturn20view4turn9search3turn9search6
-
-A conceptual Max object flow is:
-
-```text
-incoming MIDI
-    │
-    ├── detect note number
-    │
-    ├── structural note?
-    │      ├── yes ───────────────► pass unchanged
-    │      │
-    │      └── no
-    │           │
-    │        random 0–99
-    │           │
-    │        < probability
-    │           │
-    │           ├── true ─────────► pass note
-    │           └── false ────────► suppress note
-    │
-    └── preserve correct note-on/note-off pairing
-```
-
-An implementation should use Max's MIDI parsing/formatting facilities and explicitly preserve note-on/note-off pairs; Cycling '74's MIDI documentation should be followed rather than constructing a device that can leave stuck notes. citeturn9search6 In current versions of Live that already expose per-note Chance, however, the native feature is usually the simpler choice. citeturn21view0
-
-### Agent validation checklist
-
-Before declaring a pattern finished, the agent should answer all of these questions:
-
-| Test | Pass condition |
+| Tool | Recommended use |
 |---|---|
-| **Genre read** | Can the groove's broad genre be inferred with effects bypassed? |
-| **Machine read** | Does the 808/909 choice affect rhythm and envelopes, not only sample names? |
-| **Structural clarity** | Kick and principal snare/clap remain intelligible without percussion. |
-| **Hat logic** | Open/closed hat interaction sounds intentional; choke behaviour is correct where required. |
-| **Dynamics** | Strong, normal and ghost events are audibly differentiated. |
-| **Timing** | Swing/humanisation increases groove rather than merely reducing accuracy. |
-| **Variation** | At least one subtle variation and one phrase-ending strategy exist. |
-| **Low end** | Kick/808-bass tails do not obscure one another unintentionally. |
-| **Processing** | Every device has an articulated purpose; level-matched bypass is not clearly better. |
-| **Arrangement** | Density changes across musical sections rather than the full kit running constantly. |
-| **Performance safety** | A deterministic core groove remains available if probabilities/generative behaviour become undesirable. |
-| **Project portability** | Relevant samples have been collected and external plug-in dependencies documented. Ableton notes that Collect All and Save collects audio/Max devices but does not copy third-party plug-ins themselves. citeturn21view4 |
+| Rhythm Generator | Draft candidate hats/percussion patterns |
+| Euclidean | Generate metrically distributed percussion/polyrhythm candidates |
+| Velocity Shaper | Impose repeatable dynamic contours |
+| Velocity MIDI effect | Bound or reshape live velocity |
+| Note Echo | Generate deliberate echoes/ratchets rather than manually drawing every repetition |
+| Random | Use selectively; do not make core kick/backbeat unpredictable without instruction |
+| Groove Pool | Phrase-wide timing/velocity feel |
+| Manual note nudge | Voice-specific intentional offsets |
 
-**Final agent principle:** the target is not “make the pattern complicated”. It is **make every event explainable**. The kick establishes weight, the snare/clap establishes orientation, hats establish subdivision, ghosts establish motion, fills establish form, and processing establishes character. The enduring usefulness of both TR machines comes partly from this economy: relatively restricted voice sets and step-oriented programming produced rhythmic systems that could be simple enough to understand immediately yet variable enough to underpin hip-hop, electro, house and techno. Roland's historical material and contemporary recreations document precisely that unusually durable relationship between a compact sequencer, distinctive synthesis and genre formation. citeturn17search4turn17search1turn19search2turn17search19
+Generated material must still pass the agent's rhythmic tests. Generation is not validation.
 
-### Primary and recommended source links
+**Push workflow**
 
-| Source | Relevance |
+For Push 3, the agent should know a reproducible performance route:
+
+1. Enter **Note Mode** and load the Drum Rack. Push's Drum Rack workflow provides Loop Selector, 16 Velocities and 64 Pads layouts. citeturn25view1
+2. Sequence the anchor kick and backbeat in Loop Selector.
+3. Switch to **16 Velocities** and enter hats/ghost notes at intentionally different levels. Push exposes 16 velocity levels for the selected Drum Rack pad. citeturn26view0
+4. Hold/edit individual sequencer steps to adjust Velocity and Nudge/microtiming where required. Push explicitly allows per-note velocity and microtiming adjustments. citeturn25view1turn26view2
+5. Use **Repeat** for steady or rapid hats. Push's Repeat function produces rhythmically even repeated notes and responds to finger pressure for changing their volume; its Swing/Tempo encoder can alter swing on repeated notes. citeturn26view0
+6. Use Push's Quantize command selectively. For drums, the manual allows the user to hold Quantize and press a Drum Rack pad so only that voice is quantised. citeturn26view0
+7. Duplicate the base page before creating fills so the structural source remains available.
+
+**Canonical 909-compatible MIDI mapping**
+
+Roland's current TR-909 Software Rhythm Composer accepts the following note numbers, including several alternative notes. citeturn17search5
+
+| MIDI note | Voice | Notes |
+|---:|---|---|
+| 35, 36 | Bass Drum | Use 36 as agent default |
+| 37 | Rim Shot | |
+| 38, 40 | Snare Drum | Use 38 as default |
+| 39 | Hand Clap | |
+| 41, 43 | Low Tom | Use 43 as default |
+| 42, 44 | Closed Hi-Hat | Use 42 as default |
+| 45, 47 | Mid Tom | Use 47 as default |
+| 46 | Open Hi-Hat | |
+| 48, 50 | High Tom | Use 50 as default |
+| 49 | Crash Cymbal | |
+| 51 | Ride Cymbal | |
+
+Use **numeric MIDI note numbers as the source of truth**. Octave labels such as C3/C4/C5 differ across manufacturer/software conventions even though MIDI note number 60 remains the same numerical note index. citeturn23search3turn23search6
+
+For 808-only voices such as cowbell, claves, maracas and congas, the definitive project mapping is **unspecified** in this specification unless the existing `.md` already defines one. The safest agent behaviour is to store those assignments explicitly in `drum-rack-map.yaml` rather than assume an invisible convention.
+
+**Example 16-step MIDI event clip**
+
+```text
+# Format:
+# step, midi_note, voice, velocity, duration_steps, offset_ms
+
+01, 36, BD, 120, 1,  0
+02, 42, CH,  67, 1,  0
+03, 46, OH,  96, 1, +4
+04, 42, CH,  82, 1,  0
+
+05, 36, BD, 116, 1,  0
+05, 39, CP, 112, 1, +3
+06, 42, CH,  65, 1,  0
+07, 46, OH,  92, 1, +4
+08, 42, CH,  88, 1,  0
+
+09, 36, BD, 120, 1,  0
+10, 42, CH,  68, 1,  0
+11, 46, OH,  98, 1, +4
+12, 42, CH,  84, 1,  0
+
+13, 36, BD, 116, 1,  0
+13, 39, CP, 116, 1, +3
+14, 42, CH,  64, 1,  0
+15, 46, OH, 101, 1, +4
+16, 42, CH,  92, 1,  0
+```
+
+The `+3/+4 ms` values are intentionally presented as **agent-designed microtiming**, not as historical 909 timing values. They should be removed for the straight comparison version.
+
+**Example 12-step MIDI event clip**
+
+```text
+# 4/4; 12 eighth-note-triplet positions
+# step, midi_note, voice, velocity
+
+01, 36, BD, 121
+01, 42, CH,  88
+02, 42, CH,  54
+03, 42, CH,  65
+
+04, 38, SD, 118
+04, 42, CH,  84
+05, 42, CH,  52
+06, 42, CH,  67
+
+07, 36, BD, 116
+07, 42, CH,  90
+08, 42, CH,  55
+09, 36, BD,  87
+09, 42, CH,  65
+
+10, 38, SD, 122
+10, 42, CH,  87
+11, 42, CH,  53
+12, 42, CH,  69
+```
+
+**Proposed MIDI remote-control mapping**
+
+These CC assignments are deliberately project-local and **are not claimed to be Roland's hardware CC specification**:
+
+```text
+CC20 -> Drum Rack Macro 1 -> Kick Decay
+CC21 -> Drum Rack Macro 2 -> Kick Tune
+CC22 -> Drum Rack Macro 3 -> Snare Tone
+CC23 -> Drum Rack Macro 4 -> Snappy / Noise
+CC24 -> Drum Rack Macro 5 -> Hat Decay
+CC25 -> Drum Rack Macro 6 -> Percussion Tune
+CC26 -> Drum Rack Macro 7 -> Drive / Saturation
+CC27 -> Drum Rack Macro 8 -> FX Send / Space
+```
+
+Live accepts absolute MIDI-controller values from 0–127 for mapping to continuous controls and also supports relative controllers, which are useful for endless encoders because they reduce parameter jumps when hardware and software positions differ. citeturn18search3
+
+## Video dataset and teaching design
+
+The nine YouTube videos requested as the high-priority example dataset cannot yet be analysed responsibly because their URL strings are **not available in the context accessible to this research pass**. Therefore every video-specific field below is explicitly marked unspecified.
+
+| Record | URL | Title/channel | Verified timestamp ranges | Key technique | Pattern extraction | Ableton translation | Status |
+|---|---|---|---|---|---|---|---|
+| Video 1 | **Unspecified** | Unspecified | Unspecified | Not verifiable | Pending | Pending | Source absent |
+| Video 2 | **Unspecified** | Unspecified | Unspecified | Not verifiable | Pending | Pending | Source absent |
+| Video 3 | **Unspecified** | Unspecified | Unspecified | Not verifiable | Pending | Pending | Source absent |
+| Video 4 | **Unspecified** | Unspecified | Unspecified | Not verifiable | Pending | Pending | Source absent |
+| Video 5 | **Unspecified** | Unspecified | Unspecified | Not verifiable | Pending | Pending | Source absent |
+| Video 6 | **Unspecified** | Unspecified | Unspecified | Not verifiable | Pending | Pending | Source absent |
+| Video 7 | **Unspecified** | Unspecified | Unspecified | Not verifiable | Pending | Pending | Source absent |
+| Video 8 | **Unspecified** | Unspecified | Unspecified | Not verifiable | Pending | Pending | Source absent |
+| Video 9 | **Unspecified** | Unspecified | Unspecified | Not verifiable | Pending | Pending | Source absent |
+
+This omission is material: video techniques and timestamps must not be inferred from a title, search result or similar-looking tutorial. The `.md` should contain a strict evidence record for each video:
+
+```yaml
+video_example:
+  id: "video_01"
+  url: "UNSPECIFIED"
+  title: "UNSPECIFIED"
+  channel: "UNSPECIFIED"
+  publication_date: "UNSPECIFIED"
+
+  techniques:
+    - name: "UNSPECIFIED"
+      timestamp_start: "UNSPECIFIED"
+      timestamp_end: "UNSPECIFIED"
+      observed_action: "UNSPECIFIED"
+      rhythmic_interpretation: "UNSPECIFIED"
+      ableton_translation: "UNSPECIFIED"
+      confidence: "UNVERIFIED"
+
+  extracted_pattern:
+    meter: "UNSPECIFIED"
+    tempo_bpm: "UNSPECIFIED"
+    steps: "UNSPECIFIED"
+    voices: []
+```
+
+Once populated, the videos should be treated as **demonstration data**, whereas the Ableton and Roland manuals remain the authority for device behaviour. That distinction matters when a tutorial creator uses informal terminology that conflicts with a manufacturer's parameter definition.
+
+Each verified video record should capture five things:
+
+| Dataset field | Purpose |
 |---|---|
-| [Ableton Reference Manual — Instrument, Drum and Effect Racks](https://www.ableton.com/en/live-manual/12/instrument-drum-and-effect-racks/) | Drum Rack chains, pads, choke groups, sends, Simpler creation. citeturn15view0turn15view1 |
-| [Ableton Reference Manual — Editing MIDI](https://www.ableton.com/en/live-manual/12/editing-midi/) | MIDI note editing and current probability/Chance functionality. citeturn21view0 |
-| [Ableton Reference Manual — Using Grooves](https://www.ableton.com/en/live-manual/12/using-grooves/) | Quantisation, groove timing, randomisation and velocity. citeturn21view2turn21view3 |
-| [Ableton Reference Manual — Live Instrument Reference](https://www.ableton.com/en/manual/live-instrument-reference/) | Simpler, One-Shot, Sampler and sample playback. citeturn20view2 |
-| [Ableton Reference Manual — Audio Effects](https://www.ableton.com/en/live-manual/12/live-audio-effect-reference/) | Drum Buss, Compressor, Glue Compressor, Saturator and sidechaining. citeturn20view3turn15view2 |
-| [Ableton — Drum Machines Pack](https://www.ableton.com/en/packs/drum-machines/) | Official sampled classic-machine Drum Racks, effects and MIDI patterns. citeturn16search2 |
-| [Ableton — Collect All and Save](https://help.ableton.com/hc/en-us/articles/209775645-Collect-All-and-Save) | Reliable project portability and sample collection. citeturn21view4 |
-| [Ableton Reference Manual — Managing Files and Sets](https://www.ableton.com/en/live-manual/12/managing-files-and-sets/) | Live Project/file organisation. citeturn21view5 |
-| [Roland — Original TR-808 Owner's Manual](https://cdn.roland.com/assets/media/pdf/TR-808_OM.pdf) | Original step-sequencer, pattern and fill workflow. citeturn2view1turn3view3 |
-| [Roland — TR-808 Technical Specifications](https://support.roland.com/hc/en-us/articles/201963539-TR-808-Technical-Specifications) | Original voice set, controls and specifications. citeturn17search3 |
-| [Roland — The TR-808 Story](https://www.roland.com/uk/promos/roland_tr-808/?lang=en-GB) | Analogue architecture and historical context. citeturn17search4 |
-| [Roland — Original TR-909 Owner's Manual](https://cdn.roland.com/assets/media/pdf/TR-909_OM.pdf) | Original step writing, accent, shuffle and flam reference. citeturn3view1turn3view2 |
-| [Roland — TR-909 Technical Specifications](https://support.roland.com/hc/en-us/articles/201921899-TR-909-Technical-Specifications) | Original 909 instrument/control specification. citeturn17search12 |
-| [Roland — The TR-909 Story](https://www.roland.com/uk/promos/roland_tr-909/?lang=en-GB) | 909 hybrid analogue/digital design and historical context. citeturn17search1 |
-| [Roland — TR-808 Software Rhythm Composer](https://www.roland.com/uk/products/rc_tr-808/) | Official modelled 808 software implementation. citeturn17search2 |
-| [Roland — TR-909 Software Rhythm Composer](https://www.roland.com/uk/products/rc_tr-909/) | Official modelled 909 implementation and architecture. citeturn17search0 |
-| [Ableton Learning Music — Rock and House](https://learningmusic.ableton.com/make-beats/rock-and-house.html) | Clear interactive classic-house grid. citeturn18search0 |
-| [Attack Magazine — Driven 909](https://www.attackmagazine.com/technique/beat-dissected/driven-909/) | Detailed 909/Ableton house programming and processing. citeturn18search1 |
-| [Attack Magazine — Grinding Analogue Techno](https://www.attackmagazine.com/technique/beat-dissected/grinding-analogue-techno/) | 909-style techno, ghost notes, swing and saturation. citeturn18search2 |
-| [Attack Magazine — Motor City Techno](https://www.attackmagazine.com/technique/beat-dissected/motor-city-detroit-techno/) | 909-based Detroit-techno programming. citeturn18search8 |
-| [Attack Magazine — Electro inspired by Cybotron's “Clear”](https://www.attackmagazine.com/technique/beat-dissected/how-to-make-an-electro-beat-inspired-by-cybotrons-clear/) | Ableton stock 808/electro example. citeturn19search0 |
-| [Native Instruments — Hip-hop drums](https://blog.native-instruments.com/hip-hop-drums-101/) | Swing and hip-hop pattern construction. citeturn18search3 |
-| [Native Instruments — Drum patterns](https://blog.native-instruments.com/drum-patterns/) | House, hip-hop and trap pattern examples including trap rolls. citeturn18search6 |
-| [Samples From Mars](https://samplesfrommars.com/products/all-products-from-mars) | Third-party recorded 808/909 sample-library option. citeturn16search3 |
-| [Cycling '74 — Max MIDI note management](https://docs.cycling74.com/learn/articles/midichapter02/) | Primary documentation for custom Max MIDI processing. citeturn9search6 |
+| Observed technique | What the presenter actually does |
+| Timestamp start/end | Verifiable provenance |
+| Abstract principle | E.g. “reduce kick density before fill” rather than copying a song |
+| Event encoding | Step/note/velocity/timing representation |
+| Ableton reproduction | Exact devices/actions required to reproduce the principle |
+
+This creates a dataset the agent can **reason from**, instead of a collection of prose summaries.
+
+The teaching behaviour should also exploit the difference between 808 and 909 programming. The original 808 supports selectable pre-scale and variable step structures, while the 909 explicitly provides Shuffle/Flam, and modern Roland software adds weak hits, substeps and per-instrument pattern length. citeturn22view1turn22view0turn25view3 Good teaching prompts should force the agent to expose those mechanics.
+
+| Teaching prompt | Expected expert behaviour |
+|---|---|
+| “Build a one-bar 909 house groove at 122 BPM and explain every anchor.” | Establish 4/4 × 16 grid; identify four-on-the-floor kick, backbeat/clap and hat roles; give MIDI/velocities |
+| “Make it 20% busier without losing the house identity.” | Preserve kick anchors; alter secondary hats/percussion; quantify event changes |
+| “Turn this straight pattern into a groove without randomising the kick.” | Use velocity/swing deliberately; preserve kick timing; document offsets |
+| “Why does my humanised pattern feel worse?” | Compare straight version; inspect excessive Random/microtiming; reduce timing deviation before changing density |
+| “Convert this 16-step beat into a 12-step triplet feel.” | Reconstruct musical events on a triplet grid rather than merely deleting four steps |
+| “Give me an 808-style half-time beat and three hat variants.” | Retain kick/snare identity; vary hats through density, velocity and ratchets |
+| “Add ghosts without making the snare weak.” | Keep main backbeat ≥ proposed anchor range; place lower-velocity connective hits |
+| “Create a 4:3 percussion layer.” | State pulse maths/common grid and distinguish polyrhythm from generic syncopation |
+| “Rebuild this on Push.” | Give pad/sequencer/velocity/repeat/nudge workflow |
+| “Make this more like a 909, not merely louder.” | Discuss 909-specific voice palette, kick attack/tune, snare tone/snappy, shuffle/flam concepts |
+
+The agent should also use **Socratic diagnostic prompts**, for example:
+
+```text
+Before modifying this pattern, identify:
+- Which events are the metric anchors?
+- Which voice currently carries subdivision?
+- Is the requested "swing" a timing ratio, an Ableton Groove Pool amount,
+  or a stylistic description?
+- Does the user want hardware-style accent behaviour or ordinary MIDI dynamics?
+- Which changes should remain invariant across variations?
+```
+
+This prevents creative transformation from becoming arbitrary note mutation.
+
+A particularly important teaching point is that **velocity, timing and timbre are separate axes**. Sampler's Velocity Zones can make higher velocities trigger different recordings, while Groove Pool can separately modify both timing and velocity. citeturn19view3turn25view0 The agent should be able to explain whether a groove sounds different because an event became louder, moved later, or triggered a different sample.
+
+## Evaluation criteria, tests and performance metrics
+
+The `.md` should make self-evaluation mandatory. An autonomous musical agent without measurable constraints will tend to confuse novelty with quality.
+
+A proposed 100-point rubric is:
+
+| Category | Weight | Pass criteria |
+|---|---:|---|
+| Rhythmic correctness | 25 | Meter, subdivision, step count and phrase boundaries are internally valid |
+| Stylistic coherence | 20 | Anchors and density support the requested pattern family |
+| Sound-design translation | 15 | 808/909 control concepts translated accurately without false authenticity claims |
+| Ableton reproducibility | 15 | Device instructions can be followed directly |
+| Groove and variation | 10 | Swing/microtiming/ghosts/fills are purposeful and variants remain related |
+| Teaching clarity | 10 | Musical decisions are explained, not merely presented |
+| Source/provenance integrity | 5 | Facts and video timestamps are supported; unspecified data remains labelled |
+
+**Proposed autonomous pass threshold:** `85/100`, with no hard validation failure.
+
+The hard validation layer should supersede the subjective score:
+
+```text
+HARD FAIL CONDITIONS
+
+- MIDI velocity outside 1..127.
+- MIDI note outside 0..127.
+- Event step outside declared pattern length.
+- Step count, metre and subdivision cannot coexist mathematically.
+- Open/closed hats overlap unintentionally when a choke relationship is required.
+- A "ghost" is as strong as or stronger than its associated primary strike without explanation.
+- A fill fails to resolve into the declared next phrase.
+- An unverified YouTube timestamp is presented as factual.
+- A proposed CC mapping is described as an official Roland mapping without evidence.
+- Ableton Groove Pool Timing is falsely equated numerically with theoretical swing ratio.
+- Hardware-emulation authenticity is claimed for a generic sample-processing recipe.
+```
+
+**Structural unit tests** should include six-, eight-, twelve- and sixteen-step patterns. For each:
+
+```yaml
+test_pattern_16:
+  expected_steps: 16
+  meter: "4/4"
+  subdivision: "1/16"
+  required_anchor_steps: [1, 5, 9, 13]
+  velocity_range: [1, 127]
+  expected_result: "PASS"
+```
+
+**Variation-distance testing** can use Hamming-style event comparison. For example:
+
+```text
+event_change_rate =
+    changed_non_anchor_positions /
+    total_non_anchor_positions
+```
+
+A `subtle` transformation can target roughly `0.10–0.25`; a `strong` transformation can use a wider project-defined range. These values are **specification defaults**, not empirical groove thresholds.
+
+**Velocity-hierarchy metric:**
+
+```text
+primary_median_velocity - ghost_median_velocity >= 30
+```
+
+is a sensible proposed default for clearly differentiated ghosting. It should be adjustable because sample-layer switching may make a smaller numeric velocity difference perceptually larger.
+
+**Anchor-retention metric:**
+
+```text
+anchor_retention =
+    unchanged_required_anchor_events /
+    required_anchor_events
+```
+
+For a conventional base-to-subtle-variation operation:
+
+```text
+target anchor_retention >= 0.90
+```
+
+and for a strictly requested four-on-the-floor house variant:
+
+```text
+kick anchor_retention = 1.00
+```
+
+unless the user specifically requests a break or fill.
+
+**Groove testing** should compare three renders:
+
+```text
+A = fully straight / quantised
+B = deliberate groove
+C = exaggerated groove
+```
+
+The agent should not assume that `C` is superior simply because it is less quantised. This is directly supported by controlled listening research in which exaggerated microtiming reduced groove ratings and fully quantised material could rate as highly as the original performed timing. citeturn23search0
+
+**Syncopation testing** should similarly avoid maximisation. A useful evaluation set contains low-, medium- and high-complexity derivatives while holding core voices as constant as possible. Witek et al.'s experiment found the highest pleasure and desire-to-move ratings at intermediate syncopation levels, giving the agent an evidence-based reason to test a middle state rather than optimising purely for event novelty. citeturn17search3
+
+**Listening evaluation** should use human ratings because structural validity cannot completely measure groove:
+
+| Human metric | Rating |
+|---|---:|
+| Groove / desire to move | 1–5 |
+| Style match | 1–5 |
+| Kick/snare clarity | 1–5 |
+| Hat/percussion movement | 1–5 |
+| Variation recognisability | 1–5 |
+| Fill resolution | 1–5 |
+| Sound coherence | 1–5 |
+
+Store both the mean score and inter-rater spread. A pattern that scores technically perfectly but receives poor human groove ratings should remain a failed musical example.
+
+**Ableton integration tests** should require the following:
+
+| Test | Required result |
+|---|---|
+| MIDI clip import | All notes and velocities appear at intended steps |
+| Drum Rack map | Every canonical MIDI number triggers intended voice |
+| Choke | Closed hat terminates open hat when configured |
+| Sampler velocities | Soft/medium/hard ranges trigger expected sample layers |
+| Round Robin | Repeated notes cycle through configured alternates |
+| Groove A/B | Straight source remains recoverable |
+| Push sequencing | Pattern can be edited from Drum sequencer |
+| Push velocity | 16 Velocities can reproduce hierarchy |
+| Repeat | Hat ratchets record at intended subdivision |
+| Project portability | Referenced samples are collected with project |
+
+Ableton explicitly recommends transferring the **entire Project folder**, rather than only the `.als` file, to Push and reminds users to use Collect All and Save beforehand; the deliverable QA procedure should adopt the same portability principle. citeturn25view1
+
+The **provenance test suite** should be especially strict for the nine videos:
+
+```text
+For every video-derived claim:
+    require URL
+    require title/channel
+    require timestamp_start
+    require timestamp_end
+    require observation
+    require abstraction
+    require Ableton translation
+
+If any required evidence is absent:
+    confidence = UNVERIFIED
+    do not quote timestamp
+    do not present technique as extracted from that video
+```
+
+## Deliverables, file structure and recommended `.md` contract
+
+The existing `.md` filename and its current schema are **unspecified**. Consequently, this research recommends a modular structure that can either replace it or be merged into it.
+
+```text
+drum-pattern-agent/
+│
+├── AGENT.md
+├── README.md
+│
+├── knowledge/
+│   ├── rhythm-theory.md
+│   ├── groove-and-swing.md
+│   ├── tr-808.md
+│   ├── tr-909.md
+│   ├── ableton-live.md
+│   ├── push-workflow.md
+│   └── sources.yaml
+│
+├── datasets/
+│   ├── youtube/
+│   │   ├── video-01.yaml
+│   │   ├── video-02.yaml
+│   │   ├── video-03.yaml
+│   │   ├── video-04.yaml
+│   │   ├── video-05.yaml
+│   │   ├── video-06.yaml
+│   │   ├── video-07.yaml
+│   │   ├── video-08.yaml
+│   │   └── video-09.yaml
+│   └── canonical-patterns.yaml
+│
+├── mappings/
+│   ├── tr-909-midi.csv
+│   ├── drum-rack-map.yaml
+│   └── controller-cc-map.yaml
+│
+├── templates/
+│   ├── pattern-06.md
+│   ├── pattern-08.md
+│   ├── pattern-12.md
+│   ├── pattern-16.md
+│   ├── fill.md
+│   ├── variation.md
+│   ├── polyrhythm.md
+│   └── evaluation.md
+│
+├── examples/
+│   ├── patterns/
+│   │   ├── 909-house-base.yaml
+│   │   ├── 909-house-variation.yaml
+│   │   ├── 808-halftime.yaml
+│   │   ├── triplet-12.yaml
+│   │   └── six-eight.yaml
+│   │
+│   └── midi/
+│       ├── 909_house_base.mid
+│       ├── 909_house_fill.mid
+│       ├── 808_halftime.mid
+│       ├── triplet_12.mid
+│       └── six_eight.mid
+│
+├── ableton/
+│   ├── reference-set.als
+│   ├── racks/
+│   │   ├── 808-reference.adg
+│   │   └── 909-reference.adg
+│   └── grooves/
+│
+└── tests/
+    ├── structural-cases.yaml
+    ├── variation-cases.yaml
+    ├── midi-map-cases.yaml
+    ├── provenance-cases.yaml
+    └── listening-scorecard.md
+```
+
+The actual MIDI and Ableton Set artefacts above are **specified deliverables, not artefacts generated by this research response**. They should be produced and auditioned in the intended Live version before being labelled validated. Ableton's project-transfer guidance reinforces the need to package referenced samples with the Live Project rather than handing off an isolated Set file. citeturn25view1
+
+A strong `sources.yaml` would distinguish primary evidence from derived agent conventions:
+
+```yaml
+sources:
+  primary:
+    ableton:
+      - topic: "Drum Rack"
+        authority: "Ableton Live 12 Reference Manual"
+      - topic: "Simpler/Sampler/Impulse"
+        authority: "Ableton Live 12 Reference Manual"
+      - topic: "Groove Pool"
+        authority: "Ableton Live 12 Reference Manual"
+      - topic: "Push"
+        authority: "Ableton Push 3 Manual"
+
+    roland:
+      - topic: "TR-808"
+        authority: "Roland TR-808 Operation Manual"
+      - topic: "TR-909"
+        authority: "Roland TR-909 Operation Manual"
+      - topic: "TR-909 MIDI"
+        authority: "Roland TR-909 Software Rhythm Composer Manual"
+
+  research:
+    - topic: "syncopation and groove"
+      status: "peer-reviewed"
+    - topic: "microtiming and groove"
+      status: "peer-reviewed"
+
+  youtube_dataset:
+    video_01: {url: "UNSPECIFIED", status: "UNVERIFIED"}
+    video_02: {url: "UNSPECIFIED", status: "UNVERIFIED"}
+    video_03: {url: "UNSPECIFIED", status: "UNVERIFIED"}
+    video_04: {url: "UNSPECIFIED", status: "UNVERIFIED"}
+    video_05: {url: "UNSPECIFIED", status: "UNVERIFIED"}
+    video_06: {url: "UNSPECIFIED", status: "UNVERIFIED"}
+    video_07: {url: "UNSPECIFIED", status: "UNVERIFIED"}
+    video_08: {url: "UNSPECIFIED", status: "UNVERIFIED"}
+    video_09: {url: "UNSPECIFIED", status: "UNVERIFIED"}
+```
+
+The heart of `AGENT.md` should then look approximately like this:
+
+```markdown
+# Drum Machine Pattern Architect
+
+## Role
+
+You are an expert electronic drum-pattern designer, drum-machine programmer,
+Ableton Live implementer, critic and teacher.
+
+Your specialisms include:
+- Roland TR-808 and TR-909 programming concepts
+- electronic rhythm theory
+- groove, shuffle, swing and microtiming
+- velocity and accent design
+- ghost notes, fills, ratchets and flams
+- polyrhythm and polymetric pattern construction
+- Ableton Live Drum Rack, Simpler, Sampler and Impulse
+- Ableton Groove Pool and MIDI tools/effects
+- Push drum programming
+- MIDI drum mapping and clip construction
+
+## Core rule
+
+Never generate notes before resolving:
+tempo, metre, bar count, grid/subdivision, kit and pattern function.
+
+When information is missing:
+1. infer only when the inference is low-risk;
+2. state the assumption;
+3. otherwise mark the field UNSPECIFIED.
+
+Never invent a source, video technique or timestamp.
+
+## Musical representation
+
+Every pattern must have:
+- tempo_bpm
+- meter
+- bars
+- steps
+- subdivision
+- kit
+- events
+
+Every event may contain:
+- step or musical time
+- voice
+- midi_note
+- velocity
+- accent
+- probability
+- micro_offset_ms
+- duration
+- flam
+- substep/ratchet
+- variation tag
+
+Accent and velocity are separate properties.
+
+## Grid defaults
+
+16 steps = one bar of 4/4 at 1/16 resolution.
+8 steps = one bar of 4/4 at 1/8 resolution.
+12 steps = one bar of 4/4 at eighth-note-triplet resolution.
+6 steps = one bar of 6/8 at 1/8 resolution.
+
+These are defaults, not universal meanings.
+Always print meter and subdivision with step count.
+
+## Pattern-generation hierarchy
+
+Build in this order:
+
+1. metric anchor
+2. kick/snare relationship
+3. subdivision layer
+4. velocity/accent hierarchy
+5. syncopation
+6. ghost notes
+7. swing/groove
+8. microtiming
+9. ornamentation
+10. fill/variation
+
+Do not add complexity merely to appear creative.
+
+## Groove policy
+
+Prefer controlled syncopation to maximum syncopation.
+Do not assume random microtiming improves groove.
+Use velocity hierarchy before timing randomness.
+Keep a straight reference version during groove experiments.
+Apply timing deviations intentionally and document them.
+
+For a subtle variant, preserve anchor events unless the brief says otherwise.
+A fill must resolve clearly into the following phrase.
+
+## MIDI policy
+
+Use numeric MIDI note numbers as canonical identifiers.
+
+Default TR-909-compatible mapping:
+BD = 36
+RS = 37
+SD = 38
+CP = 39
+CH = 42
+LT = 43
+OH = 46
+MT = 47
+CY = 49
+HT = 50
+RC = 51
+
+Alternative accepted note numbers may be documented separately.
+
+Do not rely on octave names as the canonical identifier.
+
+## Velocity starting ranges
+
+Primary kick/snare: 105-127
+Secondary kick: 70-100
+Snare ghosts: 25-60
+Closed hats: 55-90
+Hat accents: 85-112
+Open hats: 75-110
+Percussion: 55-100
+Percussion ghosts: 30-70
+
+These are starting ranges.
+Adapt to the sample, velocity layers and musical context.
+
+## TR-808 policy
+
+Understand the original voice/control relationships.
+Represent Accent separately from ordinary velocity.
+Treat Tone, Decay, Snappy and Tuning as sound-design concepts.
+
+Do not claim that processing an 808 sample in Ableton recreates
+the original analogue circuitry.
+
+## TR-909 policy
+
+Understand:
+- kick Tune/Attack/Decay
+- snare Tune/Tone/Snappy
+- accented and normal strikes
+- Shuffle
+- Flam
+- weak hits
+- substeps
+- pattern variations
+
+When translating Flam into MIDI, preserve the main strike on-grid
+unless intentionally designing a different flam.
+
+## Ableton policy
+
+Drum Rack:
+Use for the primary mapped electronic kit.
+
+Simpler:
+Prefer One-Shot/Trigger for isolated machine hits unless Gate,
+Warp or another mode serves a specific purpose.
+
+Sampler:
+Use when velocity zones, multisampling or round-robin variation
+are required.
+
+Impulse:
+Use for compact eight-voice kits.
+Slots 7 and 8 are preferred for closed/open hats when using Link.
+
+Groove Pool:
+Keep groove non-destructive during evaluation.
+Do not confuse Timing amount with mathematical swing ratio.
+Avoid excessive Random on structurally linked voices.
+
+MIDI Tools:
+Use generators to propose material, never as proof that a pattern
+is musically correct.
+
+Push:
+Know Loop Selector, 16 Velocities, step sequencing, Repeat,
+velocity editing, microtiming and selective quantisation.
+
+## Variation policy
+
+For every base pattern, be capable of generating:
+- velocity-only variation
+- rhythmic-density variation
+- groove/timing variation
+- timbral variation
+- phrase-end fill
+
+Preserve recognisable anchors unless transformation is requested.
+
+## Polyrhythm policy
+
+Never label a pattern polyrhythmic without identifying:
+- the pulse counts
+- the shared time span
+- the point of realignment
+
+Example:
+4:3 on a 12-unit common grid =
+4-pulse at [1,4,7,10]
+3-pulse at [1,5,9].
+
+## Output format
+
+For a full pattern request, output:
+
+Context
+Pattern grid
+MIDI event data
+Velocity/accent explanation
+Groove settings
+Sound-design instructions
+Ableton implementation
+Variation/fill
+Self-evaluation
+
+When useful, supply machine-readable YAML or CSV.
+
+## Teaching behaviour
+
+Explain why each structural hit exists.
+Distinguish anchors from decorations.
+Explain how changing velocity differs from changing timing.
+Explain how changing sample/timbre differs from either.
+
+When correcting a weak groove:
+1. compare with straight version;
+2. verify anchors;
+3. check density;
+4. check velocity hierarchy;
+5. inspect swing;
+6. inspect microtiming;
+7. inspect sound/tail collisions.
+
+## Provenance
+
+Primary technical sources outrank tutorials.
+Verified demonstrations may supplement manuals.
+
+For every video-derived technique store:
+URL
+title
+channel
+timestamp_start
+timestamp_end
+observation
+abstract principle
+Ableton translation
+
+If the source cannot be verified, write UNSPECIFIED.
+Never fabricate timestamps.
+
+## Self-evaluation
+
+Reject an output when:
+- event positions exceed the declared pattern
+- velocity or MIDI values are invalid
+- metre/grid metadata contradicts the events
+- a subtle variation destroys its anchors
+- a fill has no resolution
+- hat choking is accidentally violated
+- swing terminology is ambiguous
+- an implementation step cannot be reproduced
+- provenance is invented
+
+Target evaluation score: >= 85/100 with zero hard failures.
+```
+
+That specification reflects the most useful distinction found across the primary documentation: **the machine pattern, its performance/accent information, and its rendered sound should remain separable**. Roland's original manuals describe step structure, pre-scale, accents, shuffle and flam as compositional/programming concepts, while Ableton provides separate mechanisms for note mapping, one-shot playback, velocity-conditioned sample choice, groove, MIDI transformation and physical performance. citeturn22view1turn22view0turn17search0turn19view0turn19view3turn25view0
+
+That separation also gives the eventual nine-video dataset a clean destination: every verified video technique can be encoded first as an abstract rhythmic transformation, then as event data, then as an Ableton implementation, rather than becoming an unstructured paragraph of tutorial notes. Until those nine URL strings and their content are available, their techniques and timestamps remain correctly classified as **unspecified**.
