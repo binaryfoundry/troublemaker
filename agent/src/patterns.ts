@@ -535,6 +535,62 @@ export function polymeterClip(options: {
 }
 
 /**
+ * A layered-cycle arpeggio, the modular-sequencer way to make a short idea
+ * evolve: a contour (indices into the current chord's tones), an accent
+ * pattern, an octave pattern and a rest mask, each looping at its own
+ * length against the step grid. With lengths like 5, 8, 7 and 16 the line
+ * keeps shifting against the bar and only repeats after their lcm, while
+ * every pitch still comes from the chord that is sounding.
+ */
+export function cycleArp(options: {
+  /** Chord tones per chord, in order; each lasts beatsPerChord. */
+  chords: number[][];
+  beatsPerChord: number;
+  bars?: number;
+  stepBeats?: number;
+  /** Index into the chord's tones; past the top wraps up an octave. */
+  contour: number[];
+  accents?: boolean[];
+  octaves?: number[];
+  /** false = rest on that step of the mask's cycle. */
+  mask?: boolean[];
+  gate?: number;
+  velocity?: [number, number];
+  seed?: number;
+}): Pattern & { repeatsAfterSteps: number } {
+  if (!options.chords.length || options.contour.length === 0) {
+    throw new RangeError('cycleArp needs chords and a contour.');
+  }
+  const step = options.stepBeats ?? 0.25;
+  const length = (options.bars ?? 1) * 4;
+  const accents = options.accents ?? [true, false, false, false];
+  const octaves = options.octaves ?? [0];
+  const mask = options.mask ?? [true];
+  const [soft, loud] = options.velocity ?? [76, 112];
+  const random = makeRandom(options.seed ?? 1);
+  const events: PatternEvent[] = [];
+  const total = Math.round(length / step);
+  for (let i = 0; i < total; i += 1) {
+    if (!mask[i % mask.length]) continue;
+    const beat = i * step;
+    const chord = [...options.chords[Math.floor(beat / options.beatsPerChord) % options.chords.length]!].sort((a, b) => a - b);
+    const index = options.contour[i % options.contour.length]!;
+    const pitch = chord[index % chord.length]! + 12 * Math.floor(index / chord.length) + octaves[i % octaves.length]!;
+    if (pitch < 0 || pitch > 127) continue;
+    events.push({
+      beat: round6(beat),
+      pitch,
+      duration: round6(step * (options.gate ?? 0.6)),
+      velocity: clampVelocity((accents[i % accents.length] ? loud : soft) + (random() * 6 - 3)),
+    });
+  }
+  const gcd = (x: number, y: number): number => (y === 0 ? x : gcd(y, x % y));
+  const lcm = (x: number, y: number) => (x * y) / gcd(x, y);
+  const repeatsAfterSteps = [options.contour.length, accents.length, octaves.length, mask.length, 16].reduce(lcm);
+  return { length_beats: length, events, repeatsAfterSteps };
+}
+
+/**
  * Exponential ratchet / retrigger deceleration: one note retriggered while
  * the repeat rate moves from startHz to endHz along an exponential curve,
  * so spacing changes by a constant ratio. Accelerating builds tension;

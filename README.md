@@ -137,7 +137,7 @@ see the same snapshots. Otherwise it starts its own bridge on port 8765.
 | --- | --- |
 | `live_status`, `get_project`, `get_selection`, `read_clip`, `get_devices` | Read the Set; ids for everything else |
 | `transform_clip` | Syncopate, straighten, thin, densify, humanize, swing, transpose, conform to key, vary, pre-drop gap. Snapshots first, applies atomically, reads back |
-| `write_part`, `write_notes` | Generate DRUMS.md genre grooves (house / techno / hip-hop / trap / electro, with variation, fills and energy), kick / hats / bass / chords / build-up / Euclidean / polyrhythm, or a bass copied from a reference track |
+| `write_part`, `write_notes` | Generate cycle arpeggios (contour, accent, octave and rest cycles of different lengths over a voice-led progression), DRUMS.md genre grooves (house / techno / hip-hop / trap / electro, with variation, fills and energy), kick / hats / bass / chords / build-up / Euclidean / polyrhythm, or a bass copied from a reference track |
 | `restore_snapshot` | Undo any edit by its snapshot id |
 | `find_sounds`, `load_sound` | Search Live's browser (Core Library kits such as the 808, presets, samples, your folders) and load onto a track; kits report their pads |
 | `set_mixer`, `set_device_parameter`, `insert_device`, `transport` | Faders in dB, parameters by displayed value or option, native devices, playback |
@@ -304,7 +304,7 @@ Live's shared undo stack.
 ## Testing
 
 ```bash
-npm run test:all     # 326 TypeScript + 120 Python tests, no Ableton required
+npm run test:all     # 330 TypeScript + 120 Python tests, no Ableton required
 npm test             # TypeScript only
 npm run test:python  # Live-side handlers only
 npm run typecheck

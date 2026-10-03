@@ -175,6 +175,18 @@ describe('MCP server', () => {
     expect(checks).toMatch(/no findings/);
   });
 
+  it('writes a cycle arpeggio whose notes all come from the progression', async () => {
+    const result = await client.callTool({
+      name: 'write_part',
+      arguments: { track_id: 1, clip_slot: 0, part: 'arp', root: 'F', bars: 4, beats_per_chord: 4 },
+    });
+    expect(result.isError).toBeFalsy();
+    const fMinor = [5, 7, 8, 10, 0, 1, 3];
+    expect(notes.length).toBeGreaterThan(40);
+    for (const n of notes) expect(fMinor).toContain(n.pitch % 12);
+    expect((result.content as Array<{ text: string }>)[1]!.text).toMatch(/repeats after 560 sixteenths/);
+  });
+
   it('sets a fader in dB through its display', async () => {
     await client.callTool({ name: 'set_mixer', arguments: { track_id: 1, volume_db: -8 } });
     const sent = live.received.find((r) => r.command === 'live.set_device_parameter_display');

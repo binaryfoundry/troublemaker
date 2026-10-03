@@ -191,3 +191,38 @@ describe('toNotes', () => {
     expect(notes[0]!.velocity).toBe(127);
   });
 });
+
+describe('cycleArp', () => {
+  const chords = [[65, 68, 72], [61, 65, 68]];
+
+  it('takes every pitch from the chord sounding at that moment', async () => {
+    const { cycleArp } = await import('../../agent/src/patterns.js');
+    const p = cycleArp({ chords, beatsPerChord: 4, bars: 2, contour: [0, 2, 1, 3, 2] });
+    for (const e of p.events) {
+      const chord = chords[Math.floor(e.beat / 4) % 2]!;
+      expect(chord.map((n) => n % 12)).toContain(e.pitch % 12);
+    }
+  });
+
+  it('runs its cycles against the bar, so the line repeats only after their lcm', async () => {
+    const { cycleArp, euclidean } = await import('../../agent/src/patterns.js');
+    const p = cycleArp({
+      chords: [chords[0]!],
+      beatsPerChord: 4,
+      bars: 4,
+      contour: [0, 2, 1, 3, 2],
+      accents: euclidean(3, 8),
+      octaves: [0, 0, 12, 0, 0, 0, 0],
+    });
+    expect(p.repeatsAfterSteps).toBe(560);
+    const bar = (n: number) => p.events.filter((e) => e.beat >= n * 4 && e.beat < n * 4 + 4).map((e) => [e.pitch, e.velocity > 95]);
+    expect(bar(1)).not.toEqual(bar(0));
+  });
+
+  it('rests where the mask says and is reproducible', async () => {
+    const { cycleArp, euclidean } = await import('../../agent/src/patterns.js');
+    const options = { chords, beatsPerChord: 4, bars: 1, contour: [0, 1, 2], mask: euclidean(11, 16), seed: 5 };
+    expect(cycleArp(options).events).toHaveLength(11);
+    expect(cycleArp(options)).toEqual(cycleArp(options));
+  });
+});

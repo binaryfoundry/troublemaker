@@ -41,7 +41,8 @@ import {
   writePattern,
   type Command,
 } from '../agent/src/composition.js';
-import { bassFromFeel, euclideanPattern, polyrhythm } from '../agent/src/patterns.js';
+import { bassFromFeel, cycleArp, euclidean, euclideanPattern, polyrhythm } from '../agent/src/patterns.js';
+import { progression } from '../agent/src/music-theory.js';
 import { checkDrumPattern, drumGenres, drumGrids, drumPattern, formatGrid } from '../agent/src/drums.js';
 import type { ChainState, Decision } from '../agent/src/mastering/policy.js';
 
@@ -278,6 +279,7 @@ export function createMcpServer(client: McpClient): McpServer {
     'hats',
     'drum_kit',
     'drums',
+    'arp',
     'bass',
     'chords',
     'build_up',
@@ -293,7 +295,8 @@ export function createMcpServer(client: McpClient): McpServer {
       description:
         'Generate a part into a clip slot: drums (a DRUMS.md genre groove - genre house/techno/hiphop/trap/electro, ' +
         'energy, variant A/A\'/B/F or phrase=true for a 16-bar A/A\'/B/F phrase, swing, humanize, chance), ' +
-        'kick (four on the floor), hats (offbeat), drum_kit, bass (rolling, ' +
+        'arp (cycle arpeggio over a voice-led progression: contour, accent, octave and rest cycles of different ' +
+        'lengths drift against the bar; needs root), kick (four on the floor), hats (offbeat), drum_kit, bass (rolling, ' +
         'needs root), chords (needs root; degrees e.g. [1,6,3,7]), build_up, euclidean (hits/steps/pitch), ' +
         'polyrhythm (a:b), bass_from_reference (copy a reference track\'s bass rhythm, accents and pitches). ' +
         'Replaces the clip in that slot; the previous clip is snapshotted when there was one.',
@@ -309,6 +312,12 @@ export function createMcpServer(client: McpClient): McpServer {
         swing: z.number().min(0).max(0.5).optional().describe('drums: fraction of a 16th, hats and percussion only'),
         humanize: z.boolean().optional().describe('drums: role-based microtiming; main kicks stay on the grid'),
         chance: z.boolean().optional().describe('drums: trigger chance on ghosts and percussion only'),
+        contour: z.array(z.number().int().min(0).max(12)).optional().describe('arp: indices into chord tones, e.g. [0,2,1,3,2]'),
+        accent_hits: z.number().int().min(1).optional().describe('arp: Euclidean accents, hits per accent_steps (default 3 of 8)'),
+        accent_steps: z.number().int().min(2).optional(),
+        octave_cycle: z.array(z.number().int().min(-24).max(24)).optional().describe('arp: semitone offsets cycle, default [0,0,12,0,0,0,0]'),
+        rests_per_bar: z.number().int().min(0).max(12).optional().describe('arp: rests in each 16-step cycle (default 3)'),
+        beats_per_chord: z.number().positive().optional().describe('arp/chords: default 8 (two bars)'),
         root: z.string().optional().describe('Key root, e.g. "F" or "A#"'),
         scale: z.string().optional().describe('minor, major, dorian, phrygian, ...'),
         degrees: z.array(z.number().int().min(1).max(7)).optional().describe('chords'),
@@ -360,6 +369,28 @@ export function createMcpServer(client: McpClient): McpServer {
           case 'build_up':
             commands = createBuildUp(target, groove);
             break;
+          case 'arp': {
+            if (!args.root) throw new Error('arp needs a root, e.g. "F".');
+            const bars = args.bars ?? 16;
+            const chords = progression(args.root, args.scale ?? 'minor', args.degrees ?? [1, 6, 3, 7], {
+              voicing: 'seventh',
+              octave: args.octave ?? 4,
+            });
+            const arp = cycleArp({
+              chords,
+              beatsPerChord: args.beats_per_chord ?? 8,
+              bars,
+              contour: args.contour ?? [0, 2, 1, 3, 2],
+              accents: euclidean(args.accent_hits ?? 3, args.accent_steps ?? 8),
+              octaves: args.octave_cycle ?? [0, 0, 12, 0, 0, 0, 0],
+              mask: euclidean(16 - (args.rests_per_bar ?? 3), 16, 3),
+              gate: 0.55,
+              seed: args.seed,
+            });
+            commands = writePattern(arp, { ...target, bars, createClip: true, name: 'Arp cycles' });
+            notes = [`The line repeats after ${arp.repeatsAfterSteps} sixteenths (${(arp.repeatsAfterSteps / 16).toFixed(1)} bars); the clip is ${bars} bars.`];
+            break;
+          }
           case 'drums': {
             const genre = args.genre ?? 'techno';
             const options = {
