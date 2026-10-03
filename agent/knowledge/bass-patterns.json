@@ -1,0 +1,71 @@
+{
+  "source": "BASSLINES.md MIDI pattern library - original teaching patterns, written in C minor",
+  "notation": "16 steps per 4/4 bar; '—' rest, '~' continues the previous note, 'C2/108' = note/velocity. Octave numbers read as scientific pitch (C4 = 60): BASSLINES.md does not name its convention, and this one puts the house line at 65 Hz and the DnB sub at 33 Hz, matching its frequency guidance.",
+  "octave_convention": "scientific",
+  "key": "C",
+  "default_gate": 0.9,
+  "patterns": {
+    "house_offbeat": {
+      "genre": "house",
+      "tempo": 124,
+      "purpose": "clean separation from a four-on-the-floor kick",
+      "grid": "— — C2/108 — | — — G1/96 — | — — Bb1/102 — | — — G1/94 —"
+    },
+    "house_harmonic": {
+      "genre": "house",
+      "tempo": 124,
+      "purpose": "same framework with more harmonic movement",
+      "grid": "— — C2/108 — | — — Eb2/94 — | — — G1/101 — | — Bb1/88 C2/104 —"
+    },
+    "rolling_techno": {
+      "genre": "techno",
+      "tempo": 132,
+      "purpose": "short, uneven sixteenth activity",
+      "grid": "C2/110 — C2/88 C2/101 | — G1/95 C2/90 — | C2/108 — Eb2/92 C2/100 | G1/98 — Bb1/88 —"
+    },
+    "sparse_techno": {
+      "genre": "techno",
+      "tempo": 128,
+      "purpose": "negative space and offbeat placement (dub techno)",
+      "grid": "— C2/104 — — | — — G1/90 — | C2/108 — — Bb1/88 | — — G1/96 —"
+    },
+    "dnb_sub": {
+      "genre": "drum_and_bass",
+      "tempo": 174,
+      "purpose": "long note plus syncopated answers",
+      "grid": "C1/112 ~ — — | — G1/94 — — | Bb0/103 — C1/108 — | — — G0/90 —"
+    },
+    "dubstep_halftime_sub": {
+      "genre": "dubstep",
+      "tempo": 140,
+      "purpose": "sustained weight with gaps for drums",
+      "grid": "C1/115 ~ ~ — | — — G0/96 — | C1/108 ~ — — | Bb0/101 — — —"
+    },
+    "ukg_shuffle": {
+      "genre": "uk_garage",
+      "tempo": 130,
+      "purpose": "syncopated call-and-response",
+      "grid": "C2/106 — — G1/86 | — Bb1/99 — C2/110 | — — Eb2/91 — | G1/96 — C2/104 —"
+    },
+    "dnb_reese_upper": {
+      "genre": "drum_and_bass",
+      "tempo": 174,
+      "purpose": "upper/Reese rhythm; pair with a simpler sub rather than duplicating its low end",
+      "layer": "upper",
+      "grid": "C2/100 ~ ~ ~ | — — Bb1/88 ~ | C2/105 ~ G1/90 — | Bb1/94 ~ — —"
+    }
+  },
+  "form": ["A", "A2", "B", "A3"],
+  "genre_priorities": {
+    "house": ["kick/bass interlock", "offbeat or syncopated notes", "short, controlled articulation", "harmonic clarity", "subtle variation"],
+    "techno": ["repetition with micro-variation", "short rhythmic cells", "off-grid or offbeat tension", "filter/envelope evolution", "gradual development"],
+    "drum_and_bass": ["strategic sub-note placement", "stable sub", "separate upper Reese/growl", "phrase-level variation"],
+    "dubstep": ["spacious half-time relationship", "strong sub foundation", "contrasting mid-bass gestures", "silence and negative space"],
+    "uk_garage": ["syncopation", "two-step relationship", "swing/shuffle", "velocity differences", "shorter articulations"]
+  },
+  "checks": {
+    "lowest_fundamental_hz": 40,
+    "click_ms": 30,
+    "retrigger_gap_ms": 12
+  }
+}

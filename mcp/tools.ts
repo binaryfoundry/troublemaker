@@ -44,6 +44,7 @@ import {
 import { bassFromFeel, cycleArp, euclidean, euclideanPattern, polyrhythm } from '../agent/src/patterns.js';
 import { progression } from '../agent/src/music-theory.js';
 import { drumGenres } from '../agent/src/drums.js';
+import { bassPattern, bassPatternNames, checkBassline, mergeRepeats } from '../agent/src/basslines.js';
 import type { ChainState, Decision } from '../agent/src/mastering/policy.js';
 
 export interface McpClient {
@@ -281,6 +282,7 @@ export function createMcpServer(client: McpClient): McpServer {
     'drums',
     'arp',
     'bass',
+    'bassline',
     'chords',
     'build_up',
     'euclidean',
@@ -295,6 +297,8 @@ export function createMcpServer(client: McpClient): McpServer {
       description:
         'Generate a part into a clip slot: drums (a DRUMS.md genre groove - genre house/techno/hiphop/trap/electro, ' +
         'energy, variant A/A\'/B/F or phrase=true for a 16-bar A/A\'/B/F phrase, swing, humanize, chance), ' +
+        'bassline (a BASSLINES.md pattern - house_offbeat, rolling_techno, dnb_sub... - transposed to root, form=true for ' +
+        'A/A2/B/A3 development, checked against the kick), ' +
         'arp (cycle arpeggio over a voice-led progression: contour, accent, octave and rest cycles of different ' +
         'lengths drift against the bar; needs root), kick (four on the floor), hats (offbeat), drum_kit, bass (rolling, ' +
         'needs root), chords (needs root; degrees e.g. [1,6,3,7]), build_up, euclidean (hits/steps/pitch), ' +
@@ -319,6 +323,11 @@ export function createMcpServer(client: McpClient): McpServer {
         octave_cycle: z.array(z.number().int().min(-24).max(24)).optional().describe('arp: semitone offsets cycle, default [0,0,12,0,0,0,0]'),
         rests_per_bar: z.number().int().min(0).max(12).optional().describe('arp: rests in each 16-step cycle (default 3)'),
         beats_per_chord: z.number().positive().optional().describe('arp/chords: default 8 (two bars)'),
+        pattern: z.string().optional().describe(`bassline: ${bassPatternNames().join(', ')}`),
+        form: z.boolean().optional().describe('bassline: A / A2 / B / A3 development across the clip'),
+        octave_shift: z.number().int().min(-2).max(2).optional().describe('bassline: whole octaves up or down'),
+        merge_repeats: z.boolean().optional().describe('bass parts: join back-to-back repeats so the envelope does not restart (clicks)'),
+        kick_track_id: id.optional().describe('bass parts: check the bass against the kick in this track\'s slot 0'),
         root: z.string().optional().describe('Key root, e.g. "F" or "A#"'),
         scale: z.string().optional().describe('minor, major, dorian, phrygian, ...'),
         degrees: z.array(z.number().int().min(1).max(7)).optional().describe('chords'),
@@ -389,6 +398,13 @@ export function createMcpServer(client: McpClient): McpServer {
           case 'build_up':
             commands = createBuildUp(target, groove);
             break;
+          case 'bassline': {
+            if (!args.pattern) throw new Error(`bassline needs a pattern: ${bassPatternNames().join(', ')}.`);
+            const pattern = bassPattern(args.pattern, { root: args.root, octave: args.octave_shift ?? 0, bars: args.bars, form: args.form, seed: args.seed });
+            commands = writePattern(pattern, { ...target, bars: pattern.length_beats / 4, createClip: true, name: `Bass ${args.pattern}` });
+            notes = [`${args.pattern}: ${pattern.spec.purpose} (written at ${pattern.spec.tempo} BPM, ${pattern.spec.genre}).`];
+            break;
+          }
           case 'arp': {
             if (!args.root) throw new Error('arp needs a root, e.g. "F".');
             const bars = args.bars ?? 16;
@@ -456,6 +472,29 @@ export function createMcpServer(client: McpClient): McpServer {
             commands = writePattern(pattern, { ...target, bars, createClip: true, name: 'Bass (ref)' });
             notes = [formatBassProfile(profile)];
             break;
+          }
+        }
+        if (['bass', 'bassline', 'bass_from_reference'].includes(args.part)) {
+          const replace = commands.find((c) => c.command === 'live.replace_notes');
+          if (replace) {
+            const raw = replace.args.notes as Array<{ pitch: number; start: number; duration: number; velocity: number }>;
+            let line = { length_beats: Math.max(4, ...raw.map((n) => n.start + n.duration)), events: raw.map((n) => ({ beat: n.start, pitch: n.pitch, duration: n.duration, velocity: n.velocity })) };
+            if (args.merge_repeats) {
+              line = mergeRepeats(line);
+              replace.args.notes = line.events.map((e) => ({ pitch: e.pitch, start: e.beat, duration: e.duration, velocity: e.velocity }));
+            }
+            let kicks: number[] | undefined;
+            if (args.kick_track_id !== undefined) {
+              try {
+                const kick = (await post('live.get_notes', { track_id: args.kick_track_id, clip_slot: 0 })) as { notes: Array<{ start?: number; start_time?: number }> };
+                kicks = kick.notes.map((n) => n.start ?? n.start_time ?? 0);
+              } catch {
+                // No kick clip: check without it.
+              }
+            }
+            const transport = (await post('live.get_tempo').catch(() => ({ bpm: 124 }))) as { bpm: number };
+            const findings = checkBassline(line, { bpm: transport.bpm, kicks });
+            notes.push(findings.length ? findings.map((f) => `[${f.severity}] ${f.message}`).join('\n') : 'Bass checks: no findings.');
           }
         }
         let snapshot: string | null = null;
@@ -1071,6 +1110,7 @@ export function createMcpServer(client: McpClient): McpServer {
     ['effects', 'effects.md', 'Production effects practice (EFFECTS.md).'],
     ['mastering', 'mastering.md', 'Club mastering practice (MIXING.md).'],
     ['drums', 'drums.md', '808/909 drum programming practice (DRUMS.md).'],
+    ['basslines', 'basslines.md', 'Bassline writing, kick/bass and low-end practice (BASSLINES.md).'],
   ];
   for (const [name, file, description] of prompts) {
     const path = join(ROOT, 'agent', 'prompts', file);
@@ -1088,6 +1128,7 @@ export function createMcpServer(client: McpClient): McpServer {
   const files: Array<[string, string, string]> = [
     ['effects-codex', 'agent/knowledge/effects.json', 'The 34-effect codex with Live recipes.'],
     ['styles', 'agent/knowledge/styles.json', 'Arrangement style templates.'],
+    ['bass-patterns', 'agent/knowledge/bass-patterns.json', 'BASSLINES.md pattern library and checks.'],
     ['drum-patterns', 'agent/knowledge/drum-patterns.json', 'DRUMS.md genre grids, velocity tiers, A/A\'/B/F phrase.'],
     ['reference-sets', 'config/reference-sets.json', 'Named reference-track sets and their profiles.'],
   ];

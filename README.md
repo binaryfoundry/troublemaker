@@ -210,7 +210,17 @@ npm run cli -- drums write house --track 36 --swing 56 --laid-back
 Through MCP: `load_sound` an 808 or 909 kit, then `write_part` with
 `part: drums` and a `genre`.
 
-## Composition and effects
+## Basslines
+
+`BASSLINES.md` is integrated as `agent/prompts/basslines.md`, its pattern
+library in `agent/knowledge/bass-patterns.json` and `agent/src/basslines.ts`:
+house offbeat and harmonic, rolling and sparse techno, DnB sub and Reese,
+dubstep half-time and UK garage lines, transposed to the track's key, with
+the A / A2 / B / A3 development form. Every bass write is checked against
+the troubleshooting matrix: fundamental below ~40 Hz, clicky short notes,
+overlaps, polyphony in a sub, envelope restarts on repeated notes (fixed by
+`merge_repeats`), notes stacked on the kick, off-chord strong beats.
+
 
 `COMPOSITION.md`, `EDM-COMPOSITION.md` and `EFFECTS.md` are integrated as
 agent prompts (`agent/prompts/composition.md`, `agent/prompts/effects.md`),

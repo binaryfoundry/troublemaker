@@ -192,6 +192,17 @@ describe('MCP server', () => {
     expect(pitches.has(50)).toBe(false);
   });
 
+  it('writes a BASSLINES.md pattern in the key and returns the bass checks', async () => {
+    const result = await client.callTool({
+      name: 'write_part',
+      arguments: { track_id: 1, clip_slot: 0, part: 'bassline', pattern: 'house_offbeat', root: 'F' },
+    });
+    expect(result.isError).toBeFalsy();
+    expect(notes.map((n) => n.start_time)).toEqual([0.5, 1.5, 2.5, 3.5]);
+    expect(notes[0]!.pitch).toBe(41);
+    expect((result.content as Array<{ text: string }>).map((c) => c.text).join(' ')).toMatch(/Bass checks: no findings/);
+  });
+
   it('writes a cycle arpeggio whose notes all come from the progression', async () => {
     const result = await client.callTool({
       name: 'write_part',
