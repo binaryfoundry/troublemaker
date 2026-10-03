@@ -809,6 +809,12 @@ class TestEndToEndWorkflow(HandlerTestCase):
 
 
 
+class TestPerformance(HandlerTestCase):
+    def test_reports_live_cpu_load(self):
+        result = self.call("live.get_performance")
+        self.assertEqual(result, {"average_cpu_percent": 25.0, "peak_cpu_percent": 40.0})
+
+
 class TestBackToArrangement(HandlerTestCase):
     def test_returns_tracks_to_the_arrangement(self):
         self.song.back_to_arranger = True

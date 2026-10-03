@@ -683,6 +683,8 @@ BROWSER = FakeBrowser()
 
 class _Application(object):
     browser = BROWSER
+    average_process_usage = 25.0
+    peak_process_usage = 40.0
 
     def get_major_version(self):
         return 11

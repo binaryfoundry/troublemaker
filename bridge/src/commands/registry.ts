@@ -137,6 +137,7 @@ const SUMMARIES: Record<CommandName, { summary: string; mutates?: boolean; bridg
     summary: 'Record a fixed length into an empty slot of an armed track.',
     mutates: true,
   },
+  'live.get_performance': { summary: "Live's CPU meter, average and peak - dropouts start near 100%." },
   'live.back_to_arrangement': {
     summary: "Press Back to Arrangement, so tracks that played Session clips follow the Arrangement again.",
     mutates: true,

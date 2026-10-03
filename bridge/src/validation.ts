@@ -296,6 +296,7 @@ export const schemas = {
   'live.create_return_track': z.object({ name: nonEmptyName.optional() }).strict(),
   'live.set_song_time': z.object({ beat }).strict(),
   'live.back_to_arrangement': empty,
+  'live.get_performance': empty,
   'live.browse': z
     .object({
       category: z.string().min(1),

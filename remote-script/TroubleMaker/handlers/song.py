@@ -205,6 +205,15 @@ def continue_playing(ctx, args):
     return get_transport(ctx, {})
 
 
+def get_performance(ctx, args):
+    """Live's own CPU meter, already in percent: audio dropouts start near 100."""
+    app = ctx.app
+    return {
+        "average_cpu_percent": lom.safe(lambda: round(float(app.average_process_usage), 1), None),
+        "peak_cpu_percent": lom.safe(lambda: round(float(app.peak_process_usage), 1), None),
+    }
+
+
 def back_to_arrangement(ctx, args):
     """Press 'Back to Arrangement': tracks that played Session clips follow
     the Arrangement again. Without it, Arrangement playback stays silent on
@@ -268,6 +277,7 @@ COMMANDS = {
     "live.stop_all_clips": stop_all_clips,
     "live.set_song_time": set_song_time,
     "live.back_to_arrangement": back_to_arrangement,
+    "live.get_performance": get_performance,
     "live.set_metronome": set_metronome,
     "live.undo": undo,
     "live.redo": redo,
