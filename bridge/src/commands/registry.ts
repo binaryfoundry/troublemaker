@@ -137,6 +137,16 @@ const SUMMARIES: Record<CommandName, { summary: string; mutates?: boolean; bridg
     summary: 'Record a fixed length into an empty slot of an armed track.',
     mutates: true,
   },
+  'live.browse': { summary: "List or search Live's browser: drums, instruments, sounds, samples, user folders." },
+  'live.load_browser_item': {
+    summary: 'Load a browser item (kit, preset, device, sample) onto a track.',
+    mutates: true,
+  },
+  'live.get_drum_pads': { summary: "A Drum Rack's filled pads with their MIDI notes." },
+  'live.reload_handlers': {
+    summary: 'Re-import the Remote Script handlers so handler edits apply without restarting Live.',
+    mutates: true,
+  },
   'live.record_with_scene': {
     summary: 'Launch a scene and start a fixed-length recording on the same bar.',
     mutates: true,

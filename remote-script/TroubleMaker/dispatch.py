@@ -34,6 +34,9 @@ class Dispatcher(object):
     def __init__(self, ctx):
         self.ctx = ctx
         self._commands = {}
+        self._modules = []
+        self._builtins = {"live.reload_handlers": self._reload_handlers}
+        self._commands.update(self._builtins)
 
     def register(self, name, fn):
         if name in self._commands:
@@ -41,8 +44,33 @@ class Dispatcher(object):
         self._commands[name] = fn
 
     def register_module(self, module):
+        self._modules.append(module)
         for name, fn in module.COMMANDS.items():
             self.register(name, fn)
+
+    def _reload_handlers(self, ctx, args):
+        """Re-import the handler modules, so handler edits apply without a
+        Live restart. errors and dispatch are left alone: reloading them
+        would make exceptions raised by new code miss the except clauses
+        here. Changes to those, or to the server, still need a restart.
+        """
+        import importlib
+
+        from . import handlers, lom
+
+        importlib.reload(lom)
+        for module in handlers.MODULES:
+            importlib.reload(module)
+        # Picks up modules added to handlers/__init__.py since startup.
+        importlib.reload(handlers)
+        for module in handlers.MODULES:
+            if module not in self._modules:
+                importlib.reload(module)
+        self._commands = dict(self._builtins)
+        self._modules = []
+        for module in handlers.MODULES:
+            self.register_module(module)
+        return {"reloaded": [m.__name__.split(".")[-1] for m in handlers.MODULES], "commands": len(self._commands)}
 
     @property
     def command_names(self):

@@ -295,6 +295,20 @@ export const schemas = {
   'live.clear_arrangement': trackRef.strict(),
   'live.create_return_track': z.object({ name: nonEmptyName.optional() }).strict(),
   'live.set_song_time': z.object({ beat }).strict(),
+  'live.browse': z
+    .object({
+      category: z.string().min(1),
+      path: z.array(z.string().min(1)).max(32).optional(),
+      query: z.string().min(1).max(200).optional(),
+      limit: z.number().int().min(1).max(500).optional(),
+      budget: z.number().int().min(1).max(20000).optional(),
+    })
+    .strict(),
+  'live.load_browser_item': trackRef
+    .extend({ category: z.string().min(1), path: z.array(z.string().min(1)).min(1).max(32) })
+    .strict(),
+  'live.get_drum_pads': deviceRef.strict(),
+  'live.reload_handlers': empty,
 
   // -- capture ----------------------------------------------------------
   'live.create_audio_track': z

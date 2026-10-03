@@ -12,5 +12,6 @@ from . import selection
 from . import master
 from . import capture
 from . import arrangement
+from . import browser
 
-MODULES = (song, tracks, clips, notes, scenes, devices, automation, selection, master, capture, arrangement)
+MODULES = (song, tracks, clips, notes, scenes, devices, automation, selection, master, capture, arrangement, browser)

@@ -139,6 +139,7 @@ see the same snapshots. Otherwise it starts its own bridge on port 8765.
 | `transform_clip` | Syncopate, straighten, thin, densify, humanize, swing, transpose, conform to key, vary, pre-drop gap. Snapshots first, applies atomically, reads back |
 | `write_part`, `write_notes` | Generate kick / hats / kit / bass / chords / build-up / Euclidean / polyrhythm, or a bass copied from a reference track |
 | `restore_snapshot` | Undo any edit by its snapshot id |
+| `find_sounds`, `load_sound` | Search Live's browser (Core Library kits such as the 808, presets, samples, your folders) and load onto a track; kits report their pads |
 | `set_mixer`, `set_device_parameter`, `insert_device`, `transport` | Faders in dB, parameters by displayed value or option, native devices, playback |
 | `master_chain`, `master_set`, `capture_master`, `qc`, `ab_trial` | MIXING.md mastering: chain build and presets, reasoned changes, capture, QC against references, A/B at matched loudness |
 | `references`, `analyze_bass` | Reference sets and bass profiles |
@@ -284,7 +285,7 @@ Live's shared undo stack.
 ## Testing
 
 ```bash
-npm run test:all     # 303 TypeScript + 107 Python tests, no Ableton required
+npm run test:all     # 304 TypeScript + 118 Python tests, no Ableton required
 npm test             # TypeScript only
 npm run test:python  # Live-side handlers only
 npm run typecheck

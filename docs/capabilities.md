@@ -27,7 +27,8 @@ reports a success it did not achieve.
 | Undo        | Live undo/redo, plus bridge-side clip snapshots                    |
 | Batching    | transactions, optionally atomic with rollback                      |
 | Dry run     | validate and report any command without applying it                |
-| MCP         | 25 tools, 5 prompts and the knowledge files over stdio (`mcp/server.ts`) |
+| MCP         | 27 tools, 5 prompts and the knowledge files over stdio (`mcp/server.ts`) |
+| Browser     | search drums, sounds, instruments, samples, packs, User Library and user folders; load kits, presets and samples onto a track; list Drum Rack pads |
 | Faders in dB | set volume, pan and sends by their displayed value (`mixer` target) |
 | Arrangement | lay Session clips onto the Arrangement at a beat; list and clear Arrangement clips |
 | Returns     | create return tracks (Live 12)                                     |

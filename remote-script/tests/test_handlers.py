@@ -28,6 +28,8 @@ def build_dispatcher():
     dispatcher = Dispatcher(ctx)
     for module in handlers.MODULES:
         dispatcher.register_module(module)
+    fake_live.BROWSER.song = song
+    fake_live.BROWSER.loaded = []
     return dispatcher, song, registry
 
 
@@ -803,6 +805,63 @@ class TestEndToEndWorkflow(HandlerTestCase):
                          sorted(n["pitch"] for n in before))
         off_grid = [n for n in after if abs(n["start"] % 0.5) > 1e-6]
         self.assertEqual(len(off_grid), 4)
+
+
+
+class TestBrowser(HandlerTestCase):
+    def setUp(self):
+        HandlerTestCase.setUp(self)
+        self.track = self.call("live.get_tracks")["tracks"][0]["track_id"]
+
+    def test_reports_device_loading(self):
+        self.assertTrue(self.call("live.get_capabilities")["device_loading"])
+
+    def test_lists_a_category(self):
+        items = self.call("live.browse", category="drums")["items"]
+        self.assertIn("808 Core Kit.adg", [i["name"] for i in items])
+
+    def test_searches_by_every_word(self):
+        result = self.call("live.browse", category="drums", query="808 kit")
+        self.assertEqual([i["name"] for i in result["items"]], ["808 Core Kit.adg"])
+        self.assertEqual(result["items"][0]["path"], ["808 Core Kit.adg"])
+
+    def test_search_descends_into_folders(self):
+        result = self.call("live.browse", category="drums", query="kick 808")
+        self.assertEqual(result["items"][0]["path"], ["Drum Hits", "Kick 808 Long.wav"])
+
+    def test_search_stops_at_its_budget(self):
+        result = self.call("live.browse", category="drums", query="nothing", budget=2)
+        self.assertTrue(result["exhausted_budget"])
+
+    def test_lists_a_folder_by_path(self):
+        items = self.call("live.browse", category="drums", path=["Drum Hits"])["items"]
+        self.assertEqual([i["name"] for i in items], ["Kick 808 Long.wav", "Clap 808.wav"])
+
+    def test_loads_a_kit_and_lists_its_pads(self):
+        result = self.call("live.load_browser_item", track_id=self.track, category="drums", path=["808 Core Kit.adg"])
+        kit = result["devices"][-1]
+        self.assertEqual(kit["class_name"], "DrumGroupDevice")
+        pads = self.call("live.get_drum_pads", track_id=self.track, device_id=kit["device_id"])["pads"]
+        self.assertEqual(pads[0], {"note": 36, "name": "Kick 808"})
+        self.assertNotIn(37, [p["note"] for p in pads])
+
+    def test_refuses_to_load_a_folder(self):
+        error = self.fail_call("live.load_browser_item", track_id=self.track, category="drums", path=["Drum Hits"])
+        self.assertEqual(error["code"], "INVALID_ARGUMENT")
+
+    def test_unknown_path_names_the_missing_step(self):
+        error = self.fail_call("live.load_browser_item", track_id=self.track, category="drums", path=["Nope.adg"])
+        self.assertIn("Nope.adg", error["message"])
+
+    def test_unknown_category_lists_the_real_ones(self):
+        error = self.fail_call("live.browse", category="wavetables")
+        self.assertIn("drums", error["available"])
+
+    def test_reload_keeps_every_command(self):
+        before = set(self.dispatcher.command_names)
+        result = self.call("live.reload_handlers")
+        self.assertEqual(set(self.dispatcher.command_names), before)
+        self.assertIn("browser", result["reloaded"])
 
 
 if __name__ == "__main__":

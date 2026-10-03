@@ -169,6 +169,30 @@ describe('MCP server', () => {
     expect(sent?.args).toMatchObject({ track_id: 1, mixer: 'volume', target: -8 });
   });
 
+  it('loads the best-matching kit and reports its pads', async () => {
+    live.handlers.set('live.browse', (_c, args) => ({
+      items:
+        args.category === 'drums'
+          ? [
+              { name: '808 Core Kit Extended.adg', path: ['808 Core Kit Extended.adg'], is_loadable: true, is_folder: false },
+              { name: '808 Core Kit.adg', path: ['808 Core Kit.adg'], is_loadable: true, is_folder: false },
+            ]
+          : [],
+    }));
+    live.handlers.set('live.load_browser_item', (_c, args) => ({
+      track_id: 1,
+      loaded: { path: args.path },
+      devices: [{ device_id: 50, name: '808 Core Kit', class_name: 'DrumGroupDevice' }],
+    }));
+    live.handlers.set('live.get_drum_pads', () => ({ pads: [{ note: 36, name: 'Kick 808' }] }));
+    const result = payload(
+      await client.callTool({ name: 'load_sound', arguments: { track_id: 1, query: '808 Core Kit' } }),
+    ) as { loaded: { path: string[] }; pads: unknown[]; alternatives: unknown[] };
+    expect(result.loaded.path).toEqual(['808 Core Kit.adg']);
+    expect(result.pads).toEqual([{ note: 36, name: 'Kick 808' }]);
+    expect(result.alternatives).toHaveLength(1);
+  });
+
   it('returns bridge errors as tool errors with the code', async () => {
     const result = await client.callTool({ name: 'bridge_command', arguments: { command: 'live.nonsense' } });
     expect(result.isError).toBe(true);

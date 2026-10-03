@@ -39,8 +39,10 @@ An exception escaping `__init__` makes Live disable the script silently, which
 is near-impossible to debug. Startup is wrapped in a try/except that logs
 loudly. Keep it that way.
 
-Python changes need a **Live restart** to take effect. Install with `-Link`
-during development so you only restart, not reinstall.
+Install with `-Link` during development. Handler edits then apply with
+`live.reload_handlers` (`npm run cli -- raw live.reload_handlers '{}'`), no
+restart. Changes to `dispatch.py`, `errors.py`, `server.py` or
+`TroubleMaker.py` still need a **Live restart**.
 
 Log to Live's `Log.txt`:
 

@@ -495,6 +495,107 @@ export function createMcpServer(client: McpClient): McpServer {
       }),
   );
 
+  const BROWSER_CATEGORIES = [
+    'drums',
+    'instruments',
+    'sounds',
+    'samples',
+    'audio_effects',
+    'midi_effects',
+    'packs',
+    'user_library',
+    'user_folders',
+  ] as const;
+
+  interface BrowserItem {
+    name: string;
+    path: string[];
+    is_loadable: boolean;
+    is_folder: boolean;
+  }
+
+  async function searchBrowser(category: string, query: string): Promise<BrowserItem[]> {
+    const { items } = (await post('live.browse', { category, query, limit: 40 })) as { items: BrowserItem[] };
+    return items.filter((i) => i.is_loadable);
+  }
+
+  server.registerTool(
+    'find_sounds',
+    {
+      title: 'Find sounds',
+      description:
+        "Search Live's browser: drum kits (drums), instrument presets (sounds, instruments), samples, effects, " +
+        'packs, the User Library and added folders (user_folders). Every word of query must appear in the name. ' +
+        'Omit query to list a folder (path).',
+      inputSchema: {
+        category: z.enum(BROWSER_CATEGORIES),
+        query: z.string().optional().describe('e.g. "808 kit", "sub bass", "clap"'),
+        path: z.array(z.string()).optional().describe('Folder to list, as names from the category down'),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    (args) => guarded(async () => text(await post('live.browse', { ...args, limit: 60 }))),
+  );
+
+  server.registerTool(
+    'load_sound',
+    {
+      title: 'Load a sound',
+      description:
+        'Load a kit, preset, instrument or sample onto a track: give query (best match is loaded, alternatives ' +
+        'returned) or category + path from find_sounds. A Drum Rack kit reports its pads, so kick / clap / hat ' +
+        'notes are known; write_part drums use GM notes (kick 36, snare 38, clap 39, closed hat 42, open hat 46).',
+      inputSchema: {
+        track_id: trackId,
+        query: z.string().optional().describe('e.g. "808 Core Kit", "Sub Bass"'),
+        category: z.enum(BROWSER_CATEGORIES).optional().describe('Where to look; default drums, sounds, instruments, samples'),
+        path: z.array(z.string()).optional(),
+      },
+    },
+    (args) =>
+      guarded(async () => {
+        let category = args.category as string | undefined;
+        let path = args.path;
+        let alternatives: BrowserItem[] = [];
+        if (!path) {
+          if (!args.query) throw new Error('Give query, or category and path.');
+          const wanted = args.query.trim().toLowerCase();
+          const order = category ? [category] : ['drums', 'sounds', 'instruments', 'samples'];
+          for (const where of order) {
+            const found = await searchBrowser(where, args.query);
+            if (!found.length) continue;
+            const stem = (name: string) => name.replace(/\.[a-z0-9]+$/i, '').toLowerCase();
+            found.sort(
+              (a, b) =>
+                Number(stem(b.name) === wanted) - Number(stem(a.name) === wanted) ||
+                Number(/\.adg$/i.test(b.name)) - Number(/\.adg$/i.test(a.name)) ||
+                a.name.length - b.name.length,
+            );
+            category = where;
+            path = found[0]!.path;
+            alternatives = found.slice(1, 8);
+            break;
+          }
+          if (!path) throw new Error(`Nothing loadable matches '${args.query}' in ${order.join(', ')}.`);
+        }
+        if (!category) throw new Error('Give category with path.');
+        const loaded = (await post('live.load_browser_item', { track_id: args.track_id, category, path })) as {
+          devices: Array<{ device_id: number; name: string; class_name: string | null }>;
+        };
+        const kit = loaded.devices.find((d) => d.class_name === 'DrumGroupDevice');
+        const pads = kit
+          ? ((await post('live.get_drum_pads', { track_id: args.track_id, device_id: kit.device_id })) as {
+              pads: Array<{ note: number; name: string }>;
+            }).pads
+          : undefined;
+        return text({
+          ...loaded,
+          ...(pads ? { pads } : {}),
+          ...(alternatives.length ? { alternatives: alternatives.map((a) => ({ name: a.name, path: a.path })) } : {}),
+        });
+      }),
+  );
+
   server.registerTool(
     'insert_device',
     {

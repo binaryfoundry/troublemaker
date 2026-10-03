@@ -618,7 +618,71 @@ class Wrapper(object):
 # ---------------------------------------------------------------------------
 
 
+class BrowserItem(object):
+    def __init__(self, name, children=None, loadable=None, device=False):
+        self.name = name
+        self.children = children or []
+        self.is_folder = bool(children)
+        self.is_loadable = (not self.is_folder) if loadable is None else loadable
+        self.is_device = device
+        self.uri = "query:fake#%s" % (name,)
+
+
+class DrumPad(object):
+    def __init__(self, note, name):
+        self.note = note
+        self.name = name
+        self.chains = [object()] if name else []
+
+
+class FakeBrowser(object):
+    """Drums, instruments and samples, enough to search and load."""
+
+    def __init__(self):
+        self.song = None
+        self.loaded = []
+        self.drums = BrowserItem("Drums", [
+            BrowserItem("808 Core Kit.adg"),
+            BrowserItem("909 Core Kit.adg"),
+            BrowserItem("Drum Hits", [BrowserItem("Kick 808 Long.wav"), BrowserItem("Clap 808.wav")]),
+        ])
+        self.instruments = BrowserItem("Instruments", [
+            BrowserItem("Drift", [BrowserItem("Bass", [BrowserItem("Sub Bass.adv")])], loadable=True, device=True),
+        ])
+        self.sounds = BrowserItem("Sounds", [BrowserItem("Pad", [BrowserItem("Warm Pad.adg")])])
+        self.samples = BrowserItem("Samples", [BrowserItem("Kick 808 Short.wav")])
+        self.audio_effects = BrowserItem("Audio Effects", [])
+        self.midi_effects = BrowserItem("MIDI Effects", [])
+        self.packs = BrowserItem("Packs", [])
+        self.user_library = BrowserItem("User Library", [])
+        self.current_project = BrowserItem("Current Project", [])
+        self.plugins = BrowserItem("Plug-Ins", [])
+        self.clips = BrowserItem("Clips", [])
+        self.user_folders = [BrowserItem("beatport", [BrowserItem("Loop.wav")])]
+
+    def load_item(self, item):
+        self.loaded.append(item.name)
+        track = _unwrap(self.song.view.selected_track)
+        name = item.name.rsplit(".", 1)[0]
+        if item.name.endswith(".adg") and "Kit" in item.name:
+            device = Device(name, "DrumGroupDevice", [])
+            device.can_have_drum_pads = True
+            device.drum_pads = [DrumPad(36, "Kick 808"), DrumPad(37, ""), DrumPad(38, "Snare 808"),
+                                DrumPad(39, "Clap 808"), DrumPad(42, "Hihat Closed 808")]
+        elif item.name.endswith(".wav"):
+            device = Device("Simpler", "OriginalSimpler", [])
+        else:
+            device = Device(name, "InstrumentVector", [])
+        device._parent = track
+        track.devices.append(device)
+
+
+BROWSER = FakeBrowser()
+
+
 class _Application(object):
+    browser = BROWSER
+
     def get_major_version(self):
         return 11
 

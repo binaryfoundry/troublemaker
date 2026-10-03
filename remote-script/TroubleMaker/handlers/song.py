@@ -38,6 +38,15 @@ def _has_device_insertion():
         return False
 
 
+def _has_browser():
+    try:
+        import Live
+
+        return hasattr(Live.Application.get_application().browser, "load_item")
+    except Exception:
+        return False
+
+
 def _has(path, attribute):
     try:
         import Live
@@ -84,7 +93,8 @@ def get_capabilities(ctx, args):
         "note_ids": extended_notes,
         "note_probability": extended_notes,
         "device_parameters": True,
-        "device_loading": False,
+        # Browser items (kits, presets, samples) load onto the selected track.
+        "device_loading": _has_browser(),
         # Live 12.3+: native devices can be inserted through the API.
         "device_insertion": _has_device_insertion(),
         "arrangement_placement": _has(("Track", "Track"), "duplicate_clip_to_arrangement"),
