@@ -18,6 +18,10 @@ interface BassPatternSpec {
   purpose: string;
   layer?: 'upper';
   grid: string;
+  /** Key the pattern is written in, if not the library's C. */
+  key?: string;
+  /** Octave naming the pattern uses: scientific (C4 = 60) by default, or Live's (C3 = 60). */
+  convention?: 'scientific' | 'live';
 }
 
 interface BassKnowledge {
@@ -44,10 +48,10 @@ export function bassPatternNames(): string[] {
 const STEP = 0.25;
 const hz = (midi: number) => 440 * 2 ** ((midi - 69) / 12);
 
-/** One bar of BASSLINES.md notation as events in the written key (C). */
-export function parseBassGrid(grid: string, gate = bassKnowledge().default_gate): PatternEvent[] {
+/** BASSLINES.md notation (16 steps a bar, any number of bars) as events in the written key. */
+export function parseBassGrid(grid: string, gate = bassKnowledge().default_gate, convention: 'scientific' | 'live' = 'scientific'): PatternEvent[] {
   const tokens = grid.split(/\s+/).filter((t) => t && t !== '|');
-  if (tokens.length !== 16) throw new RangeError(`A bass grid needs 16 steps; got ${tokens.length}.`);
+  if (tokens.length === 0 || tokens.length % 16 !== 0) throw new RangeError(`A bass grid needs 16 steps a bar; got ${tokens.length}.`);
   const events: PatternEvent[] = [];
   tokens.forEach((token, step) => {
     if (token === '~') {
@@ -59,7 +63,7 @@ export function parseBassGrid(grid: string, gate = bassKnowledge().default_gate)
     const [name, velocity] = token.split('/');
     events.push({
       beat: step * STEP,
-      pitch: noteNameToMidi(name!, 'scientific'),
+      pitch: noteNameToMidi(name!, convention),
       duration: round6(STEP * gate),
       velocity: Number(velocity ?? 100),
     });
@@ -87,7 +91,7 @@ function transposeInterval(from: string, to: string): number {
 }
 
 /** A / A2 / B / A3 as BASSLINES.md describes: controlled differences, one dimension at a time. */
-export function developBar(events: PatternEvent[], section: 'A' | 'A2' | 'B' | 'A3', seed = 1): PatternEvent[] {
+export function developBar(events: PatternEvent[], section: 'A' | 'A2' | 'B' | 'A3', seed = 1, lengthBeats = 4): PatternEvent[] {
   if (section === 'A' || events.length === 0) return events.map((e) => ({ ...e }));
   const random = makeRandom(seed);
   const out = events.map((e) => ({ ...e }));
@@ -110,7 +114,7 @@ export function developBar(events: PatternEvent[], section: 'A' | 'A2' | 'B' | '
   // A3: return with a lift - the last note an octave up, plus a chromatic approach into the next downbeat.
   const last = out.at(-1)!;
   last.pitch += 12;
-  const approachBeat = 3.75;
+  const approachBeat = lengthBeats - 0.25;
   if (!out.some((e) => Math.abs(e.beat - approachBeat) < 1e-6)) {
     out.push({ beat: approachBeat, pitch: root - 1, duration: round6(STEP * 0.9), velocity: clampVelocity(last.velocity - 8) });
   }
@@ -121,8 +125,9 @@ export function bassPattern(name: string, options: BassOptions = {}): Pattern & 
   const k = bassKnowledge();
   const spec = k.patterns[name];
   if (!spec) throw new RangeError(`Unknown bass pattern '${name}'. Known: ${bassPatternNames().join(', ')}.`);
-  const shift = (options.root ? transposeInterval(k.key, options.root) : 0) + 12 * (options.octave ?? 0);
-  const bar = parseBassGrid(spec.grid, options.gate ?? k.default_gate).map((e) => ({ ...e, pitch: e.pitch + shift }));
+  const shift = (options.root ? transposeInterval(spec.key ?? k.key, options.root) : 0) + 12 * (options.octave ?? 0);
+  const bar = parseBassGrid(spec.grid, options.gate ?? k.default_gate, spec.convention ?? 'scientific').map((e) => ({ ...e, pitch: e.pitch + shift }));
+  const unitBeats = (spec.grid.split(/\s+/).filter((t) => t && t !== '|').length / 16) * 4;
   const sections = options.form ? k.form : ['A' as const];
   const perSection = options.form ? (options.barsPerSection ?? 2) : (options.bars ?? 1);
   const events: PatternEvent[] = [];
@@ -131,8 +136,8 @@ export function bassPattern(name: string, options: BassOptions = {}): Pattern & 
     for (let b = 0; b < perSection; b += 1) {
       // The change lands on the section's last bar, so each section opens on the familiar idea.
       const variant = b === perSection - 1 || section === 'B' ? section : 'A';
-      for (const e of developBar(bar, variant, (options.seed ?? 1) * 31 + s)) events.push({ ...e, beat: round6(e.beat + barIndex * 4) });
-      barIndex += 1;
+      for (const e of developBar(bar, variant, (options.seed ?? 1) * 31 + s, unitBeats)) events.push({ ...e, beat: round6(e.beat + barIndex * 4) });
+      barIndex += unitBeats / 4;
     }
   });
   return { length_beats: barIndex * 4, events, spec };

@@ -1,0 +1,63 @@
+{
+  "source": "MELODIC-TECHNO.md - agent defaults and original teaching material, not measured from references (its twelve reference URLs were not supplied)",
+  "convention": "live",
+  "tempo": { "initial": 128, "preferred": [126, 132], "extended": [122, 134] },
+  "key": "D",
+  "motif": {
+    "description": "Two bars in D minor; omits constant chord tones and leaves gaps for Echo. The final C# is outside D natural minor: keep it only where it works against the harmony.",
+    "events": [
+      { "beat": 0, "pitch": 81, "duration": 0.5, "velocity": 88, "role": "open fifth" },
+      { "beat": 1.5, "pitch": 84, "duration": 0.25, "velocity": 75, "role": "flat 7" },
+      { "beat": 2, "pitch": 86, "duration": 0.5, "velocity": 96, "role": "tonic arrival" },
+      { "beat": 3.5, "pitch": 89, "duration": 0.25, "velocity": 82, "role": "minor identity" },
+      { "beat": 4.5, "pitch": 88, "duration": 0.5, "velocity": 78, "role": "add-9 tension" },
+      { "beat": 5.75, "pitch": 86, "duration": 0.25, "velocity": 87, "role": "resolve" },
+      { "beat": 6.5, "pitch": 81, "duration": 0.5, "velocity": 72, "role": "return" },
+      { "beat": 7.75, "pitch": 85, "duration": 0.25, "velocity": 60, "role": "chromatic tension into the restart" }
+    ]
+  },
+  "chord_loop": {
+    "description": "Restrained loop on a D pedal; keep the pad's low end filtered so the pedal does not duplicate the bass",
+    "bars": [
+      { "symbol": "Dm(add9)", "pitches": [50, 65, 69, 76] },
+      { "symbol": "Bb/D", "pitches": [50, 65, 70, 74] },
+      { "symbol": "C/D", "pitches": [50, 67, 72, 76] },
+      { "symbol": "Dm9 (no third on top)", "pitches": [50, 69, 72, 76] }
+    ]
+  },
+  "motif_variation_order": ["octave", "rhythm", "last_note", "velocity", "gate", "timbre", "delay", "register"],
+  "arrangement_rules": {
+    "every_8_bars": "one perceptible detail may change",
+    "every_16_bars": "one structural layer changes state",
+    "every_32_bars": "a recognisably different energy phase",
+    "break_the_clock": "once the arrangement exists, move or omit some changes so not every event lands predictably"
+  },
+  "energy_model": "E ~ density + brightness + harmonic/melodic prominence + spatial intensity + transitional expectation (a creative control model, not an acoustic formula)",
+  "automation_lanes": [
+    { "lane": "Lead filter cutoff", "timescale": "8-32 bars", "job": "long-term spectral tension" },
+    { "lane": "Lead motion macro", "timescale": "4-32 bars", "job": "prevent identical repeats" },
+    { "lane": "Lead/pluck reverb send", "timescale": "1 beat-16 bars", "job": "distance and breakdown expansion" },
+    { "lane": "Lead echo feedback", "timescale": "1 beat-4 bars", "job": "phrase endings and throws" },
+    { "lane": "Bass filter", "timescale": "8-32 bars", "job": "urgency" },
+    { "lane": "Bass envelope/decay", "timescale": "4-16 bars", "job": "groove variation" },
+    { "lane": "Hat decay/filter", "timescale": "8-16 bars", "job": "perceived energy" },
+    { "lane": "Drum high-frequency content", "timescale": "16-32 bars", "job": "build/peak differentiation" },
+    { "lane": "Noise/riser filter", "timescale": "4-16 bars", "job": "transition expectation" },
+    { "lane": "Pad high-pass/low-pass", "timescale": "8-32 bars", "job": "make space for drops" }
+  ],
+  "returns": [
+    { "name": "A Short Space", "job": "drum/percussion cohesion", "stock": "Hybrid Reverb short, wet high-passed", "fallback": "Reverb (small room), high-passed" },
+    { "name": "B Long Dark", "job": "leads, pads, breakdowns", "stock": "Hybrid Reverb Dark Hall, long decay, lows filtered", "fallback": "Reverb, long decay, damped highs, lows cut" },
+    { "name": "C Tempo Echo", "job": "leads, plucks, FX", "stock": "Echo 1/8 dotted or 1/4, filtered repeats", "fallback": "Delay (synced 1/8 dotted), filtered feedback" },
+    { "name": "D Character", "job": "parallel colour", "stock": "Roar, EQ after", "fallback": "Saturator, EQ Eight after" }
+  ],
+  "device_fallbacks": {
+    "Meld": ["Wavetable", "Operator", "Drift"],
+    "Wavetable": ["Operator", "Analog", "Drift"],
+    "Roar": ["Saturator"],
+    "Hybrid Reverb": ["Reverb"],
+    "Echo": ["Delay", "Filter Delay"],
+    "Granulator III": ["Simpler"],
+    "Drum Buss": ["Compressor + Saturator + EQ Eight"]
+  }
+}

@@ -43,8 +43,8 @@ import {
 import { bassFromFeel, cycleArp, euclidean, euclideanPattern, polyrhythm } from '../agent/src/patterns.js';
 import { progression } from '../agent/src/music-theory.js';
 import { drumGenres } from '../agent/src/drums.js';
-import { checkMelody, motifMelody } from '../agent/src/melody.js';
-import { checkChords, chordKnowledge, chordTemplate, voiceLeadingReport, voiceProgression, type VoicedChord } from '../agent/src/chords.js';
+import { checkMelody, motifMelody, templateMotif, varyMotif, type MotifVariation } from '../agent/src/melody.js';
+import { checkChords, chordKnowledge, chordTemplate, templateInKey, voiceLeadingReport, voiceProgression, type VoicedChord } from '../agent/src/chords.js';
 import { bassPattern, bassPatternNames, checkBassline, mergeRepeats } from '../agent/src/basslines.js';
 import type { ChainState, Decision } from '../agent/src/mastering/policy.js';
 
@@ -327,6 +327,8 @@ export function createMcpServer(client: McpClient): McpServer {
         octave_cycle: z.array(z.number().int().min(-24).max(24)).optional().describe('arp: semitone offsets cycle, default [0,0,12,0,0,0,0]'),
         rests_per_bar: z.number().int().min(0).max(12).optional().describe('arp: rests in each 16-step cycle (default 3)'),
         motif_notes: z.number().int().min(2).max(9).optional().describe('melody: notes in the one-bar rhythmic motif (default 5)'),
+        motif_template: z.enum(['melodic_techno']).optional().describe("melody: use MELODIC-TECHNO.md's two-bar motif (moved to root) instead of generating one"),
+        variation: z.enum(['octave', 'rhythm', 'last_note', 'velocity', 'gate', 'register']).optional().describe("melody: vary the motif one dimension at a time, in MELODIC-TECHNO.md's order"),
         beats_per_chord: z.number().positive().optional().describe('arp/chords: default 8 (two bars)'),
         pattern: z.string().optional().describe(`bassline: ${bassPatternNames().join(', ')}`),
         form: z.boolean().optional().describe('bassline: A / A2 / B / A3 development across the clip'),
@@ -397,7 +399,7 @@ export function createMcpServer(client: McpClient): McpServer {
             const beatsPerChord = args.beats_per_chord ?? (args.bars_per_chord ?? 1) * 4;
             let voiced: VoicedChord[];
             if (args.symbols?.length || args.template) {
-              const symbols = args.symbols?.length ? args.symbols : chordTemplate(args.template!).progression;
+              const symbols = args.symbols?.length ? args.symbols : templateInKey(args.template!, args.root);
               voiced = voiceProgression(symbols, { beatsPerChord });
             } else {
               if (!args.root) throw new Error('chords needs symbols, a template (H01-H08) or a root with degrees.');
@@ -439,7 +441,8 @@ export function createMcpServer(client: McpClient): McpServer {
               ? voiceProgression(args.symbols?.length ? args.symbols : chordTemplate(args.template!).progression, { beatsPerChord }).map((c) => c.pitches)
               : progression(args.root, args.scale ?? 'minor', args.degrees ?? [1, 6, 3, 7], { voicing: 'seventh' });
             const melodyOptions = { chords, beatsPerChord, root: args.root, scale: args.scale, bars: args.bars, hits: args.motif_notes, seed: args.seed };
-            const melody = motifMelody(melodyOptions);
+            let melody = args.motif_template ? templateMotif(args.root, args.octave_shift ?? 0) : motifMelody(melodyOptions);
+            if (args.variation) melody = varyMotif(melody, args.variation as MotifVariation, { root: args.root, scale: args.scale, seed: args.seed });
             commands = writePattern(melody, { ...target, bars: melody.length_beats / 4, createClip: true, name: 'Melody' });
             const findings = checkMelody(melody, melodyOptions);
             notes = [findings.length ? findings.map((f) => `[${f.severity}] ${f.message}`).join('\n') : 'Melody checks: no findings.'];
@@ -1151,6 +1154,7 @@ export function createMcpServer(client: McpClient): McpServer {
     ['mastering', 'mastering.md', 'Club mastering practice (MIXING.md).'],
     ['drums', 'drums.md', '808/909 drum programming practice (DRUMS.md).'],
     ['chords', 'chords.md', 'Chord progressions and voice leading (CHORDS.md).'],
+    ['melodic-techno', 'melodic-techno.md', 'Melodic techno production practice (MELODIC-TECHNO.md).'],
     ['edm-tips', 'edm-tips.md', 'EDM Tips decision trees, guardrails and QA (EDM-TIPS.md).'],
     ['basslines', 'basslines.md', 'Bassline writing, kick/bass and low-end practice (BASSLINES.md).'],
   ];
@@ -1170,6 +1174,7 @@ export function createMcpServer(client: McpClient): McpServer {
   const files: Array<[string, string, string]> = [
     ['effects-codex', 'agent/knowledge/effects.json', 'The 34-effect codex with Live recipes.'],
     ['styles', 'agent/knowledge/styles.json', 'Arrangement style templates.'],
+    ['melodic-techno', 'agent/knowledge/melodic-techno.json', 'MELODIC-TECHNO.md motif, chord loop, automation lanes, returns, device fallbacks.'],
     ['chord-progressions', 'agent/knowledge/chord-progressions.json', 'CHORDS.md progression templates H01-H08.'],
     ['bass-patterns', 'agent/knowledge/bass-patterns.json', 'BASSLINES.md pattern library and checks.'],
     ['drum-patterns', 'agent/knowledge/drum-patterns.json', 'DRUMS.md genre grids, velocity tiers, A/A\'/B/F phrase.'],

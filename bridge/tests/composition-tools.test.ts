@@ -183,19 +183,45 @@ describe('arrangement', () => {
     expect(checkArrangement(plan).some((f) => f.severity === 'review')).toBe(false);
   });
 
-  it('gives each section its job: beat-led intro and outro, kickless break, full peak', () => {
-    const plan = planArrangement('melodic_techno');
+  it('gives each section its job when a style names no roles: beat-led intro and outro, kickless break, full peak', () => {
+    const plan = planArrangement('techno');
     const at = (bar: number) => plan.find((s) => bar >= s.startBar && bar < s.startBar + s.bars)!;
     expect(at(1).roles).toEqual(['kick', 'hats']);
     expect(at(17).roles).toContain('atmosphere');
     expect(at(97).roles).not.toContain('kick');
     expect(at(97).roles).not.toContain('bass');
-    expect(at(113).roles).toContain('lead');
-    expect(at(129).roles).toHaveLength(7);
+    expect(at(105).roles).toContain('lead');
+    expect(at(113).roles).toHaveLength(8);
     expect(at(185).roles).toEqual(['kick', 'hats']);
-    // Something changes every 16 bars.
     for (const s of plan) expect(s.bars).toBeLessThanOrEqual(24);
     expect(checkArrangement(plan).some((f) => f.severity === 'review')).toBe(false);
+  });
+
+  it('plays the MELODIC-TECHNO.md 192-bar plan as written', () => {
+    const plan = planArrangement('melodic_techno');
+    expect(plan.map((s) => s.name)).toEqual([
+      'Intro', 'Groove', 'Low End', 'Motif Tease', 'Build', 'Break', 'Drop A', 'Drop A Variation', 'Reset', 'Peak Build', 'Final Peak', 'Outro',
+    ]);
+    expect(plan.every((s) => s.bars === 16)).toBe(true);
+    const by = (name: string) => plan.find((s) => s.name === name)!;
+    expect(by('Intro').roles).toEqual(['kick', 'perc', 'atmosphere']);
+    expect(by('Break').roles).not.toContain('kick');
+    expect(by('Reset').roles).not.toContain('lead');
+    expect(by('Peak Build').roles).not.toContain('lead');
+    expect(by('Final Peak').roles).toContain('lead');
+    expect(checkArrangement(plan).filter((f) => f.severity !== 'info')).toEqual([]);
+  });
+
+  it('flags a break that differs from the drop only by the kick, and a final peak with nothing new', () => {
+    const findings = checkArrangement([
+      { name: 'Intro', startBar: 1, bars: 16, energy: 0.3, roles: ['kick', 'hats'] },
+      { name: 'Peak A', startBar: 17, bars: 16, energy: 0.9, roles: ['kick', 'hats', 'bass', 'lead'] },
+      { name: 'Break', startBar: 33, bars: 16, energy: 0.5, roles: ['hats', 'bass', 'lead'] },
+      { name: 'Peak B', startBar: 49, bars: 16, energy: 0.9, roles: ['kick', 'hats', 'bass', 'lead'] },
+      { name: 'Outro', startBar: 65, bars: 16, energy: 0.3, roles: ['kick', 'hats'] },
+    ]).map((f) => f.message).join(' ');
+    expect(findings).toMatch(/only by the kick/);
+    expect(findings).toMatch(/brings nothing new/);
   });
 
   it('flags a DJ intro without a kick', () => {

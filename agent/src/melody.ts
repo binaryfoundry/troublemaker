@@ -6,6 +6,9 @@
  * and restore pitch around chord tones - not more notes.
  */
 
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { clampVelocity, makeRandom, pitchClass, round6, scalePitches } from './music-theory.js';
 import { euclidean, type Pattern, type PatternEvent } from './patterns.js';
 
@@ -129,4 +132,88 @@ export function checkMelody(pattern: Pattern, options: { chords: number[][]; bea
     findings.push({ severity: 'info', message: 'The phrase ends off the harmony; end on the tonic or a chord tone unless the loop should stay open.' });
   }
   return findings;
+}
+
+// ---------------------------------------------------------------------------
+// MELODIC-TECHNO.md: the template motif and its variation order
+// ---------------------------------------------------------------------------
+
+interface GenreKnowledge {
+  key: string;
+  motif: { events: Array<{ beat: number; pitch: number; duration: number; velocity: number }> };
+  chord_loop: { bars: Array<{ symbol: string; pitches: number[] }> };
+  motif_variation_order: string[];
+}
+
+let melodicTechno: GenreKnowledge | null = null;
+
+export function melodicTechnoKnowledge(): GenreKnowledge {
+  if (!melodicTechno) {
+    const path = fileURLToPath(new URL('../knowledge/melodic-techno.json', import.meta.url));
+    melodicTechno = JSON.parse(readFileSync(path, 'utf8')) as GenreKnowledge;
+  }
+  return melodicTechno;
+}
+
+/** The two-bar motif, moved the shortest way from D to `root`, plus whole octaves. */
+export function templateMotif(root?: string, octave = 0): Pattern {
+  const k = melodicTechnoKnowledge();
+  const up = root ? (pitchClass(root) - pitchClass(k.key) + 12) % 12 : 0;
+  const shift = (up > 6 ? up - 12 : up) + 12 * octave;
+  return { length_beats: 8, events: k.motif.events.map((e) => ({ beat: e.beat, pitch: e.pitch + shift, duration: e.duration, velocity: e.velocity })) };
+}
+
+export type MotifVariation = 'octave' | 'rhythm' | 'last_note' | 'velocity' | 'gate' | 'register';
+
+/**
+ * Vary a motif without rewriting it, in MELODIC-TECHNO.md's order: one note
+ * up an octave, one note moved a 16th, the last note changed, the accents
+ * reshaped, the gate changed, or the whole motif moved to another register.
+ * (Timbre and delay, the other steps, are device moves, not note edits.)
+ */
+export function varyMotif(pattern: Pattern, kind: MotifVariation, options: { root: string; scale?: string; seed?: number }): Pattern {
+  const random = makeRandom(options.seed ?? 1);
+  const events = [...pattern.events].sort((a, b) => a.beat - b.beat).map((e) => ({ ...e }));
+  if (!events.length) return pattern;
+  const pick = 1 + Math.floor(random() * Math.max(1, events.length - 2));
+  switch (kind) {
+    case 'octave':
+      events[pick]!.pitch += events[pick]!.pitch > 84 ? -12 : 12;
+      break;
+    case 'rhythm': {
+      const e = events[pick]!;
+      const prevEnd = events[pick - 1]!.beat + events[pick - 1]!.duration;
+      const next = events[pick + 1]?.beat ?? pattern.length_beats;
+      const later = e.beat + 0.25;
+      if (later + Math.min(e.duration, 0.25) <= next) e.beat = round6(later);
+      else if (e.beat - 0.25 >= prevEnd) e.beat = round6(e.beat - 0.25);
+      e.duration = round6(Math.min(e.duration, next - e.beat));
+      break;
+    }
+    case 'last_note': {
+      const last = events.at(-1)!;
+      const pool = scalePitches(options.root, options.scale ?? 'minor', last.pitch - 7, last.pitch + 7).filter((p) => p !== last.pitch);
+      last.pitch = pool.sort((a, b) => Math.abs(a - last.pitch) - Math.abs(b - last.pitch))[Math.floor(random() * 2)] ?? last.pitch;
+      break;
+    }
+    case 'velocity': {
+      const mean = events.reduce((s, e) => s + e.velocity, 0) / events.length;
+      for (const e of events) e.velocity = clampVelocity(2 * mean - e.velocity);
+      break;
+    }
+    case 'gate': {
+      const factor = random() < 0.5 ? 0.5 : 1.5;
+      events.forEach((e, i) => {
+        const next = events[i + 1]?.beat ?? pattern.length_beats;
+        e.duration = round6(Math.max(0.06, Math.min(e.duration * factor, next - e.beat)));
+      });
+      break;
+    }
+    case 'register': {
+      const shift = events[0]!.pitch > 72 ? -12 : 12;
+      for (const e of events) e.pitch += shift;
+      break;
+    }
+  }
+  return { length_beats: pattern.length_beats, events };
 }

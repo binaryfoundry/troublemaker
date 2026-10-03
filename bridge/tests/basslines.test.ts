@@ -9,9 +9,9 @@ import { bassPattern, bassPatternNames, checkBassline, developBar, mergeRepeats,
 import { bassFromFeel } from '../../agent/src/patterns.js';
 
 describe('bass pattern library', () => {
-  it('holds the eight BASSLINES.md patterns', () => {
+  it('holds the eight BASSLINES.md patterns and the MELODIC-TECHNO.md bass', () => {
     expect(bassPatternNames()).toEqual([
-      'house_offbeat', 'house_harmonic', 'rolling_techno', 'sparse_techno', 'dnb_sub', 'dubstep_halftime_sub', 'ukg_shuffle', 'dnb_reese_upper',
+      'house_offbeat', 'house_harmonic', 'rolling_techno', 'sparse_techno', 'dnb_sub', 'dubstep_halftime_sub', 'ukg_shuffle', 'dnb_reese_upper', 'melodic_techno_syncopated',
     ]);
     for (const name of bassPatternNames()) expect(bassPattern(name).events.length).toBeGreaterThan(0);
   });
@@ -33,6 +33,20 @@ describe('bass pattern library', () => {
     const c = bassPattern('house_offbeat').events.map((e) => e.pitch);
     expect(bassPattern('house_offbeat', { root: 'F' }).events.map((e) => e.pitch)).toEqual(c.map((p) => p + 5));
     expect(bassPattern('house_offbeat', { root: 'G' }).events.map((e) => e.pitch)).toEqual(c.map((p) => p - 5));
+  });
+});
+
+describe('melodic techno bass', () => {
+  it('plays MELODIC-TECHNO.md’s two bars in D, answering the kick rather than sitting on it', () => {
+    const p = bassPattern('melodic_techno_syncopated');
+    expect(p.length_beats).toBe(8);
+    expect(p.events[0]).toMatchObject({ beat: 0.5, pitch: 38, velocity: 103 });
+    expect(p.events.map((e) => e.pitch % 12)).toEqual([2, 2, 9, 0, 2, 5, 0, 9]);
+    expect(checkBassline(p, { kicks: [0, 1, 2, 3, 4, 5, 6, 7] })).toEqual([]);
+  });
+
+  it('moves into the track key from D', () => {
+    expect(bassPattern('melodic_techno_syncopated', { root: 'F' }).events[0]!.pitch).toBe(41);
   });
 });
 

@@ -22,8 +22,17 @@ export interface PlannedSection {
   roles: string[];
 }
 
+interface StyleSection {
+  name: string;
+  bars: number;
+  energy: number;
+  /** Explicit roles: played as written, not split into halves. */
+  roles?: string[];
+  note?: string;
+}
+
 interface StyleFile {
-  styles: Record<string, { tempo: [number, number]; sections: Array<{ name: string; bars: number; energy: number }> }>;
+  styles: Record<string, { tempo: [number, number]; sections: StyleSection[] }>;
   arrangement_rules: { change_every_bars: number; max_static_bars: number };
 }
 
@@ -48,12 +57,12 @@ export function sectionFunction(name: string): SectionFunction {
   if (/intro/.test(n)) return 'intro';
   if (/outro/.test(n)) return 'outro';
   if (/break|reset|breakdown/.test(n)) return 'break';
-  if (/build|groove|development|rise/.test(n)) return 'build';
+  if (/build|groove|development|rise|low end|tease/.test(n)) return 'build';
   if (/peak|main|drop|variation/.test(n)) return 'peak';
   return 'other';
 }
 
-const ALL_ROLES = ['kick', 'hats', 'bass', 'clap', 'chords', 'lead', 'atmosphere'];
+const ALL_ROLES = ['kick', 'hats', 'perc', 'bass', 'clap', 'chords', 'lead', 'atmosphere'];
 
 /**
  * Roles for the first and second half of each kind of section
@@ -64,10 +73,10 @@ const ALL_ROLES = ['kick', 'hats', 'bass', 'clap', 'chords', 'lead', 'atmosphere
  */
 const LAYERS: Record<Exclude<SectionFunction, 'other'>, [string[], string[]]> = {
   intro: [['kick', 'hats'], ['kick', 'hats', 'atmosphere']],
-  build: [['kick', 'hats', 'bass', 'atmosphere'], ['kick', 'hats', 'bass', 'atmosphere', 'clap', 'chords']],
+  build: [['kick', 'hats', 'bass', 'atmosphere'], ['kick', 'hats', 'perc', 'bass', 'atmosphere', 'clap', 'chords']],
   peak: [ALL_ROLES, ALL_ROLES],
   break: [['atmosphere', 'chords'], ['atmosphere', 'chords', 'lead']],
-  outro: [['kick', 'hats', 'bass', 'atmosphere'], ['kick', 'hats']],
+  outro: [['kick', 'hats', 'perc', 'bass', 'atmosphere'], ['kick', 'hats']],
 };
 
 /**
@@ -87,7 +96,9 @@ export function planArrangement(style: string, options: { roles?: string[] } = {
   let bar = 1;
   for (const section of template.sections) {
     const fn = sectionFunction(section.name);
-    if (fn === 'other') {
+    if (section.roles) {
+      planned.push({ name: section.name, startBar: bar, bars: section.bars, energy: section.energy, roles: keep(section.roles) });
+    } else if (fn === 'other') {
       planned.push({ name: section.name, startBar: bar, bars: section.bars, energy: section.energy, roles: keep(partsForEnergy(section.energy)) });
     } else if (section.bars >= 16 && section.bars % 16 === 0) {
       const half = section.bars / 2;
@@ -168,6 +179,29 @@ export function checkArrangement(sections: PlannedSection[]): ArrangementFinding
         bar: s.startBar,
         message: `'${s.name}' has no kick. A DJ ${fn} needs the beat to mix against.`,
       });
+    }
+  }
+
+  // MELODIC-TECHNO.md: the breakdown and the drop must differ in more than the kick.
+  sections.forEach((s, i) => {
+    if (sectionFunction(s.name) !== 'break' || s.roles.includes('kick')) return;
+    const drop = sections.slice(i + 1).find((n) => sectionFunction(n.name) === 'peak');
+    if (!drop) return;
+    const added = drop.roles.filter((r) => !s.roles.includes(r) && r !== 'kick');
+    const removed = s.roles.filter((r) => !drop.roles.includes(r));
+    if (!added.length && !removed.length) {
+      findings.push({ severity: 'review', bar: s.startBar, message: `'${s.name}' differs from '${drop.name}' only by the kick; change harmony, motif exposure, space or density too.` });
+    }
+  });
+
+  // Reserve something for the final peak: more energy or a part held back until then.
+  const peakSections = sections.filter((s) => sectionFunction(s.name) === 'peak');
+  if (peakSections.length >= 2) {
+    const last = peakSections.at(-1)!;
+    const earlier = peakSections.slice(0, -1);
+    const heard = new Set(earlier.flatMap((s) => s.roles));
+    if (last.energy <= Math.max(...earlier.map((s) => s.energy)) && last.roles.every((r) => heard.has(r))) {
+      findings.push({ severity: 'info', bar: last.startBar, message: `'${last.name}' brings nothing new; reserve a part, octave, brightness or ride for the final peak.` });
     }
   }
 

@@ -3,82 +3,440 @@
   "version": 1,
   "styles": {
     "house": {
-      "tempo": [120, 128],
+      "tempo": [
+        120,
+        128
+      ],
       "priority": "Groove, repetition, hook, bass/drum conversation",
       "defining_idea": "hook, riff, vocal or bass identity",
-      "harmony": ["natural_minor", "dorian", "major"],
-      "progressions": [[1, 6, 3, 7], [1, 4, 7, 3], [1, 7, 6, 7]],
+      "harmony": [
+        "natural_minor",
+        "dorian",
+        "major"
+      ],
+      "progressions": [
+        [
+          1,
+          6,
+          3,
+          7
+        ],
+        [
+          1,
+          4,
+          7,
+          3
+        ],
+        [
+          1,
+          7,
+          6,
+          7
+        ]
+      ],
       "sections": [
-        { "name": "Intro", "bars": 16, "energy": 0.3 },
-        { "name": "Groove", "bars": 16, "energy": 0.55 },
-        { "name": "Main A", "bars": 32, "energy": 0.85 },
-        { "name": "Break", "bars": 16, "energy": 0.35 },
-        { "name": "Build", "bars": 8, "energy": 0.65 },
-        { "name": "Main B", "bars": 32, "energy": 1.0 },
-        { "name": "Outro", "bars": 16, "energy": 0.3 }
+        {
+          "name": "Intro",
+          "bars": 16,
+          "energy": 0.3
+        },
+        {
+          "name": "Groove",
+          "bars": 16,
+          "energy": 0.55
+        },
+        {
+          "name": "Main A",
+          "bars": 32,
+          "energy": 0.85
+        },
+        {
+          "name": "Break",
+          "bars": 16,
+          "energy": 0.35
+        },
+        {
+          "name": "Build",
+          "bars": 8,
+          "energy": 0.65
+        },
+        {
+          "name": "Main B",
+          "bars": 32,
+          "energy": 1.0
+        },
+        {
+          "name": "Outro",
+          "bars": 16,
+          "energy": 0.3
+        }
       ]
     },
     "deep_house": {
-      "tempo": [118, 124],
+      "tempo": [
+        118,
+        124
+      ],
       "priority": "Warm harmony, subtle movement, restrained transitions",
       "defining_idea": "chord, stab or hook",
-      "harmony": ["dorian", "natural_minor"],
+      "harmony": [
+        "dorian",
+        "natural_minor"
+      ],
       "voicing": "sevenths and ninths; parallel or voice-led; keep chords out of the sub register",
-      "progressions": [[1, 4], [1, 2, 4, 1], [1, 7, 6, 7]],
+      "progressions": [
+        [
+          1,
+          4
+        ],
+        [
+          1,
+          2,
+          4,
+          1
+        ],
+        [
+          1,
+          7,
+          6,
+          7
+        ]
+      ],
       "sections": [
-        { "name": "Intro", "bars": 32, "energy": 0.25 },
-        { "name": "Groove", "bars": 32, "energy": 0.5 },
-        { "name": "Development", "bars": 16, "energy": 0.65 },
-        { "name": "Break", "bars": 16, "energy": 0.35 },
-        { "name": "Main", "bars": 32, "energy": 0.9 },
-        { "name": "Variation", "bars": 16, "energy": 0.75 },
-        { "name": "Outro", "bars": 32, "energy": 0.25 }
+        {
+          "name": "Intro",
+          "bars": 32,
+          "energy": 0.25
+        },
+        {
+          "name": "Groove",
+          "bars": 32,
+          "energy": 0.5
+        },
+        {
+          "name": "Development",
+          "bars": 16,
+          "energy": 0.65
+        },
+        {
+          "name": "Break",
+          "bars": 16,
+          "energy": 0.35
+        },
+        {
+          "name": "Main",
+          "bars": 32,
+          "energy": 0.9
+        },
+        {
+          "name": "Variation",
+          "bars": 16,
+          "energy": 0.75
+        },
+        {
+          "name": "Outro",
+          "bars": 32,
+          "energy": 0.25
+        }
       ]
     },
     "melodic_techno": {
-      "tempo": [120, 126],
-      "priority": "Hypnotic bass, evolving lead, long builds",
+      "tempo": [
+        126,
+        132
+      ],
+      "priority": "Few strong parts, one recognisable motif, kick-locked mono bass with negative space, evolving timbre, long tension curves",
       "defining_idea": "lead motif or arp with timbral evolution",
-      "harmony": ["natural_minor", "harmonic_minor", "phrygian"],
-      "progressions": [[1, 6, 3, 7], [1, 7, 6, 7], [1, 4, 7, 3]],
+      "harmony": [
+        "natural_minor",
+        "harmonic_minor",
+        "phrygian"
+      ],
+      "progressions": [
+        [
+          1,
+          6,
+          3,
+          7
+        ],
+        [
+          1,
+          7,
+          6,
+          7
+        ],
+        [
+          1,
+          4,
+          7,
+          3
+        ]
+      ],
       "sections": [
-        { "name": "Intro", "bars": 32, "energy": 0.3 },
-        { "name": "Build", "bars": 32, "energy": 0.6 },
-        { "name": "Peak A", "bars": 32, "energy": 0.9 },
-        { "name": "Break", "bars": 32, "energy": 0.35 },
-        { "name": "Peak B", "bars": 32, "energy": 1.0 },
-        { "name": "Outro", "bars": 32, "energy": 0.3 }
+        {
+          "name": "Intro",
+          "bars": 16,
+          "energy": 0.2,
+          "roles": [
+            "kick",
+            "perc",
+            "atmosphere"
+          ],
+          "note": "DJ intro: kick, filtered texture, sparse top percussion"
+        },
+        {
+          "name": "Groove",
+          "bars": 16,
+          "energy": 0.4,
+          "roles": [
+            "kick",
+            "perc",
+            "atmosphere",
+            "hats",
+            "clap"
+          ],
+          "note": "hats, clap, primary percussion"
+        },
+        {
+          "name": "Low End",
+          "bars": 16,
+          "energy": 0.5,
+          "roles": [
+            "kick",
+            "perc",
+            "atmosphere",
+            "hats",
+            "clap",
+            "bass"
+          ],
+          "note": "bass enters; first tonal cue"
+        },
+        {
+          "name": "Motif Tease",
+          "bars": 16,
+          "energy": 0.6,
+          "roles": [
+            "kick",
+            "perc",
+            "atmosphere",
+            "hats",
+            "clap",
+            "bass",
+            "lead"
+          ],
+          "note": "partial lead or arp, heavily filtered"
+        },
+        {
+          "name": "Build",
+          "bars": 16,
+          "energy": 0.7,
+          "roles": [
+            "kick",
+            "perc",
+            "atmosphere",
+            "hats",
+            "clap",
+            "bass",
+            "lead",
+            "chords"
+          ],
+          "note": "more high-frequency information, delay/reverb movement"
+        },
+        {
+          "name": "Break",
+          "bars": 16,
+          "energy": 0.5,
+          "roles": [
+            "atmosphere",
+            "chords",
+            "lead"
+          ],
+          "note": "kick removed; motif and harmony exposed; more spatial depth (4 to 6/10)"
+        },
+        {
+          "name": "Drop A",
+          "bars": 16,
+          "energy": 0.8,
+          "roles": [
+            "kick",
+            "clap",
+            "hats",
+            "bass",
+            "lead",
+            "chords",
+            "atmosphere"
+          ],
+          "note": "kick + bass + the complete motif"
+        },
+        {
+          "name": "Drop A Variation",
+          "bars": 16,
+          "energy": 0.8,
+          "roles": [
+            "kick",
+            "clap",
+            "hats",
+            "perc",
+            "bass",
+            "lead",
+            "chords",
+            "atmosphere"
+          ],
+          "note": "percussion and counter detail; alter the motif ending"
+        },
+        {
+          "name": "Reset",
+          "bars": 16,
+          "energy": 0.5,
+          "roles": [
+            "kick",
+            "clap",
+            "hats",
+            "perc",
+            "bass",
+            "chords",
+            "atmosphere"
+          ],
+          "note": "lead removed; change the timbral perspective"
+        },
+        {
+          "name": "Peak Build",
+          "bars": 16,
+          "energy": 0.85,
+          "roles": [
+            "kick",
+            "clap",
+            "hats",
+            "perc",
+            "bass",
+            "chords",
+            "atmosphere"
+          ],
+          "note": "ride, brighter hats, widened upper layers; lead held back"
+        },
+        {
+          "name": "Final Peak",
+          "bars": 16,
+          "energy": 0.9,
+          "roles": [
+            "kick",
+            "clap",
+            "hats",
+            "perc",
+            "bass",
+            "lead",
+            "chords",
+            "atmosphere"
+          ],
+          "note": "full motif; strongest rhythmic and spectral density"
+        },
+        {
+          "name": "Outro",
+          "bars": 16,
+          "energy": 0.3,
+          "roles": [
+            "kick",
+            "hats",
+            "perc",
+            "atmosphere"
+          ],
+          "note": "melodic layers then bass removed, leaving DJ-friendly rhythm (6 to 2/10)"
+        }
+      ],
+      "source": "MELODIC-TECHNO.md: 192-bar curve (six minutes at 128 BPM) and arrangement template; agent defaults, not measured from references",
+      "tempo_default": 128,
+      "progressions_symbolic": [
+        "MT1",
+        "MT2",
+        "MT3"
       ]
     },
     "techno": {
-      "tempo": [126, 132],
+      "tempo": [
+        126,
+        132
+      ],
       "priority": "Hypnosis, texture, tension, evolving percussion",
       "defining_idea": "rhythmic or timbral motif",
-      "harmony": ["natural_minor", "phrygian"],
+      "harmony": [
+        "natural_minor",
+        "phrygian"
+      ],
       "voicing": "pedal tones and drones; change upper intervals over a fixed bass",
-      "progressions": [[1], [1, 1, 7, 1]],
+      "progressions": [
+        [
+          1
+        ],
+        [
+          1,
+          1,
+          7,
+          1
+        ]
+      ],
       "sections": [
-        { "name": "Intro", "bars": 32, "energy": 0.3 },
-        { "name": "Build", "bars": 32, "energy": 0.6 },
-        { "name": "Peak A", "bars": 32, "energy": 0.9 },
-        { "name": "Reset", "bars": 16, "energy": 0.4 },
-        { "name": "Peak B", "bars": 48, "energy": 1.0 },
-        { "name": "Outro", "bars": 32, "energy": 0.3 }
+        {
+          "name": "Intro",
+          "bars": 32,
+          "energy": 0.3
+        },
+        {
+          "name": "Build",
+          "bars": 32,
+          "energy": 0.6
+        },
+        {
+          "name": "Peak A",
+          "bars": 32,
+          "energy": 0.9
+        },
+        {
+          "name": "Reset",
+          "bars": 16,
+          "energy": 0.4
+        },
+        {
+          "name": "Peak B",
+          "bars": 48,
+          "energy": 1.0
+        },
+        {
+          "name": "Outro",
+          "bars": 32,
+          "energy": 0.3
+        }
       ]
     }
   },
   "groove": {
     "anchor": "Keep the kick quantised until there is a musical reason not to.",
-    "targets": ["hats", "shaker", "percussion"],
-    "timing_percent": [20, 60],
-    "random_percent": [0, 10],
+    "targets": [
+      "hats",
+      "shaker",
+      "percussion"
+    ],
+    "timing_percent": [
+      20,
+      60
+    ],
+    "random_percent": [
+      0,
+      10
+    ],
     "order": "velocity variation before timing changes; bass only if it improves the drum/bass pocket"
   },
   "arrangement_rules": {
     "change_every_bars": 16,
-    "major_change_on": [16, 32],
+    "major_change_on": [
+      16,
+      32
+    ],
     "max_static_bars": 32,
-    "fills_on": [8, 16, 32],
+    "fills_on": [
+      8,
+      16,
+      32
+    ],
     "note": "Change is not the same as adding a layer: subtract, filter, modulate. Reserve the fullest state for the real peaks."
   },
   "palettes": {

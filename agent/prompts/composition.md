@@ -30,7 +30,8 @@ loud without falling apart.
 
 1. Reference set first; tempo from the references, not the genre label
    (`styles.json` gives ranges: house 120–128, deep house 118–124, melodic
-   techno 120–126, techno 126–132).
+   techno 126–132 with 128 as the default per MELODIC-TECHNO.md (see
+   `melodic-techno.md`), techno 126–132).
 2. Choose the tonal centre **after** hearing the bass patch: a key that puts
    the fundamental below ~40 Hz is the wrong key for that patch.
 3. Four-on-the-floor anchor unless the brief says otherwise.

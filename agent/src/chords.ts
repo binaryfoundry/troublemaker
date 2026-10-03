@@ -95,6 +95,44 @@ export function chordTemplate(id: string): { style: string; progression: string[
   return t;
 }
 
+const SHARPS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const FLATS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+
+/** Flat keys spell with flats: F, Bb, Eb... major, and D, G, C, F, Bb... minor. */
+export function prefersFlats(root: string, minor: boolean): boolean {
+  if (/b|♭/.test(root.slice(1))) return true;
+  if (/#|♯/.test(root.slice(1))) return false;
+  return minor ? ['D', 'G', 'C', 'F'].includes(root) : root === 'F';
+}
+
+/** Move a chord symbol by semitones, keeping its quality and slash bass. */
+export function transposeSymbol(symbol: string, semitones: number, flats?: boolean): string {
+  const move = (name: string) => {
+    const useFlats = flats ?? /b|♭/.test(name.slice(1));
+    return (useFlats ? FLATS : SHARPS)[(((pitchClass(name) + semitones) % 12) + 12) % 12]!;
+  };
+  return symbol
+    .split(/(→|->)/)
+    .map((part) => {
+      if (part === '→' || part === '->') return part;
+      const m = /^([A-G][#b♯♭]?)(.*?)(\/([A-G][#b♯♭]?))?$/.exec(part.trim());
+      if (!m) return part;
+      return `${move(m[1]!)}${m[2]}${m[4] ? `/${move(m[4])}` : ''}`;
+    })
+    .join('');
+}
+
+/** A template's progression moved to a new key root (its key is its first chord's root). */
+export function templateInKey(id: string, root?: string): string[] {
+  const t = chordTemplate(id);
+  if (!root) return t.progression;
+  const first = parseSlot(t.progression[0]!)[0]!;
+  const shift = (((pitchClass(root) - first.root) % 12) + 12) % 12;
+  const semitones = shift > 6 ? shift - 12 : shift;
+  const flats = prefersFlats(root, first.intervals[1] === 3);
+  return t.progression.map((sym) => transposeSymbol(sym, semitones, flats));
+}
+
 export interface VoicedChord {
   symbol: string;
   pitches: number[];
@@ -119,18 +157,24 @@ export function voiceProgression(slots: string[], options: { beatsPerChord?: num
   });
   const close = flat.map(({ chord }) => chord.intervals.map((iv) => floor + chord.root + iv));
   const led = voiceLead(close, floor);
-  return flat.map(({ chord, beat, beats }, i) => {
+  const out: VoicedChord[] = [];
+  flat.forEach(({ chord, beat, beats }, i) => {
     let pitches = led[i]!;
     if (chord.bass !== null) {
-      // Already standing on the bass note? Then the voicing is the slash chord.
-      const lowest = Math.min(...pitches);
-      if (lowest % 12 !== chord.bass) {
-        const below = lowest - ((((lowest - chord.bass) % 12) + 12) % 12 || 12);
-        pitches = [below, ...pitches];
-      }
+      const reference = i > 0 ? Math.min(...out[i - 1]!.pitches) : Math.min(...pitches);
+      // The bass note nearest the previous lowest voice: a pedal stays exactly where it was.
+      const candidates = [-12, 0, 12].map((o) => reference - ((((reference - chord.bass!) % 12) + 12) % 12) + o);
+      const bass = candidates.sort((a, b) => Math.abs(a - reference) - Math.abs(b - reference) || a - b)[0]!;
+      const upper = pitches.filter((p) => p !== bass).map((p) => {
+        let q = p;
+        while (q <= bass) q += 12;
+        return q;
+      });
+      pitches = [bass, ...upper];
     }
-    return { symbol: chord.symbol, pitches: [...new Set(pitches)].sort((a, b) => a - b), beat, beats };
+    out.push({ symbol: chord.symbol, pitches: [...new Set(pitches)].sort((a, b) => a - b), beat, beats });
   });
+  return out;
 }
 
 export interface VoiceLeadingStep {

@@ -53,15 +53,56 @@
       "purpose": "upper/Reese rhythm; pair with a simpler sub rather than duplicating its low end",
       "layer": "upper",
       "grid": "C2/100 ~ ~ ~ | — — Bb1/88 ~ | C2/105 ~ G1/90 — | Bb1/94 ~ — —"
+    },
+    "melodic_techno_syncopated": {
+      "genre": "melodic_techno",
+      "tempo": 128,
+      "purpose": "MELODIC-TECHNO.md: two bars in D Aeolian; root answers the kick, ghost articulation, fifth, modal lift, minor-colour accent, approach and turnaround",
+      "key": "D",
+      "convention": "live",
+      "grid": "— — D1/103 ~ — — — D1/78 — — A1/95 ~ — — — C2/82 | — — D1/106 ~ — — F1/84 — — — — C2/91 ~ — — A1/75"
     }
   },
-  "form": ["A", "A2", "B", "A3"],
+  "form": [
+    "A",
+    "A2",
+    "B",
+    "A3"
+  ],
   "genre_priorities": {
-    "house": ["kick/bass interlock", "offbeat or syncopated notes", "short, controlled articulation", "harmonic clarity", "subtle variation"],
-    "techno": ["repetition with micro-variation", "short rhythmic cells", "off-grid or offbeat tension", "filter/envelope evolution", "gradual development"],
-    "drum_and_bass": ["strategic sub-note placement", "stable sub", "separate upper Reese/growl", "phrase-level variation"],
-    "dubstep": ["spacious half-time relationship", "strong sub foundation", "contrasting mid-bass gestures", "silence and negative space"],
-    "uk_garage": ["syncopation", "two-step relationship", "swing/shuffle", "velocity differences", "shorter articulations"]
+    "house": [
+      "kick/bass interlock",
+      "offbeat or syncopated notes",
+      "short, controlled articulation",
+      "harmonic clarity",
+      "subtle variation"
+    ],
+    "techno": [
+      "repetition with micro-variation",
+      "short rhythmic cells",
+      "off-grid or offbeat tension",
+      "filter/envelope evolution",
+      "gradual development"
+    ],
+    "drum_and_bass": [
+      "strategic sub-note placement",
+      "stable sub",
+      "separate upper Reese/growl",
+      "phrase-level variation"
+    ],
+    "dubstep": [
+      "spacious half-time relationship",
+      "strong sub foundation",
+      "contrasting mid-bass gestures",
+      "silence and negative space"
+    ],
+    "uk_garage": [
+      "syncopation",
+      "two-step relationship",
+      "swing/shuffle",
+      "velocity differences",
+      "shorter articulations"
+    ]
   },
   "checks": {
     "lowest_fundamental_hz": 40,

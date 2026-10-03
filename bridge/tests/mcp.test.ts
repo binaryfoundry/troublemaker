@@ -264,6 +264,6 @@ describe('MCP server', () => {
   it('plans an arrangement without Live', async () => {
     const result = await client.callTool({ name: 'arrangement', arguments: { action: 'plan', style: 'melodic_techno' } });
     expect(result.isError).toBeFalsy();
-    expect((result.content as Array<{ text: string }>)[0]!.text).toMatch(/Peak A/);
+    expect((result.content as Array<{ text: string }>)[0]!.text).toMatch(/Final Peak/);
   });
 });

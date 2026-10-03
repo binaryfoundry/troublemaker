@@ -1,14 +1,106 @@
 {
   "source": "CHORDS.md - template table (style and core progression). Its full knowledge base, with tempos, MIDI arrays and Rack designs, was not supplied; keys here are read from each progression's first chord.",
   "templates": {
-    "H01": { "style": "deep / melodic house", "progression": ["F#m9", "Dmaj7", "Aadd9", "E6/9sus4"] },
-    "H02": { "style": "neo-soul / R&B", "progression": ["Ebmaj9", "Gm7", "Cm9", "Abmaj9"] },
-    "H03": { "style": "dark trap", "progression": ["Cm(add9)", "Abmaj7", "Fm9", "Gsus4→G"] },
-    "H04": { "style": "liquid drum & bass", "progression": ["Dmaj9", "F#m7", "Bm9", "Gmaj9"] },
-    "H05": { "style": "cinematic", "progression": ["Am(add9)", "Fmaj7", "C/E", "Gsus4→G"] },
-    "H06": { "style": "gospel / jazz", "progression": ["Cmaj9", "A7alt", "Dm9", "G13", "Cmaj9"] },
-    "H07": { "style": "synthwave", "progression": ["Em9", "Cmaj7", "G6", "Dadd9"] },
-    "H08": { "style": "modal techno", "progression": ["Dm9", "G/D", "Cmaj7/D", "Dm11"] }
+    "H01": {
+      "style": "deep / melodic house",
+      "progression": [
+        "F#m9",
+        "Dmaj7",
+        "Aadd9",
+        "E6/9sus4"
+      ]
+    },
+    "H02": {
+      "style": "neo-soul / R&B",
+      "progression": [
+        "Ebmaj9",
+        "Gm7",
+        "Cm9",
+        "Abmaj9"
+      ]
+    },
+    "H03": {
+      "style": "dark trap",
+      "progression": [
+        "Cm(add9)",
+        "Abmaj7",
+        "Fm9",
+        "Gsus4→G"
+      ]
+    },
+    "H04": {
+      "style": "liquid drum & bass",
+      "progression": [
+        "Dmaj9",
+        "F#m7",
+        "Bm9",
+        "Gmaj9"
+      ]
+    },
+    "H05": {
+      "style": "cinematic",
+      "progression": [
+        "Am(add9)",
+        "Fmaj7",
+        "C/E",
+        "Gsus4→G"
+      ]
+    },
+    "H06": {
+      "style": "gospel / jazz",
+      "progression": [
+        "Cmaj9",
+        "A7alt",
+        "Dm9",
+        "G13",
+        "Cmaj9"
+      ]
+    },
+    "H07": {
+      "style": "synthwave",
+      "progression": [
+        "Em9",
+        "Cmaj7",
+        "G6",
+        "Dadd9"
+      ]
+    },
+    "H08": {
+      "style": "modal techno",
+      "progression": [
+        "Dm9",
+        "G/D",
+        "Cmaj7/D",
+        "Dm11"
+      ]
+    },
+    "MT1": {
+      "style": "melodic techno: i - VII - VI - VII (MELODIC-TECHNO.md)",
+      "progression": [
+        "Dm",
+        "C",
+        "Bb",
+        "C"
+      ]
+    },
+    "MT2": {
+      "style": "melodic techno: i(add9) - VImaj7 - III - VII(sus2)",
+      "progression": [
+        "Dm(add9)",
+        "Bbmaj7",
+        "F",
+        "Csus2"
+      ]
+    },
+    "MT3": {
+      "style": "melodic techno: tonic pedal under moving upper structures (MELODIC-TECHNO.md prefers this)",
+      "progression": [
+        "Dm(add9)/D",
+        "Bb/D",
+        "C/D",
+        "Dm/D"
+      ]
+    }
   },
   "complexity_ladder": [
     "functional triads",

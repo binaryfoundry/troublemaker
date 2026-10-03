@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { checkChords, chordKnowledge, chordTemplate, parseChordSymbol, parseSlot, voiceLeadingReport, voiceProgression } from '../../agent/src/chords.js';
+import { checkChords, chordKnowledge, chordTemplate, parseChordSymbol, parseSlot, templateInKey, transposeSymbol, voiceLeadingReport, voiceProgression } from '../../agent/src/chords.js';
 
 const pcs = (pitches: number[]) => [...new Set(pitches.map((p) => p % 12))].sort((a, b) => a - b);
 
@@ -45,7 +45,7 @@ describe('chord symbols', () => {
 describe('progressions', () => {
   it('holds the eight CHORDS.md templates and every symbol parses', () => {
     const templates = chordKnowledge().templates;
-    expect(Object.keys(templates)).toEqual(['H01', 'H02', 'H03', 'H04', 'H05', 'H06', 'H07', 'H08']);
+    expect(Object.keys(templates)).toEqual(['H01', 'H02', 'H03', 'H04', 'H05', 'H06', 'H07', 'H08', 'MT1', 'MT2', 'MT3']);
     for (const t of Object.values(templates)) expect(() => voiceProgression(t.progression)).not.toThrow();
   });
 
@@ -71,6 +71,21 @@ describe('progressions', () => {
       expect(step.motion).toBeLessThanOrEqual(8);
       expect(step.commonTones).toBeGreaterThanOrEqual(1);
     }
+  });
+});
+
+describe('transposition', () => {
+  it('moves templates into a key and spells them for that key', () => {
+    expect(templateInKey('MT1', 'F')).toEqual(['Fm', 'Eb', 'Db', 'Eb']);
+    expect(templateInKey('MT3', 'A')).toEqual(['Am(add9)/A', 'F/A', 'G/A', 'Am/A']);
+    expect(templateInKey('H01', 'F#')).toEqual(chordTemplate('H01').progression);
+    expect(transposeSymbol('Gsus4→G', 2)).toBe('Asus4→A');
+  });
+
+  it('keeps a pedal on one note while the upper voices move', () => {
+    const voiced = voiceProgression(templateInKey('MT3', 'F'));
+    expect(new Set(voiced.map((c) => Math.min(...c.pitches))).size).toBe(1);
+    expect(checkChords(voiced)).toEqual([]);
   });
 });
 

@@ -48,3 +48,37 @@ describe('motif melody', () => {
     expect(text).toMatch(/spans/);
   });
 });
+
+describe('melodic techno motif', () => {
+  it('holds MELODIC-TECHNO.md\u2019s two-bar motif and moves it into a key', async () => {
+    const { templateMotif } = await import('../../agent/src/melody.js');
+    const d = templateMotif();
+    expect(d.length_beats).toBe(8);
+    expect(d.events.map((e) => e.pitch % 12)).toEqual([9, 0, 2, 5, 4, 2, 9, 1]);
+    expect(templateMotif('F').events[0]!.pitch).toBe(d.events[0]!.pitch + 3);
+  });
+
+  it('varies one dimension at a time without rewriting the motif', async () => {
+    const { templateMotif, varyMotif } = await import('../../agent/src/melody.js');
+    const base = templateMotif();
+    const opts = { root: 'D', seed: 2 };
+    const pitches = (p: typeof base) => p.events.map((e) => e.pitch);
+    const beats = (p: typeof base) => p.events.map((e) => e.beat);
+
+    const octave = varyMotif(base, 'octave', opts);
+    expect(pitches(octave).filter((p, i) => p !== pitches(base)[i]).length).toBe(1);
+    expect(beats(octave)).toEqual(beats(base));
+
+    const rhythm = varyMotif(base, 'rhythm', opts);
+    expect(pitches(rhythm)).toEqual(pitches(base));
+    expect(beats(rhythm).filter((b, i) => b !== beats(base)[i]).length).toBe(1);
+
+    const last = varyMotif(base, 'last_note', opts);
+    expect(pitches(last).slice(0, -1)).toEqual(pitches(base).slice(0, -1));
+    expect(last.events.at(-1)!.pitch).not.toBe(base.events.at(-1)!.pitch);
+
+    expect(pitches(varyMotif(base, 'velocity', opts))).toEqual(pitches(base));
+    expect(pitches(varyMotif(base, 'gate', opts))).toEqual(pitches(base));
+    expect(pitches(varyMotif(base, 'register', opts))).toEqual(pitches(base).map((p) => p - 12));
+  });
+});
