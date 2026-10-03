@@ -134,6 +134,40 @@ describe('master.capture', () => {
     expect(order.indexOf('live.fire_scene')).toBeLessThan(order.indexOf('live.record_clip'));
   });
 
+  it('records from start_beat only once Live is playing there', async () => {
+    // Live starts from the top first, as when the launch beats continue_playing.
+    let position = 0;
+    let playing = false;
+    live.handlers.set('live.back_to_arrangement', () => ({}));
+    live.handlers.set('live.set_song_time', (_c, args) => {
+      position = args.beat as number;
+      return { current_song_time: position };
+    });
+    live.handlers.set('live.continue_playing', () => {
+      playing = true;
+      position = 0;
+      return {};
+    });
+    live.handlers.set('live.get_transport', () => ({ playing, current_song_time: position }));
+    await bridge.execute('master.capture', { bars: 1, start_beat: 256 });
+    const order = live.received.map((r) => r.command);
+    const seeks = live.received.filter((r) => r.command === 'live.set_song_time');
+    expect(seeks.length).toBeGreaterThan(1);
+    expect(seeks.at(-1)?.args).toMatchObject({ beat: 256 });
+    expect(order.lastIndexOf('live.set_song_time')).toBeLessThan(order.indexOf('live.record_clip'));
+  });
+
+  it('fails rather than record the wrong place when the transport never gets there', async () => {
+    live.handlers.set('live.back_to_arrangement', () => ({}));
+    live.handlers.set('live.set_song_time', () => ({}));
+    live.handlers.set('live.continue_playing', () => ({}));
+    live.handlers.set('live.get_transport', () => ({ playing: false, current_song_time: 0 }));
+    await expect(bridge.execute('master.capture', { bars: 1, start_beat: 256 })).rejects.toMatchObject({
+      code: 'CAPTURE_FAILED',
+    });
+    expect(live.received.some((r) => r.command === 'live.record_clip')).toBe(false);
+  }, 15_000);
+
   it('refuses when Live offers no Resampling input', async () => {
     live.handlers.set('live.get_input_routing', () => ({ current: 'Ext. In', available: ['Ext. In'] }));
     await expect(bridge.execute('master.capture', { bars: 1 })).rejects.toMatchObject({ code: 'UNSUPPORTED' });

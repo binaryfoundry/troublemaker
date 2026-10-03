@@ -146,6 +146,10 @@ export class MasterCapture {
         await this.transport.send('live.stop');
         await this.transport.send('live.set_song_time', { beat: options.start_beat });
         await this.transport.send('live.continue_playing');
+        // continue_playing lands on Live's next tick. Launching the recording
+        // slot before then starts the transport from the top instead, and the
+        // capture records the intro - so wait until Live is really there.
+        await this.playingFrom(options.start_beat);
       }
       if (!started) {
         await this.transport.send('live.record_clip', {
@@ -216,6 +220,24 @@ export class MasterCapture {
       if (now.playing) return;
       await sleep(POLL_MS);
     }
+  }
+
+  /** Wait until the transport runs from `beat`; jump back there if Live started elsewhere. */
+  private async playingFrom(beat: number, timeoutMs = 5_000): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    let last: { playing: boolean; current_song_time?: number } = { playing: false };
+    while (Date.now() < deadline) {
+      last = (await this.transport.send('live.get_transport')) as typeof last;
+      const at = last.current_song_time ?? beat;
+      if (last.playing && at >= beat - 0.01 && at < beat + 4) return;
+      if (last.playing) await this.transport.send('live.set_song_time', { beat });
+      await sleep(POLL_MS);
+    }
+    throw new BridgeError('CAPTURE_FAILED', `The transport did not start from beat ${beat}.`, {
+      start_beat: beat,
+      playing: last.playing,
+      current_song_time: last.current_song_time ?? null,
+    });
   }
 
   private async emptySlot(trackId: number): Promise<number> {
