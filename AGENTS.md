@@ -222,6 +222,10 @@ next to the data.
 
 ## Gotchas
 
+`docs/lessons.md` collects what producing a whole track taught: Live and
+bridge behaviour, measuring a mix, drum clarity, bass and harmony. Read it
+before producing or mixing.
+
 **Note ids change.** Deleting and re-adding a note gives it a new id. Always
 re-read before a second edit pass; `live.update_notes` returns
 `NOTE_NOT_FOUND` with the ids that do exist rather than guessing.
