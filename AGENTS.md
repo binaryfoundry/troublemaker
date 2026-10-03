@@ -205,6 +205,21 @@ have been wrong every time. Then sweep it on Live with `fx apply`.
   in pitch. Caveat: with the transport running, tracks outside the scene
   may play their Arrangement clips if the Set has an Arrangement.
 
+## Expert documents
+
+Each expert `.md` is integrated as a prompt (`agent/prompts/`), data
+(`agent/knowledge/`) and code (`agent/src/`), with tests. Keep the source's
+own numbers; when a document leaves something open, record the assumption
+next to the data.
+
+- **Octave names differ between documents.** BASSLINES.md is read as
+  scientific pitch (C4 = 60); MELODIC-TECHNO.md uses Live's names (its kick
+  is C1 = 36). Each pattern records its `convention`; never mix them silently.
+- CHORDS.md and EDM-TIPS.md are summaries whose full files were not
+  supplied: only the rules they state are encoded.
+- Documents that cite YouTube references they could not see mark those
+  fields unresolved; do not fill them in.
+
 ## Gotchas
 
 **Note ids change.** Deleting and re-adding a note gives it a new id. Always
