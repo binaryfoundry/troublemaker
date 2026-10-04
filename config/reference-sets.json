@@ -14,6 +14,10 @@
     "house": {
       "artists": ["Eric Prydz", "Pryda"],
       "profile": "house"
+    },
+    "camelphat": {
+      "artists": ["CamelPhat"],
+      "profile": "techno"
     }
   }
 }

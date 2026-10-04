@@ -129,7 +129,12 @@ describe('profileForGenre', () => {
 describe('reference sets config', () => {
   it('loads the repository sets, each with artists and a profile', () => {
     const config = loadReferenceSets(join(__dirname, '..', '..', 'config', 'reference-sets.json'));
-    expect(Object.keys(config.sets)).toEqual(['deep house', 'melodic techno', 'house']);
+    expect(Object.keys(config.sets)).toEqual([
+      'deep house',
+      'melodic techno',
+      'house',
+      'camelphat',
+    ]);
     for (const set of Object.values(config.sets)) {
       expect(set.artists!.length).toBeGreaterThan(0);
       expect(['deep', 'house', 'techno', 'dnb']).toContain(set.profile);

@@ -63,6 +63,60 @@ run, and never carry them over from before a restart.
 | Simpler | Velocity-to-volume is `Vol < Vel`, at 35% by default, so ghost notes play nearly full level. Raise it to about 70% |
 | Mixer pan | Displays `50L` and `50R`, which the display search cannot tell apart. Use `live.set_track_pan` (-1..1) |
 
+**Live 12 Standard device facts (camelbone, 124 BPM A minor)**
+
+| Fact | Detail |
+|---|---|
+| No Wavetable, no Operator | Standard has Analog, Collision, Drift, Electric, Tension, Simpler, the DS series. `insert_device` returns `Device Wavetable not available`. Use **Drift** for sub and bass. |
+| Saturator has no `Bass Shaper` | That name is not in Live 12's Saturator. The low-end control is the **Color** section: `Color Amt Low`, `Color Freq`, `Color Width`. `Pre Dc Filter` is still there and should be On. |
+| Utility gain is linear in dB | `Output` native maps -1..1 to -35..+35 dB, so **native = dB / 35**. Probed across 11 values; exact. This makes Utility the right thing to automate for a duck, unlike mixer volume. |
+| Utility does bass-mono | `Bass Mono` + `Bass Freq` enforces mono below a frequency - a one-device way to hold low-end correlation at +1.0. |
+| Simpler `Vol < Vel` is `Vol < Vel` | The MCP `set_device_parameter` tool HTML-escapes `<` in the name; call `live.set_device_parameter_display` directly instead. |
+
+**Read the preset files before emulating a synth.** The TPS x CamelPhat pack
+ships Diva presets as **plain ASCII** (`.h2p`): every oscillator, filter and
+envelope value is readable with no plugin installed. Parsing all 60 gave the
+house style outright, and it contradicted what had been built by ear:
+
+| Measured across the presets | Bass (16) | Lead+pluck (29) | Pad (15) |
+|---|---|---|---|
+| Filter resonance = 0 | 16/16 | 22/29 | 10/15 |
+| Filter envelope routed to cutoff | 16/16 | 29/29 | 15/15 |
+| ...with that envelope's sustain at 0 | 13/16 | 28/29 | 11/15 |
+| Amp sustain (median) | 27% | **0%** | 49% |
+| High-pass frequency | 30 Hz | 30 Hz | 30 Hz |
+| Filter-env depth (median) | 46 | 36 | 18 |
+
+So the house sound is **zero resonance, a per-note filter envelope that snaps
+shut, and a plucked amp envelope** - none of which needs the plugin. Drift
+reproduces all three (its filter Mod 1 source is Env 2). A bass built with
+100% sustain, 22% resonance and no filter envelope was wrong on every count,
+and the fix changed the character without moving the measured spectrum: the
+capture stayed PASS at the same LUFS, with PLR landing on the reference median.
+
+Serum 2 presets (`.SerumPreset`) are a plain JSON metadata header followed by
+a compressed binary blob - only the header is readable, and its tags
+(`Wavetable`, `Embedded-Data`) name the one thing a stock Live synth cannot
+reproduce: a bespoke wavetable. That gap is real for exposed leads and plucks;
+it is close to irrelevant for a bass sitting under a 1.8 kHz low-pass, where
+envelope and resonance decide the character.
+
+**`set_automation` writes steps, not ramps.** Points at 0 and 0.09 beats did not
+interpolate: the envelope held the first value and jumped. Draw any shape you
+want to *hear* as explicit points. A 12 dB duck recovering over 40 ms took nine
+points per kick (0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.085 beats), and
+read back correctly through `live.get_automation`.
+
+**Sample role rules must match words, not substrings.** `/hats?/` matched the
+"P**hat**" in "CamelPhat", so a pack whose every file is named
+"TPS x CamelPhat - ..." indexed 221 hi-hats, including all its risers, drones
+and impacts. Leading `` on every drum rule fixed it; see
+`bridge/tests/sample-classify.test.ts`.
+
+**A browser Place cannot be added through the API.** A new sample folder is
+invisible to `live.browse` until the user adds it in Live's browser by hand.
+Check `find_sounds user_folders` before planning to load from a folder.
+
 **Sidechain ducking**
 
 The API cannot route a compressor's sidechain. Draw the duck as clip automation on the synth's
