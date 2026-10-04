@@ -298,11 +298,13 @@ the code enforces it yet — apply it by reading, and treat that as a gap.
 | `EMOTION.md` | Emotional intent first: write the *emotional sentence* (§3), plan the arc (§4), change ≥3 levers per emotion (§53), one surprise per section (§54), **protect the peak** (§55), withholding (§56) | not encoded |
 | `COMPOSITION.md` | House / deep house / techno end to end; sets the decision order idea → groove → arrangement → sound → balance → … → loudness | `agent/src/arrangement.ts`, `styles.json` |
 | `MELODIC-TECHNO.md` | Genre profile: tempo, motif, chord loop, drum and bass templates, arrangement. Uses **Live octave names** (C1 = 36) | `melodic-techno.json`, `styles.json`, `melody.ts` |
+| `HOUSE.md` | House / tech-house build order: groove -> kick/bass -> hook -> arrangement. Riffs rhythmically distinct from the bass, one primary hook, remove something before a drop, sidechained chord stabs, high-pass non-bass parts, balance in mono, quality gates A-F. Written for Wavetable, which Standard lacks: use AF101 or Drift | not encoded |
 | `MELODY.md` | Writing leads: rhythm before pitch, target 3rds/7ths not roots, question/answer, phrase arcs, **the tonic is a destination** | `checkMelodyShape` in `agent/src/melody.ts` |
 | `EDM-TIPS.md` | Melody method, harmony complexity ladder, transition families, mix heuristics. A summary — full file not supplied | `checkMelody` in `agent/src/melody.ts` |
 | `CHORDS.md` | Chord progressions and voicings. A summary — full file not supplied | `chord-progressions.json`, `chords.ts` |
 | `BASSLINES.md` | Bassline writing. Uses **scientific octave names** (C4 = 60) | `bass-patterns.json`, `basslines.ts` |
 | `DRUMS.md` | Drum grids, variation, swing, fills, anchors | `drum-patterns.json`, `drums.ts` |
+| `GROOVE.md` | Dotted-eighth (3/16) syncopation: one stable anchor (kick, clap, hats), **one** groove layer moving around it, phrase-reset vs free-running pulse, note length shorter than spacing, accents, omissions. "If everything is syncopated, nothing sounds syncopated" | not encoded |
 | `ORCHESTRAL.md` | Orchestral composition and mock-ups. Assumes **Live Suite / Max for Live**; this machine runs Standard, so only its `filesystem` mode applies | not encoded |
 
 **Artist and style profiles** — each names an artist through a style template
@@ -338,7 +340,7 @@ the code enforces it yet — apply it by reading, and treat that as a gap.
 | `docs/lessons.md` | What producing whole tracks taught. **Read before producing or mixing** |
 | `docs/capabilities.md` | What the bridge can and cannot do in Live |
 
-Where guides overlap, the more specific one wins for its own job: `MELODY.md`
+Where guides overlap, the more specific one wins for its own job: `MELODIC-TECHNO.md` over `HOUSE.md` for a melodic track, `MELODY.md`
 over `EDM-TIPS.md` for leads, `MIXING.md` over `COMPOSITION.md` for the master
 chain, an artist profile over its genre profile.
 

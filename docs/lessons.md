@@ -276,3 +276,20 @@ Retry both a few times before failing.
   bar numbers off it.
 - Pedal notes: moving every note of a chain to one pitch merges any that
   overlapped at the old glides (96 -> 94 notes). Harmless, but expect it.
+
+## Re-voicing and re-keying a part (camelbone)
+
+- **`live.remove_notes` renumbers every note in that clip**, so an update
+  later in the same transaction that names an id read beforehand fails with
+  `NOTE_NOT_FOUND`. Remove in one step, re-read, then update.
+- **A new MIDI track arrives armed.** Disarm it; a forgotten arm reaches
+  exports and MIDI keyboards.
+- **Track meters read 0 during Arrangement playback** here, even on tracks that
+  were sounding. To prove a part plays, solo it and capture a few bars.
+- **Moving a lead down into the pad's register buries it.** Its own pitch bins
+  are dominated by the pad, so a fader change barely shows there. Judge its
+  level by soloed LUFS against the mix (about 6-10 LU under is typical), not
+  by a band reading.
+- **Key is set by emphasis, not the scale.** Am-F-C-G with a lead on C-E-G,
+  phrase endings off the tonic and a G-major cadence reads as C major. A in the
+  Am voicing, the phrase landing on A and an E-major (V) cadence read as A minor.
