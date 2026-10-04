@@ -260,6 +260,62 @@ Each expert `.md` is integrated as a prompt (`agent/prompts/`), data
 own numbers; when a document leaves something open, record the assumption
 next to the data.
 
+### Which guide for which job
+
+Read the guide before doing its job. Where it says "not encoded", nothing in
+the code enforces it yet — apply it by reading, and treat that as a gap.
+
+**Starting and composing a track**
+
+| Guide | What it is for | Encoded in |
+|---|---|---|
+| `EMOTION.md` | Emotional intent first: write the *emotional sentence* (§3), plan the arc (§4), change ≥3 levers per emotion (§53), one surprise per section (§54), **protect the peak** (§55), withholding (§56) | not encoded |
+| `COMPOSITION.md` | House / deep house / techno end to end; sets the decision order idea → groove → arrangement → sound → balance → … → loudness | `agent/src/arrangement.ts`, `styles.json` |
+| `MELODIC-TECHNO.md` | Genre profile: tempo, motif, chord loop, drum and bass templates, arrangement. Uses **Live octave names** (C1 = 36) | `melodic-techno.json`, `styles.json`, `melody.ts` |
+| `MELODY.md` | Writing leads: rhythm before pitch, target 3rds/7ths not roots, question/answer, phrase arcs, **the tonic is a destination** | `checkMelodyShape` in `agent/src/melody.ts` |
+| `EDM-TIPS.md` | Melody method, harmony complexity ladder, transition families, mix heuristics. A summary — full file not supplied | `checkMelody` in `agent/src/melody.ts` |
+| `CHORDS.md` | Chord progressions and voicings. A summary — full file not supplied | `chord-progressions.json`, `chords.ts` |
+| `BASSLINES.md` | Bassline writing. Uses **scientific octave names** (C4 = 60) | `bass-patterns.json`, `basslines.ts` |
+| `DRUMS.md` | Drum grids, variation, swing, fills, anchors | `drum-patterns.json`, `drums.ts` |
+| `ORCHESTRAL.md` | Orchestral composition and mock-ups. Assumes **Live Suite / Max for Live**; this machine runs Standard, so only its `filesystem` mode applies | not encoded |
+
+**Artist and style profiles** — each names an artist through a style template
+
+| Guide | Encoded in |
+|---|---|
+| `JON_HOPKINS.md`, `TINLICKER.md` | `artists.json`, `styles.json`, `artists.ts` |
+| `ERIC.md` (Eric Prydz / Pryda progressive house) | `styles.json`, `bass-patterns.json`, `chords.ts` |
+
+**Sound, synthesis and effects**
+
+| Guide | What it is for | Encoded in |
+|---|---|---|
+| `ANALOG_SYNTH_AGENT.md` | Spec for **our own synth**, AnalogFoundry 101 — see *Synthesis* above | `analogfoundry/` |
+| `Ableton_Sound_Selection_Expert.md` | Choosing samples and presets by role before processing them | `sound-selection.json`, `sound-selection.ts`, `qc/src/samples.ts` |
+| `EFFECTS.md` | Effects field guide: cue, mechanism, control law, confusions | `effects.json`, `qc/src/identify.ts` |
+| `EDM-COMPOSITION.md` | Effects and advanced rhythm (ratchets, retrigger deceleration, polymeters) as perception → mechanism | `effects.json`, `patterns.ts` |
+| `ABLETON_VOCALS_EXPERT.md` | Vocals: chops, processing, placement | `vocals.ts` |
+
+**Mixing, mastering and finishing**
+
+| Guide | What it is for | Encoded in |
+|---|---|---|
+| `MIXING.md` | Mix and master policy: references, true-peak ceiling, QC rules, master-chain roles | `agent/src/mastering/`, `bridge/src/mastering/`, `qc/` |
+| `NEW_TRACK.md` | Despite the filename, titled *PROFESSIONAL_TRACK_FINISH*: the finishing pass. Diagnose in order composition → … → mastering, minimum effective change, a 10-category audit scored /100 **without inflation**, and a required *Professional Finish Report* | not encoded |
+| `EDM-PRODUCTION.md` | A summary of a generated production `AGENTS.md` that was **not supplied**; overlaps the guides above. Use only the rules it states | not encoded |
+
+**Background, not instructions**
+
+| Guide | What it is |
+|---|---|
+| `PROJECT.md` | The original implementation plan for this repository (wrapped in a Python string). Its `noteNameToMidi("F1") -> 29` example assumes scientific octaves — see *Gotchas* |
+| `docs/lessons.md` | What producing whole tracks taught. **Read before producing or mixing** |
+| `docs/capabilities.md` | What the bridge can and cannot do in Live |
+
+Where guides overlap, the more specific one wins for its own job: `MELODY.md`
+over `EDM-TIPS.md` for leads, `MIXING.md` over `COMPOSITION.md` for the master
+chain, an artist profile over its genre profile.
+
 - **Octave names differ between documents.** BASSLINES.md is read as
   scientific pitch (C4 = 60); MELODIC-TECHNO.md uses Live's names (its kick
   is C1 = 36). Each pattern records its `convention`; never mix them silently.
