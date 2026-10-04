@@ -253,6 +253,32 @@ have been wrong every time. Then sweep it on Live with `fx apply`.
   in pitch. Caveat: with the transport running, tracks outside the scene
   may play their Arrangement clips if the Set has an Arrangement.
 
+## DJ intro and outro - always
+
+Every club track gets a **proper DJ intro and outro**, whatever the style
+template says. A track a DJ cannot mix in and out of is not finished.
+
+Measured on the CamelPhat extended mixes in `D:/beatport`: the outro runs
+32-48 bars on a steady beat at full low-end level, melodic content steps
+down 6-13 dB in 8- and 16-bar moves, the last 8-16 bars are drums only, and
+the track then stops cleanly. Build to that:
+
+- **At least 32 bars each way**, beat-led from the first bar to the last.
+  Kick on every beat; no kickless bars, no tempo or meter change.
+- **Every change on an 8- or 16-bar boundary**, so a DJ counting phrases
+  lands on it. Pickups and fills inside a phrase are fine.
+- **Outro order: melodic layers out, then bass, then percussion.** Bass that
+  stays into the outro plays a root pedal, not the chord loop, so it sits in
+  key against the next record; it leaves on a 16-bar line - the DJ's bass
+  swap. The intro mirrors it: drums first, bass in on a 16-bar line.
+- **The last 8-16 bars are drums only** - kick, hats and a little
+  percussion - ending on a clean bar line with no tail into silence.
+- **Nothing stops abruptly.** Atmosphere and pads fade over at least
+  8 bars (clip automation on a device, reset after the note ends) rather
+  than cutting when their clip does.
+- `planArrangement` and `checkArrangement` encode the beat-led part; check
+  lengths and the bass-out point by hand until they encode the rest.
+
 ## Expert documents
 
 Each expert `.md` is integrated as a prompt (`agent/prompts/`), data

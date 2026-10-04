@@ -167,6 +167,22 @@ Retry both a few times before failing.
   (Cowgirl 13.1), every band within 3 dB. The master chain was input trim -6 dB, Glue at threshold
   0, Saturator 3 dB with Pre-DC on, and Limiter gain 0 with a -1.2 dB ceiling.
 
+## Harmony audits and atmosphere (camelbone)
+
+- **Model a drone by its measured pitch content, not as one MIDI note.** A
+  drone sample named "C" held C in several octaves, so an audit that modelled
+  it as a single note missed a semitone clash with a B four octaves of the
+  register away. Measure each drone's chroma first: of ten pack drones all
+  named "C", one had a C♯ at −8 dB.
+- **The bridge cannot tell you Simpler's playback mode.** In One-Shot,
+  `Trigger Mode: Trigger` ignores note-off, so a note that "ends" keeps
+  sounding. Wherever a stop matters, set `Gate` and a `Fade Out`; it is correct
+  in either mode.
+- **Judge width per band, not by whole-mix correlation.** In a drop the mono
+  kick and bass dominate correlation, which barely moved even when the mid and
+  presence bands widened by 1-5 dB. And a pure tone placed centre *narrows*
+  its band: it adds mid with no side. Decorrelate it (chorus, delay) first.
+
 ## Drums
 
 - **One swing for everything on the off-16ths.** The hats swung 54% (about 9 ms late), while the
@@ -230,3 +246,33 @@ Retry both a few times before failing.
   - the harmonic rub audit against the moving bass;
   - the smallest-move rub resolver;
   - ducking drawn from kick notes.
+
+## Mastering (camelbone)
+
+- **Live's Limiter in True Peak mode still measures 0.1-0.2 dB over its ceiling** on the QC's 4x
+  true-peak meter. For a -1 dBTP delivery set the ceiling to -1.2 and re-measure.
+- **Once the limiter is pinned by the kick, more drive buys nothing.** +1 dB of limiter gain gave
+  +0.1 LU and the same PLR; a +1 dB low-bass bell was removed the same way. The remaining loudness
+  is in the kick/sub peak structure, at source.
+- **Read the EQ band's filter type before trusting its role name.** The "30 Hz" band was a low shelf
+  at 0 dB, not a high-pass, so nothing was trimming infra.
+- **A whole-song capture outlasts fetch.** Node's fetch drops a request after 300 s without response
+  headers; the CLI and the MCP HTTP client now use `postJson` (`bridge/src/http-post.ts`), which has
+  no client-side timeout.
+
+## Outros and clip copies (camelbone)
+
+- **`live.duplicate_clip` copies notes, not clip envelopes**, and it is
+  bridge-side, so it cannot run inside a transaction. Duplicate first, then
+  redraw any automation (the duck) in the transaction.
+- **Shortening a copy:** `live.set_clip_loop` with `end` makes an 8-bar
+  version of a 16-bar clip; `place_clip_in_arrangement` then places 8 bars.
+- **A fade drawn on a device parameter persists after the clip.** Clips
+  without that envelope never reset it. End the note first, let the release
+  finish, then return the parameter to its normal value inside the same clip.
+- **Arrangement captures from `start_beat` began two bars late** on the
+  outro capture (silence arrived two bars early in the file). Locate a
+  capture by a known event - the end of the song, a drop - before reading
+  bar numbers off it.
+- Pedal notes: moving every note of a chain to one pitch merges any that
+  overlapped at the old glides (96 -> 94 notes). Harmless, but expect it.

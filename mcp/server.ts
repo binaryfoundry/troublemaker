@@ -16,6 +16,7 @@
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
 import { BridgeError } from '../bridge/src/errors.js';
+import { postJson } from '../bridge/src/http-post.js';
 import { Logger } from '../bridge/src/logger.js';
 import { Bridge } from '../bridge/src/server.js';
 import { createMcpServer, type McpClient } from './tools.js';
@@ -32,12 +33,11 @@ function log(message: string): void {
 function httpClient(): McpClient {
   return {
     async post(command, args = {}, options = {}) {
-      const response = await fetch(`${base}/command`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ command, args, dry_run: options.dryRun === true }),
-      });
-      const body = (await response.json()) as {
+      const body = (await postJson(`${base}/command`, {
+        command,
+        args,
+        dry_run: options.dryRun === true,
+      })) as {
         ok: boolean;
         result?: unknown;
         error?: { code: string; message: string; [key: string]: unknown };

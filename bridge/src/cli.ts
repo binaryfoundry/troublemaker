@@ -10,6 +10,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { COMMANDS } from './commands/registry.js';
+import { postJson } from './http-post.js';
 import { runQc } from '../../qc/src/run.js';
 import { compareFiles, runAb } from '../../qc/src/ab.js';
 import { analyzeBass, formatBassProfile } from '../../qc/src/bass.js';
@@ -38,19 +39,14 @@ async function post(
   args: Record<string, unknown> = {},
   dryRun = false,
 ): Promise<unknown> {
-  let response: Response;
+  let body: CliResult;
   try {
-    response = await fetch(`${base()}/command`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ command, args, dry_run: dryRun }),
-    });
+    body = (await postJson(`${base()}/command`, { command, args, dry_run: dryRun })) as CliResult;
   } catch (error) {
     throw new Error(
       `Cannot reach the bridge at ${base()}. Start it with 'npm run bridge'.\n  ${String(error)}`,
     );
   }
-  const body = (await response.json()) as CliResult;
   if (!body.ok) {
     const details = { ...body.error };
     delete details.code;
