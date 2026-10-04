@@ -59,6 +59,8 @@ parameter indices.
 5. never copy proprietary plugin code, leaked source, firmware, ROMs or
    factory content.
 
-Note that the `synth/` directory elsewhere in this repository depends on Vita,
-which is **GPLv3**. That dependency is optional, invoked as a separate process
-and never linked - but it is a reason to keep these two subsystems apart.
+Vita (Python bindings for the Vital engine) was evaluated for offline
+wavetable rendering and deliberately **kept out of this repository**. It is
+GPLv3, and a script that imports it loads GPL code into its own process, so
+that script is itself GPL-bound - not isolated by being "optional". Do not add
+it here; AnalogFoundry's own renderer covers the same need without it.
