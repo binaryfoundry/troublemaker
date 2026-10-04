@@ -253,6 +253,14 @@ have been wrong every time. Then sweep it on Live with `fx apply`.
   in pitch. Caveat: with the transport running, tracks outside the scene
   may play their Arrangement clips if the Set has an Arrangement.
 
+## Starting a new track - ask for the key
+
+**Before writing any notes for a new track, ask the user what key it should be
+in.** They plan keys against their other tracks on the Camelot wheel (e.g. "one
+up on the A ring" from 8A A minor is 9A E minor), so a key chosen on musical
+grounds alone can be wrong for the set. Record the key and its Camelot code in
+the project's TRACK.md.
+
 ## DJ intro and outro - always
 
 Every club track gets a **proper DJ intro and outro**, whatever the style
@@ -271,6 +279,13 @@ the track then stops cleanly. Build to that:
   stays into the outro plays a root pedal, not the chord loop, so it sits in
   key against the next record; it leaves on a 16-bar line - the DJ's bass
   swap. The intro mirrors it: drums first, bass in on a 16-bar line.
+- **No pitched material in the first 16 bars or the last 16.** That is where
+  the DJ mixes over the neighbouring record, which may be in another key.
+  Drones, pads, chords, melodic loops and tonal FX wait for bar 17 - never open
+  a track on a drone - and leave before the final 16. A tonal part entering
+  later in the intro fades in, and hands over rather than stopping dead.
+  (Black Glass opened on a drone that faded out at bar 32; the user cut its
+  first 16 bars and kept the rest.)
 - **The last 8-16 bars are drums only** - kick, hats and a little
   percussion - ending on a clean bar line with no tail into silence.
 - **Nothing stops abruptly.** Atmosphere and pads fade over at least
@@ -322,6 +337,7 @@ the code enforces it yet — apply it by reading, and treat that as a gap.
 | `Ableton_Sound_Selection_Expert.md` | Choosing samples and presets by role before processing them | `sound-selection.json`, `sound-selection.ts`, `qc/src/samples.ts` |
 | `EFFECTS.md` | Effects field guide: cue, mechanism, control law, confusions | `effects.json`, `qc/src/identify.ts` |
 | `EDM-COMPOSITION.md` | Effects and advanced rhythm (ratchets, retrigger deceleration, polymeters) as perception → mechanism | `effects.json`, `patterns.ts` |
+| `SHIMMER.md` | Granular sparkle / crystal / shimmer: short tonal source -> Grain Delay (+12, +7, +19) -> dotted-eighth delay -> slow pan -> dark reverb, high-passed. An **event** at 3-8 structural moments (phrase ends, breakdown entry/exit, before drops), automated as a bloom - slow start, accelerating rise, peak, sharp cut leaving the tail. Standard lacks Echo and Hybrid Reverb (use Delay, Reverb) and the bridge cannot reach return devices, so build it as an insert chain on its own track | not encoded |
 | `ABLETON_VOCALS_EXPERT.md` | Vocals: chops, processing, placement | `vocals.ts` |
 
 **Mixing, mastering and finishing**
