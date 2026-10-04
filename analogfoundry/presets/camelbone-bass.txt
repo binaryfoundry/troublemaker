@@ -1,0 +1,26 @@
+# camelbone bass - translated from the Drift patch it replaces.
+# Drift: saw, LP 420 Hz, res 0, Env2->cutoff 46%, A 2ms / D 300ms / S 27% / R 60ms,
+#        glide 55 ms, legato. No key tracking. Sub comes from a separate track.
+analogfoundry101 1
+saw 1
+pulse 0
+sub 0
+noise 0
+pw 0.5
+tune 0
+cutoff 420
+resonance 0
+env_cutoff 0.46
+lfo_cutoff 0
+track 0
+attack 0.002
+decay 0.3
+sustain 0.27
+release 0.06
+lfo_rate 5
+lfo_pitch 0
+lfo_pw 0
+glide 0.055
+stage_drive 0
+input_drive 0
+level 0.8

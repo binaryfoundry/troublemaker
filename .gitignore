@@ -6,3 +6,7 @@ logs/
 __pycache__/
 *.pyc
 .troublemaker/
+
+# CMake build output for analogfoundry
+analogfoundry/build/
+analogfoundry/external/

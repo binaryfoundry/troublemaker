@@ -20,6 +20,7 @@ expressed as primitive note edits.
 | `agent/src`                 | Theory, patterns, transforms, composition, mastering policy | Network calls, Live API assumptions      |
 | `qc/src`                    | ffmpeg invocation, PCM analysis of exported files | Live calls, mastering judgement          |
 | `mcp`                       | MCP tool schemas and wiring to workflows          | Logic the CLI also needs (put it in `bridge/src/workflows.ts`) |
+| `analogfoundry/src`         | C++ DSP for our own synthesiser, offline renderer, VST3 wrapper | Live API calls, music theory, anything host-specific in the DSP core |
 
 `agent/src` is pure functions over numbers. It must stay testable with no
 Ableton running.
@@ -174,6 +175,53 @@ a number is an exact velocity. `agent/src/drums.ts` turns them into notes.
 - **Adding a genre:** a template with `steps`, `meter`, backbeat voice,
   four-on-the-floor or half-time, a `fill` kind, and rows; then
   `checkDrumPattern` must pass it with no findings above info.
+
+## Synthesis — use our own synth first
+
+**AnalogFoundry 101 is the default instrument for synthesised parts, not
+Drift, Analog or any other stock Live device.** It is ours: original DSP,
+built to `ANALOG_SYNTH_AGENT.md`, measured rather than guessed (see
+`analogfoundry/README.md` for the numbers). Reach for a Live device only when
+one of the exceptions below applies, and say which one.
+
+**It is monophonic.** That is the whole constraint, and it decides everything:
+
+| Part | Instrument |
+|---|---|
+| Bass, lead, acid line, any single-note part | **AnalogFoundry 101** |
+| Pads, chords, anything with simultaneous notes | a Live device — a monosynth would play one note of the chord |
+| A pure sine sub | a Live device. AF101's sub oscillator is a square; it has no sine, and the sub band is the one most closely matched to the references |
+
+Overlapping notes in a monophonic part are fine and often deliberate: an
+overlap is how a glide is written, and AF101 handles it as legato - it slides
+to the new pitch without retriggering the envelope. Check whether a part is
+*really* polyphonic before ruling the synth out. Count maximum simultaneous
+notes, not overlaps.
+
+**Two ways to use it, because the bridge cannot insert plugins.**
+
+1. **VST3** (`analogfoundry/build/bin/`, installed to
+   `%LOCALAPPDATA%\Programs\Common\VST3`). A human has to enable VST3 folders
+   in Live's Preferences and rescan once; the API cannot do it, and until then
+   `live.browse {"category": "plugins"}` returns 0 entries. After that it
+   loads like any browser item and its parameters automate normally.
+2. **Offline render** (`analogfoundry/build/Release/render_note.exe`) into
+   `<User Library>/Samples/<project>/`, then load into Simpler. Live indexes
+   the User Library already, so no browser Place has to be added by hand.
+   Use this when the plugin is not scanned, or when a baked sample is wanted.
+
+Patches are plain text (`analogfoundry/presets/`), and the same parameter
+table drives the preset format, the host's automation list and the DSP ranges
+— so those three can never disagree. Add a parameter in one place:
+`parameterTable()` in `src/model/Preset.h`.
+
+**Changing the DSP:** build and run the tests
+(`ctest -C Release` in `analogfoundry/build`), and measure before and after.
+Several bugs in that engine were invisible to listening and only showed up as
+numbers — an attack finishing in 19.5 ms instead of 50, oversampling that
+made aliasing *worse*, a test reporting 1e-15 because it correlated against
+one quadrature. Never claim a behaviour is matched because one preset sounded
+good.
 
 ## Composition and effects
 

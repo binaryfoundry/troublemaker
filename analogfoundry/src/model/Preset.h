@@ -1,0 +1,135 @@
+// Parameter descriptions, preset serialisation and state recall.
+//
+// One table drives three things that must never disagree: the parameters a
+// host sees for automation, the fields a preset saves, and the ranges the DSP
+// is clamped to. Keeping them in separate places is how a plugin ends up
+// recalling a project slightly wrong, so there is a single list here and
+// everything else is generated from it.
+//
+// Milestone 9 asks for project recall, automation and a preset format. The
+// format is plain text, one `name value` pair per line: trivially diffable,
+// forward-compatible (unknown names are ignored, missing ones keep their
+// default), and with no dependency on a JSON library in the audio plugin.
+
+#pragma once
+
+#include <cmath>
+#include <cstdio>
+#include <cstring>
+#include <string>
+#include <vector>
+
+#include "Voice101.h"
+
+namespace af {
+
+/// One automatable parameter: what a host needs, and what a preset stores.
+struct ParameterDescriptor {
+  const char* id;
+  const char* name;
+  const char* unit;
+  double minimum;
+  double maximum;
+  double defaultValue;
+  /// Where it lives in Voice101Parameters.
+  double Voice101Parameters::*member;
+};
+
+/// The single source of truth. Order is the host's parameter order and must
+/// stay stable: changing it would break automation in saved projects.
+inline const std::vector<ParameterDescriptor>& parameterTable() {
+  static const std::vector<ParameterDescriptor> table = {
+      {"saw", "Saw Level", "", 0.0, 1.0, 1.0, &Voice101Parameters::sawLevel},
+      {"pulse", "Pulse Level", "", 0.0, 1.0, 0.0, &Voice101Parameters::pulseLevel},
+      {"sub", "Sub Level", "", 0.0, 1.0, 0.0, &Voice101Parameters::subLevel},
+      {"noise", "Noise Level", "", 0.0, 1.0, 0.0, &Voice101Parameters::noiseLevel},
+      {"pw", "Pulse Width", "", 0.02, 0.98, 0.5, &Voice101Parameters::pulseWidth},
+      {"tune", "Tune", "st", -12.0, 12.0, 0.0, &Voice101Parameters::tuneSemitones},
+      {"cutoff", "Cutoff", "Hz", 10.0, 20000.0, 2000.0, &Voice101Parameters::cutoffHz},
+      {"resonance", "Resonance", "", 0.0, 1.0, 0.0, &Voice101Parameters::resonance},
+      {"env_cutoff", "Env to Cutoff", "", 0.0, 1.0, 0.0, &Voice101Parameters::envToCutoff},
+      {"lfo_cutoff", "LFO to Cutoff", "", 0.0, 1.0, 0.0, &Voice101Parameters::lfoToCutoff},
+      {"track", "Key Tracking", "", 0.0, 1.0, 0.0, &Voice101Parameters::keyboardTracking},
+      {"attack", "Attack", "s", 0.0, 10.0, 0.002, &Voice101Parameters::attack},
+      {"decay", "Decay", "s", 0.0, 10.0, 0.3, &Voice101Parameters::decay},
+      {"sustain", "Sustain", "", 0.0, 1.0, 0.0, &Voice101Parameters::sustain},
+      {"release", "Release", "s", 0.0, 10.0, 0.1, &Voice101Parameters::release},
+      {"lfo_rate", "LFO Rate", "Hz", 0.01, 50.0, 5.0, &Voice101Parameters::lfoRateHz},
+      {"lfo_pitch", "LFO to Pitch", "st", 0.0, 12.0, 0.0, &Voice101Parameters::lfoToPitch},
+      {"lfo_pw", "LFO to PW", "", 0.0, 1.0, 0.0, &Voice101Parameters::lfoToPulseWidth},
+      {"glide", "Glide", "s", 0.0, 5.0, 0.0, &Voice101Parameters::glideSeconds},
+      {"stage_drive", "Filter Stage Drive", "", 0.0, 1.0, 0.0,
+       &Voice101Parameters::filterStageDrive},
+      {"input_drive", "Filter Input Drive", "", 0.0, 1.0, 0.0,
+       &Voice101Parameters::filterInputDrive},
+      {"level", "Output Level", "", 0.0, 1.0, 0.8, &Voice101Parameters::outputLevel},
+  };
+  return table;
+}
+
+/// Clamp every parameter into its declared range. A host can send anything,
+/// including values from a project saved by a future version.
+inline Voice101Parameters clampToRanges(Voice101Parameters p) {
+  for (const auto& d : parameterTable()) {
+    double& value = p.*(d.member);
+    if (!std::isfinite(value)) value = d.defaultValue;
+    if (value < d.minimum) value = d.minimum;
+    if (value > d.maximum) value = d.maximum;
+  }
+  return p;
+}
+
+/// Normalised 0..1, which is what VST3 and most hosts automate in.
+inline double toNormalised(const ParameterDescriptor& d, double value) {
+  const double span = d.maximum - d.minimum;
+  if (span <= 0.0) return 0.0;
+  const double t = (value - d.minimum) / span;
+  return t < 0.0 ? 0.0 : (t > 1.0 ? 1.0 : t);
+}
+
+inline double fromNormalised(const ParameterDescriptor& d, double normalised) {
+  const double t = normalised < 0.0 ? 0.0 : (normalised > 1.0 ? 1.0 : normalised);
+  return d.minimum + t * (d.maximum - d.minimum);
+}
+
+/// Serialise to the preset text format.
+inline std::string savePreset(const Voice101Parameters& p) {
+  std::string out = "analogfoundry101 1\n";
+  char line[128];
+  for (const auto& d : parameterTable()) {
+    std::snprintf(line, sizeof(line), "%s %.9g\n", d.id, p.*(d.member));
+    out += line;
+  }
+  return out;
+}
+
+/// Parse the preset text format. Unknown names are ignored and missing ones
+/// keep their default, so an old preset still loads into a newer build and a
+/// newer preset degrades gracefully into an older one.
+inline Voice101Parameters loadPreset(const std::string& text) {
+  Voice101Parameters p;
+  for (const auto& d : parameterTable()) p.*(d.member) = d.defaultValue;
+
+  size_t pos = 0;
+  while (pos < text.size()) {
+    size_t end = text.find('\n', pos);
+    if (end == std::string::npos) end = text.size();
+    const std::string line = text.substr(pos, end - pos);
+    pos = end + 1;
+    if (line.empty() || line[0] == '#') continue;
+
+    const size_t space = line.find(' ');
+    if (space == std::string::npos) continue;
+    const std::string key = line.substr(0, space);
+    const std::string value = line.substr(space + 1);
+    for (const auto& d : parameterTable()) {
+      if (key == d.id) {
+        p.*(d.member) = std::atof(value.c_str());
+        break;
+      }
+    }
+  }
+  return clampToRanges(p);
+}
+
+}  // namespace af
