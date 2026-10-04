@@ -134,6 +134,114 @@ export function checkMelody(pattern: Pattern, options: { chords: number[][]; bea
   return findings;
 }
 
+/**
+ * MELODY.md's checks, which are about a melody's *shape over a phrase* rather
+ * than its note-by-note correctness. They are kept separate from
+ * `checkMelody` because the two documents are different sources and
+ * AGENTS.md asks that each source keep its own rules.
+ *
+ * The first check exists because of a real failure: a lead was written that
+ * started all sixteen bars on the tonic. Every note was a chord tone, the
+ * range and leaps were fine, so `checkMelody` passed it - and it still sounded
+ * like an exercise, exactly as MELODY.md section 7 predicts ("repeatedly
+ * landing on roots can make a lead melody sound like a bassline"). Section 16
+ * is blunter: the tonic should be a destination, not a default.
+ */
+export function checkMelodyShape(
+  pattern: Pattern,
+  options: { chords: number[][]; chordRoots: number[]; beatsPerChord: number; root: string; barsPerPhrase?: number },
+): MelodyFinding[] {
+  const findings: MelodyFinding[] = [];
+  const events = [...pattern.events].sort((a, b) => a.beat - b.beat);
+  if (!events.length) return [{ severity: 'warn', message: 'The melody is empty.' }];
+
+  const tonic = pitchClass(options.root);
+  const barsPerPhrase = options.barsPerPhrase ?? 8;
+
+  // Section 16: the tonic is a destination, not a default.
+  const barStarts = events.filter((e) => Math.abs(e.beat % 4) < 1e-6);
+  const tonicStarts = barStarts.filter((e) => e.pitch % 12 === tonic).length;
+  if (barStarts.length >= 4 && tonicStarts / barStarts.length > 0.5) {
+    findings.push({
+      severity: 'warn',
+      message: `${tonicStarts} of ${barStarts.length} bars start on the tonic; MELODY.md 16 wants the tonic withheld as a destination, not used as a default.`,
+    });
+  }
+  const tonicShare = events.filter((e) => e.pitch % 12 === tonic).length / events.length;
+  if (tonicShare > 0.4) {
+    findings.push({
+      severity: 'info',
+      message: `${Math.round(tonicShare * 100)}% of notes are the tonic; that weakens forward motion.`,
+    });
+  }
+
+  // Section 7: target the new chord, and prefer its third or seventh to its root.
+  const rootHits = events.filter((e) => {
+    const index = Math.floor(e.beat / options.beatsPerChord) % options.chordRoots.length;
+    return e.pitch % 12 === options.chordRoots[index]! % 12;
+  }).length;
+  if (rootHits / events.length > 0.4) {
+    findings.push({
+      severity: 'warn',
+      message: `${rootHits} of ${events.length} notes land on the root of the chord beneath them; the third or seventh carries a chord's character better.`,
+    });
+  }
+
+  // Section 7 again: the melody should move when the harmony does.
+  const chordCount = Math.max(1, Math.floor(pattern.length_beats / options.beatsPerChord));
+  const perChord: string[] = [];
+  for (let c = 0; c < chordCount; c += 1) {
+    const inChord = events.filter((e) => e.beat >= c * options.beatsPerChord && e.beat < (c + 1) * options.beatsPerChord);
+    perChord.push([...new Set(inChord.map((e) => e.pitch))].sort((a, b) => a - b).join(','));
+  }
+  const distinct = new Set(perChord.filter(Boolean)).size;
+  if (chordCount >= 3 && distinct === 1) {
+    findings.push({
+      severity: 'info',
+      message: 'The melody uses identical pitches over every chord; that can be deliberate reharmonisation, but check it is a choice.',
+    });
+  }
+
+  // Section 12: a phrase wants a shape, not one repeated contour.
+  const contourOf = (bar: number) => {
+    const inBar = events.filter((e) => e.beat >= bar * 4 && e.beat < bar * 4 + 4);
+    if (inBar.length < 2) return '';
+    const first = inBar[0]!.pitch;
+    const last = inBar.at(-1)!.pitch;
+    return last > first ? 'up' : last < first ? 'down' : 'flat';
+  };
+  const bars = Math.max(1, Math.round(pattern.length_beats / 4));
+  const contours = new Set<string>();
+  for (let b = 0; b < bars; b += 1) {
+    const c = contourOf(b);
+    if (c) contours.add(c);
+  }
+  if (bars >= barsPerPhrase && contours.size === 1) {
+    findings.push({
+      severity: 'info',
+      message: `Every bar has the same ${[...contours][0]} contour; MELODY.md 10 and 12 want a phrase that asks and then answers.`,
+    });
+  }
+
+  // Section 11: the last bar of a phrase is the valuable one.
+  if (bars >= barsPerPhrase) {
+    const lastBar = Math.floor((barsPerPhrase - 1));
+    const a = events.filter((e) => e.beat >= 0 && e.beat < 4).map((e) => `${round6(e.beat)}:${e.pitch}`).join('|');
+    const z = events
+      .filter((e) => e.beat >= lastBar * 4 && e.beat < lastBar * 4 + 4)
+      .map((e) => `${round6(e.beat - lastBar * 4)}:${e.pitch}`)
+      .join('|');
+    if (a && a === z) {
+      findings.push({
+        severity: 'info',
+        message: `Bar ${barsPerPhrase} repeats bar 1 exactly; MELODY.md 11 keeps the final bar of a phrase for a fill, pickup or altered ending.`,
+      });
+    }
+  }
+
+  return findings;
+}
+
 // ---------------------------------------------------------------------------
 // MELODIC-TECHNO.md: the template motif and its variation order
 // ---------------------------------------------------------------------------

@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { checkMelody, motifMelody, motifRhythm } from '../../agent/src/melody.js';
+import { checkMelody, checkMelodyShape, motifMelody, motifRhythm } from '../../agent/src/melody.js';
 import { progression } from '../../agent/src/music-theory.js';
 
 const chords = progression('F', 'minor', [1, 6, 3, 7], { voicing: 'seventh' });
@@ -80,5 +80,67 @@ describe('melodic techno motif', () => {
     expect(pitches(varyMotif(base, 'velocity', opts))).toEqual(pitches(base));
     expect(pitches(varyMotif(base, 'gate', opts))).toEqual(pitches(base));
     expect(pitches(varyMotif(base, 'register', opts))).toEqual(pitches(base).map((p) => p - 12));
+  });
+});
+
+/**
+ * MELODY.md's phrase-shape checks. These exist because of a real failure: a
+ * lead was written whose sixteen bars all started on the tonic. Every note was
+ * a chord tone and the range and leaps were fine, so the EDM-TIPS checks above
+ * passed it - and it still sounded like an exercise.
+ */
+describe('checkMelodyShape (MELODY.md)', () => {
+  const roots = [9, 5, 0, 7]; // A F C G
+  const shapeOptions = { chords, chordRoots: roots, beatsPerChord: 16, root: 'A', barsPerPhrase: 8 };
+
+  /** Three notes a bar on the dotted-8th positions, pitches given per chord. */
+  const build = (perChord: number[][], bars = 16) => ({
+    length_beats: bars * 4,
+    events: Array.from({ length: bars }, (_, b) =>
+      [0, 1.5, 2.75].map((offset, i) => ({
+        beat: b * 4 + offset,
+        pitch: perChord[Math.floor(b / 4) % perChord.length]![i]!,
+        duration: 0.7,
+        velocity: 90,
+      })),
+    ).flat(),
+  });
+
+  it('catches a melody that starts every bar on the tonic', () => {
+    // The exact shape of the original mistake: A C E over all four chords.
+    const melody = build([[81, 84, 88], [81, 84, 88], [81, 84, 88], [81, 84, 88]]);
+    const findings = checkMelodyShape(melody, shapeOptions);
+    expect(findings.some((f) => f.severity === 'warn' && /start on the tonic/.test(f.message))).toBe(true);
+  });
+
+  it('passes the rewritten melody, which targets thirds and sevenths', () => {
+    // Am7 C E G, Fmaj7 same (recoloured), Cadd9 G E D, Gsus4 D G A.
+    const melody = build([[84, 88, 91], [84, 88, 91], [91, 88, 86], [86, 91, 93]]);
+    const findings = checkMelodyShape(melody, shapeOptions);
+    expect(findings.filter((f) => f.severity === 'warn')).toEqual([]);
+  });
+
+  it('warns when most notes land on the root of the chord beneath them', () => {
+    const melody = build([[81, 81, 81], [77, 77, 77], [84, 84, 84], [79, 79, 79]]);
+    const findings = checkMelodyShape(melody, shapeOptions);
+    expect(findings.some((f) => /land on the root/.test(f.message))).toBe(true);
+  });
+
+  it('notices when every bar has the same contour', () => {
+    const melody = build([[84, 88, 91], [84, 88, 91], [84, 88, 91], [84, 88, 91]]);
+    const findings = checkMelodyShape(melody, shapeOptions);
+    expect(findings.some((f) => /same up contour/.test(f.message))).toBe(true);
+  });
+
+  it('notices identical pitches over every chord', () => {
+    const melody = build([[84, 88, 91], [84, 88, 91], [84, 88, 91], [84, 88, 91]]);
+    const findings = checkMelodyShape(melody, shapeOptions);
+    expect(findings.some((f) => /identical pitches over every chord/.test(f.message))).toBe(true);
+  });
+
+  it('reports an empty melody rather than throwing', () => {
+    expect(checkMelodyShape({ length_beats: 64, events: [] }, shapeOptions)).toEqual([
+      { severity: 'warn', message: 'The melody is empty.' },
+    ]);
   });
 });
