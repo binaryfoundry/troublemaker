@@ -1,0 +1,27 @@
+# First Light melody - the fixed 2-bar cell that the harmony reinterprets.
+# Plucked: amp sustain 0 and a filter envelope that snaps shut, which is what
+# the measured house presets do (docs/lessons.md). No glide; it is not the
+# groove layer and must stay on the eighth grid.
+analogfoundry101 1
+saw 0.7
+pulse 0.6
+sub 0.1
+noise 0
+pw 0.35
+tune 0
+cutoff 900
+resonance 0.12
+env_cutoff 0.6
+lfo_cutoff 0
+track 0.6
+attack 0.002
+decay 0.28
+sustain 0
+release 0.18
+lfo_rate 5
+lfo_pitch 0
+lfo_pw 0
+glide 0
+stage_drive 0
+input_drive 0
+level 0.85

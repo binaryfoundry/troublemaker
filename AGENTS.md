@@ -253,6 +253,46 @@ have been wrong every time. Then sweep it on Live with `fx apply`.
   in pitch. Caveat: with the transport running, tracks outside the scene
   may play their Arrangement clips if the Set has an Arrangement.
 
+## Producing a track - apply the expert guides, unprompted
+
+Do not wait to be asked. Before writing any element of a track, read its guide
+in full and apply it; read the always-on guides before the first note and again
+when checking the result. Skimming a guide for one idea is not applying it.
+("First Light" syncopated four layers because GROOVE.md was read late, and the
+user had to point at it mid-build.)
+
+**Always, on every track:**
+
+| Guide | Apply it |
+|---|---|
+| `EMOTION.md` | first: the emotional sentence (§3) and the arc (§4) before any notes; then ≥3 levers per emotion (§53), one surprise per section (§54), protect the peak (§55), withholding (§56) |
+| `COMPOSITION.md` | the decision order (idea → groove → arrangement → sound → balance → … → loudness) and the arrangement |
+| `EDM-COMPOSITION.md` | effects and advanced rhythm, as perception → mechanism |
+| `EDM-TIPS.md` | melody method, harmony complexity ladder, transition families, mix heuristics |
+| `GROOVE.md` | every rhythmic part: assign anchor / groove / ornament roles (§15) before writing any of them; exactly one groove layer; run the §26 checklist |
+| `NEW_TRACK.md` | the finishing pass: diagnose in its order, minimum effective change, the 10-category audit scored /100 without inflation, and the Professional Finish Report |
+
+**Per element, in addition:**
+
+| Element | Guide |
+|---|---|
+| Melody, lead, hook, motif | `MELODY.md` |
+| Bassline | `BASSLINES.md` (scientific octave names) |
+| Drums | `DRUMS.md` |
+| Chords, pads | `CHORDS.md` |
+| Shimmer | `SHIMMER.md` |
+| Choosing a sound | `Ableton_Sound_Selection_Expert.md` |
+| Mix and master | `MIXING.md`, `docs/lessons.md` |
+
+Plus the genre or artist profile the brief names (see *Which guide for which
+job*). Where guides conflict, the more specific one wins, as below.
+
+**Show the work.** The track's `TRACK.md` lists, for each element, the guides
+applied and the rules taken from them by section number. An element with no
+guide listed is not finished. Before reporting a track done, check the result
+against each always-on guide again - GROOVE.md's §26 checklist and NEW_TRACK.md's
+audit at minimum - and report what failed, not just what passed.
+
 ## Starting a new track - ask for the key
 
 **Before writing any notes for a new track, ask the user what key it should be

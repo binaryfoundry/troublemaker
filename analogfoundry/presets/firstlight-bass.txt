@@ -1,0 +1,28 @@
+# First Light bass - the dotted-eighth groove layer (GROOVE.md 15).
+# Round rather than resonant: zero resonance, a per-note filter envelope, and
+# a sub under a saw so the line survives headphones (docs/lessons.md).
+# Envelope shortened for the VST3: the plugin applies its own release, which
+# was blurring the 3/16 onsets that Simpler's Gate had cut cleanly (GROOVE.md 11).
+analogfoundry101 1
+saw 1
+pulse 0.25
+sub 0.55
+noise 0
+pw 0.42
+tune 0
+cutoff 480
+resonance 0
+env_cutoff 0.5
+lfo_cutoff 0
+track 0.3
+attack 0.004
+decay 0.26
+sustain 0.35
+release 0.04
+lfo_rate 5
+lfo_pitch 0
+lfo_pw 0
+glide 0.055
+stage_drive 0
+input_drive 0
+level 0.85

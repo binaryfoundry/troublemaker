@@ -1,0 +1,26 @@
+# First Light shimmer source - a short bright tonal pluck feeding Grain Delay
+# (+12), a dotted-eighth delay, a slow pan and a dark reverb (SHIMMER.md).
+# Narrow pulse and a little noise give the grains something to bite on.
+analogfoundry101 1
+saw 0.25
+pulse 0.85
+sub 0
+noise 0.04
+pw 0.18
+tune 0
+cutoff 2600
+resonance 0.25
+env_cutoff 0.5
+lfo_cutoff 0
+track 0.8
+attack 0.001
+decay 0.16
+sustain 0
+release 0.25
+lfo_rate 5
+lfo_pitch 0
+lfo_pw 0
+glide 0
+stage_drive 0
+input_drive 0
+level 0.8
