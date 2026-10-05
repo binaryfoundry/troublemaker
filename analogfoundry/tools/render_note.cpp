@@ -98,6 +98,8 @@ void usage() {
       "  --track A         keyboard tracking 0..1\n"
       "  --attack S --decay S --sustain L --release S\n"
       "  --glide S         portamento time\n"
+      "  --unison N        unison voices 1..7 (off by default)\n"
+      "  --detune CENTS    unison detune: the outermost voices sit at +/- this\n"
       "  --level L         output level\n");
 }
 
@@ -141,6 +143,8 @@ int main(int argc, char** argv) {
     else if (matches(k, "--sustain")) a.p.sustain = value();
     else if (matches(k, "--release")) a.p.release = value();
     else if (matches(k, "--glide")) a.p.glideSeconds = value();
+    else if (matches(k, "--unison")) a.p.unisonVoices = value();
+    else if (matches(k, "--detune")) a.p.unisonDetuneCents = value();
     else if (matches(k, "--level")) a.p.outputLevel = value();
     else {
       std::fprintf(stderr, "ERROR: unknown option %s (try --help)\n", k);

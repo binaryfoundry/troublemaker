@@ -7,6 +7,9 @@
 // Modulation: envelope -> filter and VCA; LFO -> pitch, pulse width, filter;
 // keyboard -> pitch and filter tracking.
 //
+// Optional unison (not on the 101, off by default): up to 7 detuned copies of
+// the saw and pulse feed the same filter. The sub stays on the centre VCO.
+//
 // This header has no plugin, GUI or host dependency of any kind, which is the
 // requirement that keeps the same engine usable from the offline renderer,
 // the test harness and a future VST3 wrapper.
@@ -64,6 +67,14 @@ struct Voice101Parameters {
   double filterInputDrive = 0.0;
 
   double outputLevel = 0.8;
+
+  // Unison: an extension beyond the 101, which has one VCO. Detuned copies of
+  // the saw and pulse are summed into the same filter, as a supersaw feeds a
+  // ladder. Off by default (1 voice, 0 cents), and off is the untouched
+  // single-oscillator path. Stored as doubles because the parameter table
+  // addresses doubles; the voice count is rounded.
+  double unisonVoices = 1.0;       ///< 1..7
+  double unisonDetuneCents = 0.0;  ///< outermost voices sit at +/- this
 };
 
 class Voice101 {
@@ -71,6 +82,7 @@ class Voice101 {
   void setSampleRate(double sampleRate) noexcept {
     sampleRate_ = sampleRate > 0.0 ? sampleRate : 48000.0;
     oscillator_.setSampleRate(sampleRate_);
+    for (auto& o : unison_) o.setSampleRate(sampleRate_);
     filter_.setSampleRate(sampleRate_);
     amplitudeEnvelope_.setSampleRate(sampleRate_);
     filterEnvelope_.setSampleRate(sampleRate_);
@@ -95,6 +107,8 @@ class Voice101 {
   void setParameters(const Voice101Parameters& p) noexcept {
     params_ = p;
     oscillator_.setPulseWidth(p.pulseWidth);
+    for (auto& o : unison_) o.setPulseWidth(p.pulseWidth);
+    configureUnison();
     filter_.setResonance(p.resonance);
     filter_.setStageNonlinearity(p.filterStageDrive);
     filter_.setInputNonlinearity(p.filterInputDrive);
@@ -115,6 +129,10 @@ class Voice101 {
 
   void reset() noexcept {
     oscillator_.reset();
+    // Fixed, spread starting phases: detuned voices that all began at phase 0
+    // would sum coherently - up to sqrt(N) louder - until they drifted apart.
+    // Golden-ratio steps keep them apart from the first sample, deterministically.
+    for (int i = 0; i < kMaxUnisonExtra; ++i) unison_[i].reset(wrap01(0.6180339887498949 * (i + 1)));
     filter_.reset();
     amplitudeEnvelope_.reset();
     filterEnvelope_.reset();
@@ -182,22 +200,46 @@ class Voice101 {
                              lfo * params_.lfoToPitch;
     // Drift multiplies the final frequency; it is exactly 1.0 when disabled,
     // which is what keeps the determinism test meaningful by default.
-    oscillator_.setFrequency(currentFrequency_ * std::pow(2.0, semitones / 12.0) *
-                             variationEngine_.tickPitchMultiplier());
+    const double frequency = currentFrequency_ * std::pow(2.0, semitones / 12.0) *
+                             variationEngine_.tickPitchMultiplier();
+    oscillator_.setFrequency(frequency);
 
     if (params_.lfoToPulseWidth != 0.0) {
-      oscillator_.setPulseWidth(0.5 + lfo * 0.45 * params_.lfoToPulseWidth);
+      const double pw = 0.5 + lfo * 0.45 * params_.lfoToPulseWidth;
+      oscillator_.setPulseWidth(pw);
+      for (int i = 0; i < unisonExtra_; ++i) unison_[i].setPulseWidth(pw);
     }
 
     oscillator_.tick();
+    for (int i = 0; i < unisonExtra_; ++i) {
+      unison_[i].setFrequency(frequency * unisonRatio_[i]);
+      unison_[i].tick();
+    }
 
     // --- Mixer. Summed as the hardware mixer does, not averaged, but each
     // source is first scaled to a common RMS (Calibration.h) so that moving a
     // slider changes timbre without also changing loudness or filter drive.
-    double mixed = oscillator_.saw() * params_.sawLevel * OscillatorCalibration::sawGain() +
-                   oscillator_.pulse() * params_.pulseLevel * OscillatorCalibration::pulseGain() +
-                   oscillator_.subOctaveDown() * params_.subLevel * OscillatorCalibration::subGain() +
-                   noise_.next() * params_.noiseLevel * OscillatorCalibration::noiseGain();
+    double mixed;
+    if (unisonExtra_ == 0) {
+      mixed = oscillator_.saw() * params_.sawLevel * OscillatorCalibration::sawGain() +
+              oscillator_.pulse() * params_.pulseLevel * OscillatorCalibration::pulseGain() +
+              oscillator_.subOctaveDown() * params_.subLevel * OscillatorCalibration::subGain() +
+              noise_.next() * params_.noiseLevel * OscillatorCalibration::noiseGain();
+    } else {
+      // Detuned voices are uncorrelated, so their sum grows as sqrt(N): scale
+      // by 1/sqrt(N) and the stack sits at a single saw's level, keeping the
+      // mixer's calibration. The sub stays on the centre oscillator, in tune.
+      double saw = unisonUsesCentre_ ? oscillator_.saw() : 0.0;
+      double pulse = unisonUsesCentre_ ? oscillator_.pulse() : 0.0;
+      for (int i = 0; i < unisonExtra_; ++i) {
+        saw += unison_[i].saw();
+        pulse += unison_[i].pulse();
+      }
+      mixed = saw * unisonGain_ * params_.sawLevel * OscillatorCalibration::sawGain() +
+              pulse * unisonGain_ * params_.pulseLevel * OscillatorCalibration::pulseGain() +
+              oscillator_.subOctaveDown() * params_.subLevel * OscillatorCalibration::subGain() +
+              noise_.next() * params_.noiseLevel * OscillatorCalibration::noiseGain();
+    }
     mixed += variationEngine_.tickNoise();
 
     // --- Filter cutoff: base, envelope, LFO, keyboard tracking
@@ -229,10 +271,49 @@ class Voice101 {
   static constexpr double kEnvCutoffOctaves = 6.0;
   static constexpr double kLfoCutoffOctaves = 2.0;
 
+  static constexpr int kMaxUnison = 7;
+  /// Voices beyond the centre oscillator. An even count has no centre voice
+  /// in the stack, so up to 6 extra oscillators cover every count up to 7.
+  static constexpr int kMaxUnisonExtra = 6;
+
+  /// How many oscillators the saw/pulse stack is using now (1 = unison off).
+  int unisonVoiceCount() const noexcept { return unisonExtra_ + (unisonUsesCentre_ ? 1 : 0); }
+
  private:
+  /// Voice positions spread evenly across [-detune, +detune]. An odd count
+  /// keeps the centre oscillator in the stack; an even count is symmetric
+  /// without it. Zero detune means identical copies, which add only level,
+  /// so it falls back to the single-oscillator path.
+  void configureUnison() noexcept {
+    long n = std::lround(params_.unisonVoices);
+    n = n < 1 ? 1 : (n > kMaxUnison ? kMaxUnison : n);
+    if (!(params_.unisonDetuneCents > 0.01)) n = 1;
+    if (n == 1) {
+      unisonExtra_ = 0;
+      unisonUsesCentre_ = true;
+      unisonGain_ = 1.0;
+      return;
+    }
+    unisonUsesCentre_ = (n % 2) == 1;
+    const long centre = (n - 1) / 2;
+    int k = 0;
+    for (long j = 0; j < n; ++j) {
+      if (unisonUsesCentre_ && j == centre) continue;
+      const double position = -1.0 + 2.0 * static_cast<double>(j) / static_cast<double>(n - 1);
+      unisonRatio_[k++] = std::pow(2.0, position * params_.unisonDetuneCents / 1200.0);
+    }
+    unisonExtra_ = k;
+    unisonGain_ = 1.0 / std::sqrt(static_cast<double>(n));
+  }
+
   double sampleRate_ = 48000.0;
   Voice101Parameters params_{};
   Oscillator oscillator_{};
+  Oscillator unison_[kMaxUnisonExtra]{};
+  double unisonRatio_[kMaxUnisonExtra]{};
+  int unisonExtra_ = 0;
+  bool unisonUsesCentre_ = true;
+  double unisonGain_ = 1.0;
   NoiseGenerator noise_{};
   Filter101 filter_{};
   Envelope amplitudeEnvelope_{};

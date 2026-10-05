@@ -41,6 +41,7 @@ compiler without a developer prompt. DPF is optional — without
 | 8 | Analogue variation | Component tolerance, drift, noise floor — all off by default, bit-identical when off, **< 1 dB** total effect when fully on |
 | 9 | Hardening | Preset round trip bit-identical, out-of-range clamped, NaN replaced, level spread 44.1–96 kHz **0.01 dB**, survives per-sample automation and random note storms |
 | 10 | Effect variant | `Effect101` reuses the same filter — proven by measuring it against `Filter101` directly, within 1 dB |
+| — | Unison (beyond the 101) | 1-7 detuned copies of saw and pulse into the same filter; sub stays on the centre VCO. **Off by default and bit-identical when off** (reference renders unchanged, byte for byte); level held **within 0.7 dB** from 1 to 7 voices; level wobble 2.9 % -> 19-29 % at 25 cents: it really choruses |
 
 ## CPU
 
@@ -52,6 +53,7 @@ compiler without a developer prompt. DPF is optional — without
 | 2x | 68x |
 | **4x (default)** | **27x** |
 | 4x + all nonlinearity and variation | 22x |
+| 4x + unison, 7 voices | 25x |
 | Effect, 4x | 26x |
 
 ## Two things that are not finished
@@ -140,6 +142,10 @@ analogfoundry/build/Release/render_note.exe --note 45 --seconds 2.2 \
   --cutoff 420 --res 0.42 --env-cutoff 0.55 --track 0.3 \
   --attack 0.002 --decay 0.30 --sustain 0.27 --release 0.12
 ```
+
+`--unison N --detune CENTS` stack up to 7 detuned voices (the outermost at
++/- the detune). Unison is mono for now: the voices sum into one filter and
+both outputs carry it, so widen it after the synth (Chorus-Ensemble).
 
 Render into `<User Library>/Samples/<project>/` and Live indexes it
 immediately — no Place needs adding, unlike an arbitrary folder.

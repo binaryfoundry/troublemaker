@@ -10,6 +10,8 @@
 // same table the preset format uses, so automation and project recall cannot
 // drift apart.
 
+#include <cstring>
+
 #include "DistrhoPlugin.hpp"
 
 #include "../model/Preset.h"
@@ -39,7 +41,7 @@ class AnalogFoundry101 : public Plugin {
   const char* getMaker() const override { return "AnalogFoundry"; }
   const char* getHomePage() const override { return DISTRHO_PLUGIN_URI; }
   const char* getLicense() const override { return "ISC"; }
-  uint32_t getVersion() const override { return d_version(0, 1, 0); }
+  uint32_t getVersion() const override { return d_version(0, 2, 0); }  // 0.2: unison
 
   /// Stable across releases: changing it makes hosts lose existing projects.
   int64_t getUniqueId() const override { return d_cconst('A', 'F', '1', '1'); }
@@ -51,6 +53,8 @@ class AnalogFoundry101 : public Plugin {
     if (index >= table.size()) return;
     const auto& d = table[index];
     parameter.hints = kParameterIsAutomatable;
+    // A voice count is a whole number: the host should step it, not sweep it.
+    if (std::strcmp(d.id, "unison") == 0) parameter.hints |= kParameterIsInteger;
     parameter.name = d.name;
     parameter.symbol = d.id;
     parameter.unit = d.unit;

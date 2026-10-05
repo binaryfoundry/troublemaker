@@ -95,6 +95,26 @@ int main() {
            std::chrono::duration<double>(end - start).count());
   }
 
+  // Unison at its maximum: 7 oscillators into the same filter.
+  {
+    af::Voice101Parameters wide = p;
+    wide.unisonVoices = 7.0;
+    wide.unisonDetuneCents = 25.0;
+    af::Voice101 voice;
+    voice.setSampleRate(sr);
+    voice.setParameters(wide);
+    voice.setQuality(af::Quality::High);
+    voice.reset();
+    voice.noteOn(45);
+    const auto start = std::chrono::steady_clock::now();
+    double sink = 0.0;
+    for (int i = 0; i < samples; ++i) sink += voice.process();
+    const auto end = std::chrono::steady_clock::now();
+    gSink = sink;
+    report("voice, 4x + unison 7", audioSeconds,
+           std::chrono::duration<double>(end - start).count());
+  }
+
   // The effect build.
   {
     af::Effect101 fx;

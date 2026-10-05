@@ -63,6 +63,11 @@ inline const std::vector<ParameterDescriptor>& parameterTable() {
       {"input_drive", "Filter Input Drive", "", 0.0, 1.0, 0.0,
        &Voice101Parameters::filterInputDrive},
       {"level", "Output Level", "", 0.0, 1.0, 0.8, &Voice101Parameters::outputLevel},
+      // Appended, never inserted: hosts address parameters by position, so
+      // anything added goes after the last entry (saved projects keep working).
+      {"unison", "Unison Voices", "", 1.0, 7.0, 1.0, &Voice101Parameters::unisonVoices},
+      {"unison_detune", "Unison Detune", "ct", 0.0, 50.0, 0.0,
+       &Voice101Parameters::unisonDetuneCents},
   };
   return table;
 }

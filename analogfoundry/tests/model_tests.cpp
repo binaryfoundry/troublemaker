@@ -14,6 +14,7 @@
 
 #include "../src/dsp/Decimator.h"
 #include "../src/model/Effect101.h"
+#include "../src/model/Preset.h"
 #include "../src/model/Voice101.h"
 
 namespace {
@@ -603,12 +604,163 @@ void effectTests() {
 
 }  // namespace
 
+// Unison: an extension beyond the 101. The rules are the same as for every
+// other feature here - off by default, measured, and off must be the old path.
+std::vector<double> renderHeld(af::Voice101Parameters p, int note, int samples) {
+  af::Voice101 v;
+  v.setSampleRate(48000.0);
+  v.setParameters(p);
+  v.reset();
+  v.noteOn(note);
+  for (int i = 0; i < 4800; ++i) v.process();  // past the attack and smoothers
+  std::vector<double> out;
+  out.reserve(static_cast<size_t>(samples));
+  for (int i = 0; i < samples; ++i) out.push_back(v.process());
+  return out;
+}
+
+af::Voice101Parameters openSaw() {
+  af::Voice101Parameters p;
+  p.sawLevel = 1.0;
+  p.cutoffHz = 20000.0;
+  p.attack = 0.0;
+  p.decay = 0.0;
+  p.sustain = 1.0;
+  p.outputLevel = 1.0;
+  return p;
+}
+
+/// Short-term level wobble: the spread of 20 ms RMS windows over their mean.
+/// One steady oscillator barely moves; detuned voices beat against each other.
+double wobble(const std::vector<double>& xs) {
+  const size_t w = 960;
+  std::vector<double> levels;
+  for (size_t i = 0; i + w <= xs.size(); i += w) {
+    double s = 0.0;
+    for (size_t j = i; j < i + w; ++j) s += xs[j] * xs[j];
+    levels.push_back(std::sqrt(s / static_cast<double>(w)));
+  }
+  double mean = 0.0;
+  for (double l : levels) mean += l;
+  mean /= static_cast<double>(levels.size());
+  double var = 0.0;
+  for (double l : levels) var += (l - mean) * (l - mean);
+  return std::sqrt(var / static_cast<double>(levels.size())) / mean;
+}
+
+bool same(const std::vector<double>& a, const std::vector<double>& b) {
+  if (a.size() != b.size()) return false;
+  for (size_t i = 0; i < a.size(); ++i) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
+}
+
+void unisonTests() {
+  std::printf("unison\n");
+  const af::Voice101Parameters defaults;
+  check(defaults.unisonVoices == 1.0 && defaults.unisonDetuneCents == 0.0, "unison is off by default",
+        defaults.unisonVoices);
+
+  // A typical patch, not just a bare saw, so every path through the mixer runs.
+  af::Voice101Parameters patch;
+  patch.sawLevel = 1.0;
+  patch.pulseLevel = 0.5;
+  patch.subLevel = 0.4;
+  patch.noiseLevel = 0.05;
+  patch.cutoffHz = 900.0;
+  patch.resonance = 0.4;
+  patch.envToCutoff = 0.5;
+  patch.lfoToPulseWidth = 0.3;
+  patch.sustain = 0.7;
+  const auto single = renderHeld(patch, 57, 48000);
+  for (double n : {2.0, 5.0, 7.0}) {
+    af::Voice101Parameters q = patch;
+    q.unisonVoices = n;  // detune 0: identical copies, so the single path
+    check(same(single, renderHeld(q, 57, 48000)),
+          "zero detune is the single-oscillator path, bit for bit", n);
+  }
+
+  af::Voice101 probe;
+  for (int n = 1; n <= 7; ++n) {
+    af::Voice101Parameters q = patch;
+    q.unisonVoices = n;
+    q.unisonDetuneCents = 20.0;
+    probe.setParameters(q);
+    check(probe.unisonVoiceCount() == n, "voice count follows the parameter", probe.unisonVoiceCount());
+  }
+
+  // Level: the 1/sqrt(N) scaling keeps the stack at one saw's level, so the
+  // mixer calibration and the filter drive do not move with the voice count.
+  const auto one = renderHeld(openSaw(), 57, 144000);
+  const double oneRms = rms(one);
+  for (double n : {2.0, 3.0, 5.0, 7.0}) {
+    af::Voice101Parameters q = openSaw();
+    q.unisonVoices = n;
+    q.unisonDetuneCents = 25.0;
+    const double db = 20.0 * std::log10(rms(renderHeld(q, 57, 144000)) / oneRms);
+    check(std::fabs(db) < 1.0, "unison holds a single saw's level within 1 dB", db);
+  }
+
+  // It must actually chorus: detuned voices beat, a single oscillator does not.
+  {
+    af::Voice101Parameters q = openSaw();
+    q.unisonVoices = 7.0;
+    q.unisonDetuneCents = 25.0;
+    const double steady = wobble(one), stacked = wobble(renderHeld(q, 57, 144000));
+    check(stacked > steady * 5.0 && stacked > 0.02, "detuned unison beats (level wobble x5 or more)",
+          stacked / std::fmax(steady, 1e-12));
+  }
+
+  // The sub stays on the centre oscillator: a sub-only patch is unchanged.
+  {
+    af::Voice101Parameters q = openSaw();
+    q.sawLevel = 0.0;
+    q.subLevel = 1.0;
+    const auto subOnly = renderHeld(q, 45, 48000);
+    q.unisonVoices = 7.0;
+    q.unisonDetuneCents = 25.0;
+    check(same(subOnly, renderHeld(q, 45, 48000)), "the sub is untouched by unison", 0.0);
+  }
+
+  {
+    af::Voice101Parameters q = patch;
+    q.unisonVoices = 7.0;
+    q.unisonDetuneCents = 30.0;
+    check(same(renderHeld(q, 57, 48000), renderHeld(q, 57, 48000)), "unison is deterministic", 0.0);
+  }
+
+  {
+    af::Voice101Parameters q = patch;
+    q.unisonVoices = 7.0;
+    q.unisonDetuneCents = 50.0;
+    q.resonance = 1.0;
+    const auto high = renderHeld(q, 108, 48000);
+    check(finiteAll(high) && peak(high) < 4.0, "7 voices at 50 cents stay finite near Nyquist", peak(high));
+  }
+
+  // Presets: the new fields round-trip, and an old preset without them loads
+  // with unison off - exactly as it sounded before.
+  {
+    af::Voice101Parameters q = patch;
+    q.unisonVoices = 5.0;
+    q.unisonDetuneCents = 18.0;
+    const auto back = af::loadPreset(af::savePreset(q));
+    check(back.unisonVoices == 5.0 && back.unisonDetuneCents == 18.0, "unison round-trips through a preset",
+          back.unisonDetuneCents);
+    const auto old = af::loadPreset("analogfoundry101 1\nsaw 1\ncutoff 650\n");
+    check(old.unisonVoices == 1.0 && old.unisonDetuneCents == 0.0, "an old preset loads with unison off",
+          old.unisonVoices);
+  }
+}
+
 int main() {
-  std::printf("AnalogFoundry 101 - model tests (M5, M6, M8, M10)\n\n");
+  std::printf("AnalogFoundry 101 - model tests (M5, M6, M8, M10, unison)\n\n");
   calibrationTests();
   nonlinearityTests();
   variationTests();
   effectTests();
+  unisonTests();
   std::printf("\n%d checks, %d failures\n", gChecks, gFailures);
   return gFailures == 0 ? 0 : 1;
 }
