@@ -3,7 +3,8 @@
  *
  * Designed to run over a whole track without holding it in memory: feed it
  * chunks as ffmpeg decodes them, then read the summary. Band energies use
- * 4th-order Butterworth band-pass filters (two cascaded biquads per edge),
+ * 4th-order Butterworth band-pass filters (two cascaded biquads per edge; 8th
+ * order at the 30 Hz infra edge, see STEEP_EDGE_HZ),
  * which is plenty of separation for tonal-balance comparison against
  * references - this is not a measurement-grade analyser and does not pretend
  * to be.
@@ -91,17 +92,27 @@ export class Biquad {
 
 /** Butterworth 4th order = two 2nd-order sections with these Qs. */
 const BUTTERWORTH_4_Q = [0.5411961, 1.3065630];
+/** Butterworth 8th order = four sections. */
+const BUTTERWORTH_8_Q = [0.5097955, 0.6013449, 0.8999762, 2.5629154];
+/**
+ * Edges at or below this use 8th order. A sub fundamental sits only a few
+ * semitones above the 30 Hz infra edge (D1 is 36.7 Hz): a 4th-order edge let it
+ * read as infra, 7.7 dB down, and flagged rumble that a brick-wall FFT showed was
+ * not there (Threshold's low-end audit). 8th order puts it 14 dB down.
+ */
+const STEEP_EDGE_HZ = 40;
 
 class BandFilter {
   private readonly stages: Biquad[] = [];
 
   constructor(sampleRate: number, lowHz: number, highHz: number) {
     const nyquist = sampleRate / 2;
+    const qs = (hz: number) => (hz <= STEEP_EDGE_HZ ? BUTTERWORTH_8_Q : BUTTERWORTH_4_Q);
     if (lowHz > 0) {
-      for (const q of BUTTERWORTH_4_Q) this.stages.push(Biquad.highpass(sampleRate, lowHz, q));
+      for (const q of qs(lowHz)) this.stages.push(Biquad.highpass(sampleRate, lowHz, q));
     }
     if (highHz > 0 && highHz < nyquist * 0.95) {
-      for (const q of BUTTERWORTH_4_Q) this.stages.push(Biquad.lowpass(sampleRate, highHz, q));
+      for (const q of qs(highHz)) this.stages.push(Biquad.lowpass(sampleRate, highHz, q));
     }
   }
 

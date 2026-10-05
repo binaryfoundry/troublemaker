@@ -293,6 +293,14 @@ have been wrong every time. Then sweep it on Live with `fx apply`.
   earlier run had left Utility Output at -6. Changing the value and setting it
   back within one request does not count: move the parameter off the seed value
   in a request of its own, then write the envelope, and check `value_at_start`.
+- **An EQ before saturation does not cut what the saturation makes.** A -3 dB bell
+  at 200 Hz on Threshold's kick, ahead of its Saturator and Drum Buss, moved the
+  mix's 200 Hz band 0.3 dB and the kick's loudness not at all. Cut after the
+  device that generates the content, or change the balance instead.
+- **Check a QC infra warning with a brick-wall FFT.** A band filter with a
+  gentle edge reads a low sub fundamental (D1, 36.7 Hz) as infra. QC's 30 Hz edge
+  is now 8th order for this reason; still, before high-passing for "rumble",
+  measure energy below 30 Hz directly.
 - **A ducked track hides velocity.** A 6 dB pump on the kick swamps the ~1 dB
   velocity adds, so per-note level in context correlates with nothing. Verify
   velocity on an unducked probe track instead. (Half velocity at full
@@ -332,12 +340,13 @@ user had to point at it mid-build.)
 | Element | Guide |
 |---|---|
 | Melody, lead, hook, motif | `HOOKS.md` for the hook's identity and arrangement, `MELODY.md` for writing the line, then `CAMELPHAT.md` for the cell (rhythm, anchor, register) |
-| Bassline | `BASSLINES.md` (scientific octave names) |
+| Bassline | `BASSLINES.md` (scientific octave names), then `LOW_END.md` for how it sits against the kick |
+| Kick, sub and the low end as a system | `LOW_END.md` |
 | Drums | `DRUMS.md` |
 | Chords, pads | `CHORDS.md` |
 | Shimmer | `SHIMMER.md` |
 | Choosing a sound | `Ableton_Sound_Selection_Expert.md` |
-| Mix and master | `MIXING.md`, `docs/lessons.md` |
+| Mix and master | `MIXING.md`, `LOW_END.md` (kick and bass first), `docs/lessons.md` |
 
 Plus the genre or artist profile the brief names (see *Which guide for which
 job*). Where guides conflict, the more specific one wins, as below.
@@ -366,8 +375,12 @@ Cathedral are the references - read their Sets, not just their TRACK.md.
 - **Movement lives in the timbre, not the pitch**: a filter LFO with a 3/16
   period so the accents rotate against the bar (GROOVE.md 7B), and filter moves
   written per section.
-- **Sound: a clean sine sub + a hard growl.** Drift sine holding the root (keep
-  it above infra: D at 38, not 26), and AnalogFoundry 101 for the growl -
+- **Sound: a clean sine sub + a hard growl.** Drift sine holding the root, and
+  **choose its octave by measurement against the references**, never by rule.
+  Cathedral's references wanted its D up at D2; Threshold's CamelPhat references
+  wanted D1 (37 Hz closed a 12 dB gap at 40 Hz to under 1 dB), while notes below
+  ~35 Hz (C1, Bb0) overshot the 31.5 Hz band by 11-14 dB. So a progression can
+  need its roots in different octaves. AnalogFoundry 101 for the growl -
   resonance, a 7 Hz filter LFO, Saturator Hard Curve ~9 dB, high-passed so it
   never doubles the sub's fundamental. Patch: `analogfoundry/presets/threshold-growl.txt`.
 - **Pump it.** Sub silent on the kick and back within an 8th; growl -15 dB on the
@@ -480,17 +493,32 @@ TRACK.md.
 6. **Lead** (`CAMELPHAT.md` 6). The numbers, plus expression: does velocity reach
    the sound, does the filter move within the note and across the phrase? Verify
    velocity on an unducked probe track.
-7. **Bass** (*Basslines* above): rolling, one root per chord, the low end owned
-   by one part at a time.
+7. **Bass and the low end** (*Basslines* above; `LOW_END.md` 19). Rolling, one
+   root per chord, the low end owned by one part at a time. Then, measured in
+   mono below 120 Hz against references chosen by **low-end likeness** (fold
+   each candidate's sub-band envelope onto one beat and correlate it with the
+   track's; LOW_END 3): the low-end share of the mix, the beat profile (where
+   kick and bass sit across the beat), bar-to-bar level across the progression
+   (17), mono correlation, bass harmonics 120-400 Hz against the sub for
+   translation (12), and phase: kick, sub and bass captured together against the
+   power sum of each alone (9). A combined level well under the power sum is
+   cancellation; fix it before reaching for sidechain or EQ.
 8. **Automation.** Every clip envelope's `value_at_start` equals its first point.
 9. **Emotion** (EMOTION §53-56): three levers per emotional change, one surprise per
    section, the peak protected (highest note, widest, brightest kept for it), and
    something withheld.
 10. **Mix.** Soloed balance against the kick with master dynamics bypassed (keep
     probe faders down: a bypassed capture can clip), then QC against the
-    reference. Make room before raising a fader.
+    reference. Make room before raising a fader. The low end is decided in
+    full context last (LOW_END 14): a balance that works below 120 Hz can fail
+    once the synths and low mids are back.
 11. **Finish** (NEW_TRACK.md): the 10-category audit /100 and the Professional
     Finish Report.
+
+**Sub decisions are measured, not heard here.** The user monitors on
+headphones (no sub-capable system), and LOW_END 17 forbids sub decisions from a
+system that cannot reproduce the sub. Decide the sub by measurement against the
+references; leave "how it feels on a club system" open in the report.
 
 **Listening tests are the user's.** Hum-back (HOOKS §13) and one-finger (§14) need
 an ear. Supply the material, e.g. the hook rendered on a plain tone, and record
@@ -514,12 +542,12 @@ written into those tracks have never sounded.
 
 | Track | Folder | Key / BPM | Last audited | Known gaps from rules learned since | Status |
 |---|---|---|---|---|---|
-| camelbone | `D:/ableton/tinman` | A minor (8A), 124 | never, against the rules below | leads plucked and arpeggiated (*Leads*); no hook audit (HOOKS); AF101 before 0.3 (velocity silent, filter tied to amp); bass before *Basslines*; GROOVE one-layer check; DJ intro/outro pitch rule; envelope `value_at_start` | due |
-| Cowboy | `D:/ableton/cowboy` | unknown - **no TRACK.md**, write one from the Set first | never | all of the above | due |
-| Black Glass | `D:/ableton/blackglass` | E minor (9A), 125 | never, against the rules below | lead plucked (*Leads*); no hook audit; AF101 before 0.3; DJ intro (its sub fades in from bar 17 - check against "sub after the build"); GROOVE one-layer; register of any lead against its strings; envelope `value_at_start` | due |
-| Cathedral | `D:/ableton/cathedral` | E minor (9A), 126 | never, against the rules below | lead plucked (*Leads*); no hook audit; AF101 before 0.3; orchestral builds vs hook hierarchy (HOOKS 9); GROOVE one-layer; register against the strings; envelope `value_at_start` | due |
-| Clockwork | `D:/ableton/clockwork` | D minor (7A), 121 | never | **no Set in the folder** - ask the user where it was saved; then everything above | due - blocked on the Set |
-| Threshold | `D:/ableton/threshold` | D minor (7A), 124 | 2026-10-05: HOOKS audit, 28/40; CAMELPHAT; QC PASS | listening tests (HOOKS 13, 14) open; HOOKS 30 four variants not written; return at bar 97 identical to 65; sound identity 2/5; GROOVE §26 not re-run since the lead became the groove layer; NEW_TRACK audit not done | partly done |
+| camelbone | `D:/ableton/tinman` | A minor (8A), 124 | never, against the rules below | leads plucked and arpeggiated (*Leads*); no hook audit (HOOKS); AF101 before 0.3 (velocity silent, filter tied to amp); bass before *Basslines*; GROOVE one-layer check; DJ intro/outro pitch rule; envelope `value_at_start`; LOW_END audit (sec. 19, measured) | due |
+| Cowboy | `D:/ableton/cowboy` | unknown - **no TRACK.md**, write one from the Set first | never | all of the above; LOW_END audit (sec. 19, measured) | due |
+| Black Glass | `D:/ableton/blackglass` | E minor (9A), 125 | never, against the rules below | lead plucked (*Leads*); no hook audit; AF101 before 0.3; DJ intro (its sub fades in from bar 17 - check against "sub after the build"); GROOVE one-layer; register of any lead against its strings; envelope `value_at_start`; LOW_END audit (sec. 19, measured) | due |
+| Cathedral | `D:/ableton/cathedral` | E minor (9A), 126 | never, against the rules below | lead plucked (*Leads*); no hook audit; AF101 before 0.3; orchestral builds vs hook hierarchy (HOOKS 9); GROOVE one-layer; register against the strings; envelope `value_at_start`; LOW_END audit (sec. 19, measured) | due |
+| Clockwork | `D:/ableton/clockwork` | D minor (7A), 121 | never | **no Set in the folder** - ask the user where it was saved; then everything above; LOW_END audit (sec. 19, measured) | due - blocked on the Set |
+| Threshold | `D:/ableton/threshold` | D minor (7A), 124 | 2026-10-05: HOOKS audit, 28/40; LOW_END audit (sub D2 -> D1; kick +1.5 dB with a post-saturation cut at 220 Hz; low bands now within 2.7 dB of three CamelPhat references, from 6.7); CAMELPHAT; QC PASS | listening tests (HOOKS 13, 14) open; HOOKS 30 four variants not written; return at bar 97 identical to 65; sound identity 2/5; GROOVE §26 not re-run since the lead became the groove layer; NEW_TRACK audit not done | partly done |
 
 ## Starting a new track - ask for the key
 
@@ -618,6 +646,7 @@ the code enforces it yet — apply it by reading, and treat that as a gap.
 
 | Guide | What it is for | Encoded in |
 |---|---|---|
+| `LOW_END.md` | Kick, bass and low end as one system: a reference with a similar low-end design (sec. 3), mono + 120 Hz low-pass analysis (4), kick first (5-6), bass against it (7), diagnose before processing (8), phase and timing (9), sidechain as a tool not the whole fix (10), small deliberate EQ (11), harmonics for translation (12), envelopes (13), back to full context (14), club verification (17), the decision tree (19), anti-patterns (20), report format (22) | not encoded |
 | `MIXING.md` | Mix and master policy: references, true-peak ceiling, QC rules, master-chain roles | `agent/src/mastering/`, `bridge/src/mastering/`, `qc/` |
 | `NEW_TRACK.md` | Despite the filename, titled *PROFESSIONAL_TRACK_FINISH*: the finishing pass. Diagnose in order composition → … → mastering, minimum effective change, a 10-category audit scored /100 **without inflation**, and a required *Professional Finish Report* | not encoded |
 | `EDM-PRODUCTION.md` | A summary of a generated production `AGENTS.md` that was **not supplied**; overlaps the guides above. Use only the rules it states | not encoded |
@@ -633,7 +662,9 @@ the code enforces it yet — apply it by reading, and treat that as a gap.
 Where guides overlap, the more specific one wins for its own job: `MELODIC-TECHNO.md` over `HOUSE.md` for a melodic track, `MELODY.md`
 over `EDM-TIPS.md` for leads, `HOOKS.md` over `MELODY.md` for what the hook is and
 where it appears (MELODY.md still governs how its line is written), `MIXING.md` over `COMPOSITION.md` for the master
-chain, an artist profile over its genre profile.
+chain, `LOW_END.md` over `MIXING.md` for the kick/bass relationship (MIXING.md
+still owns the master chain and loudness), *Basslines* above over `LOW_END.md` for
+what the bass plays (LOW_END.md decides how it sits), an artist profile over its genre profile.
 
 - **Octave names differ between documents.** BASSLINES.md is read as
   scientific pitch (C4 = 60); MELODIC-TECHNO.md uses Live's names (its kick

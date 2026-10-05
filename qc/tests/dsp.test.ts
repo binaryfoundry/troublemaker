@@ -37,6 +37,19 @@ describe('band energy', () => {
     expect(band(result, 'sub').midRelativeDb).toBeGreaterThan(-1.5);
   });
 
+  it('keeps a D1 sub fundamental (36.7 Hz) out of the infra band', () => {
+    const r = analyse(stereo(4, sine(36.7)));
+    const infra = r.bands.find((b) => b.name === 'infra')!;
+    const sub = r.bands.find((b) => b.name === 'sub')!;
+    expect(infra.midDb - sub.midDb).toBeLessThan(-12); // 4th order read it only -7.7 dB down
+  });
+
+  it('still reads real infra (20 Hz) in the infra band', () => {
+    const r = analyse(stereo(4, sine(20)));
+    const infra = r.bands.find((b) => b.name === 'infra')!;
+    expect(infra.midRelativeDb).toBeGreaterThan(-1);
+  });
+
   it('puts a 3 kHz tone in the presence band and keeps the sub band quiet', () => {
     const result = analyse(stereo(2, sine(3000)));
     expect(band(result, 'presence').midRelativeDb).toBeGreaterThan(-1.5);
