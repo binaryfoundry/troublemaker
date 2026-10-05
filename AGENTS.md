@@ -340,8 +340,10 @@ CamelPhat build theirs - from the pack, not from memory:
   width after it (Chorus-Ensemble), and an octave layer with a second instance.
 - **Low.** Write the line around MIDI 50-65 and let the octave layer carry the
   top, not an octave or two above it on one thin oscillator.
-- **A riff, not an arpeggio.** Rhythm first; one dominant note with neighbours,
-  notes held to the next, a syncopation the drums do not already play. Check it
+- **A riff, not an arpeggio.** Rhythm first. Measured over the pack's 34 lead
+  MIDI files (medians): 4.6 notes a bar, one note ~50 % of the line, 67 % of
+  onsets on the 3-3-2 steps (0 3 6 8 11 14), notes ~two-thirds of the gap to the
+  next (gate 0.67), MIDI 55-64, repeats 21 % / steps 20 % / leaps 26 %. Check it
   against GROOVE.md: if the bass is the groove layer, the lead's syncopation
   must not become a second one by accident.
 - **Read the presets.** `.h2p` is plain text; `.SerumPreset` is zstd + CBOR with

@@ -1,0 +1,31 @@
+# Threshold lead - built to the CamelPhat Serum leads (medians of 18; docs/lessons.md):
+# a sustained, thick saw lead, not a pluck. Saw + some pulse + sub, five
+# unison voices at 18 cents, a little filter drive, amp sustain 0.8 with a
+# 0.3 s release, a short glide. Played in MIDI 55-65; "threshold-lead-oct"
+# doubles it an octave up on a second instance. Width comes after the synth
+# (Chorus-Ensemble): AF101's unison is mono.
+analogfoundry101 1
+saw 1
+pulse 0.35
+sub 0.45
+noise 0
+pw 0.45
+tune 0
+cutoff 1400
+resonance 0.1
+env_cutoff 0.3
+lfo_cutoff 0
+track 0.4
+attack 0.006
+decay 0.6
+sustain 0.8
+release 0.3
+lfo_rate 5
+lfo_pitch 0
+lfo_pw 0.2
+glide 0.02
+stage_drive 0.2
+input_drive 0.15
+level 0.8
+unison 5
+unison_detune 18

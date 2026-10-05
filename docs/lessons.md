@@ -109,9 +109,10 @@ one an octave up, a sub, **6-9 unison voices** on 10 of 18, amp attack 1-20 ms,
 **sustain 0.8, release ~0.3 s**, a Moog-ladder low-pass with ~10 % resonance
 and 15-20 % drive, then chorus -> delay -> compressor. It is played **low** -
 the demo melodies sit around MIDI 50-65 and let the octave layer and sub fill
-the top and bottom - and the pack's lead MIDI is mostly **one dominant note in
-a 3-3-2 rhythm** (`x..x..x.x..x..x.`) with each note held to the next. The hook
-is rhythm and tone, not contour. Ours were one thin oscillator, an octave or
+the top and bottom - and the pack's lead MIDI (34 files, medians) is 4.6 notes
+a bar, **one note for ~half the line**, 67 % of onsets on the **3-3-2** steps
+(`x..x..x.x..x..x.`; 14 of 34 strictly), notes about **two-thirds of the gap**
+to the next (gate 0.67), in MIDI 55-64. The hook is rhythm and tone, not contour. Ours were one thin oscillator, an octave or
 two higher, tracing arpeggios.
 
 Serum 2 presets (`.SerumPreset`) are **not** opaque. After the `XferJson`
