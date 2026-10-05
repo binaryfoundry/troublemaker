@@ -243,6 +243,11 @@ have been wrong every time. Then sweep it on Live with `fx apply`.
   parameters; set them as options, which sample the range.
 - Auto Pan-Tremolo's sync option is "Synced"; Echo, Hybrid Reverb, Spectral
   Time and Roar are Suite-only; Operator is not in Standard.
+- A restored plugin keeps the parameter list it was saved with, so a newer
+  AF101's parameters appear only on a fresh instance; and loading a plugin onto a
+  track that already has it does nothing. `live.delete_device` it, then load it
+  (Live puts an instrument first in the chain), reapply the patch, read it back.
+  A capture with master dynamics bypassed can clip: keep a probe track's fader down.
 - Return tracks have no clip slots, so devices on returns cannot carry clip
   automation; automate the source track's send (`mixer: send:N`) instead.
 - From a stopped transport a scene starts at once but a recording waits
@@ -340,6 +345,12 @@ procedure with pass/fail numbers:
   AnalogFoundry 101 has **unison** (`unison` 1-7 voices, `unison_detune` in
   cents; off by default). It is mono - the stack shares one filter - so add
   width after it (Chorus-Ensemble), and an octave layer with a second instance.
+- **Expressive, not static.** A patch that plays every note the same sounds
+  stock (Threshold's lead, twice). Use AF101 0.3's expression, as the CamelPhat
+  Serum leads do (`CAMELPHAT.md` 6b): velocity to cutoff, a separate filter
+  envelope that closes while the amp sustains, vibrato that fades in on held
+  notes, a few cents of drift, glide on slurs only. Write velocities that follow
+  the phrase, and automate the cutoff across each 4-bar phrase.
 - **Low.** Write the line around MIDI 50-65 and let the octave layer carry the
   top, not an octave or two above it on one thin oscillator.
 - **A riff, not an arpeggio.** Rhythm first. Measured over the pack's 34 lead

@@ -325,6 +325,33 @@ meaning change?*
 
 ---
 
+# 6b. Expression - what the Serum leads modulate
+
+The notes are only half of it. Decoding the 18 Serum lead presets' mod matrix
+(sources: envelopes 1-4, LFOs 6-15, velocity 16, macros 25-32; LFO numbering
+confirmed by which LFOs each preset configures):
+
+| Route | Leads |
+|---|---|
+| **velocity -> cutoff** | 16 of 18 |
+| amp envelope -> cutoff | 12 |
+| a CUTOFF macro -> cutoff | 11 |
+| second envelope (short decay, sustain 0) -> cutoff | 10 |
+| slow LFO -> oscillator fine tune (drift) | 8 |
+| macros on chorus, delay and reverb wet | almost all |
+| a VIBRATO macro scaling an LFO on fine tune | 4 |
+
+And in the demo clips, **the CUTOFF macro is automated across the phrase** in
+at least 8 of 18. It rises over about 14-16 beats (0.26 -> 0.51, 0.23 -> 1.00,
+0.15 -> 0.79) and drops back where the phrase restarts.
+
+So a CamelPhat lead is never static. Each note blooms and darkens on its own
+filter envelope, harder notes are brighter, the pitch drifts a few cents, and
+the whole phrase opens over four bars. A patch that plays every note
+identically sounds "stock" however good the notes are. AnalogFoundry 101 had none of
+this until 0.3 (velocity, separate filter envelope, vibrato fade-in, drift,
+legato-only glide).
+
 # 7. Where this disagrees with the other guides
 
 | Guide says | The pack shows | Use |
@@ -343,5 +370,5 @@ meaning change?*
   synth loops in `Loops/` are audio with keys in their names (e.g. `Synth Loop
   14 Dmin`) and would show it, after pitch tracking.
 - Arrangement-scale development: these are loops.
-- Macro automation in the Serum presets' `MidiClip0` (filter sweeps over the
-  demo melody). It can be decoded (`docs/lessons.md`) but has not been read here.
+- The Diva presets' modulation (plain text, `.h2p`); only the Serum mod matrix
+  is read in 6b.
