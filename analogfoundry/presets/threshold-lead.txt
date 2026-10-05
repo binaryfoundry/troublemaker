@@ -11,6 +11,8 @@
 #   - vibrato that fades in over half a second, so only held notes sing (4 leads
 #     have a VIBRATO macro), and a few cents of drift (8 leads: slow LFO -> fine tune)
 #   - glide on slurs only: a grace note overlapping its target slides into it
+# 0.5: unison spread 0.5 (correlation 0.88, mono -0.2 dB): wider, still centred;
+# the octave layer takes full width at the peak (EMOTION 55).
 analogfoundry101 1
 saw 1
 pulse 0.35
@@ -46,3 +48,4 @@ fenv_release 0.3
 vib_fade 0.5
 drift 5
 legato_glide 1
+stereo 0.5

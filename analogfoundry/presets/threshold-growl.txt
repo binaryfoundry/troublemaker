@@ -3,6 +3,9 @@
 # 0.55, a free 7 Hz filter LFO for the growl, a little stage drive for grit.
 # Rolling 16ths, so a short amp envelope; no glide. The track high-passes the
 # growl at 110 Hz - a clean Drift sine sub owns the fundamental (BASSLINES.md).
+# 0.5: the filter LFO is synced to 1/16 and locked to the bar (8.27 Hz at 124, was a
+# free 7 Hz), so every 16th of the roll carries the same growl (GROOVE: the bass is
+# straight; the lead is the only groove layer).
 analogfoundry101 1
 saw 1
 pulse 0.6
@@ -26,3 +29,4 @@ glide 0
 stage_drive 0.25
 input_drive 0.2
 level 0.8
+lfo1_wave 30
