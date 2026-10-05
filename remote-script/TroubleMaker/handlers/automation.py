@@ -32,6 +32,25 @@ def _envelope(clip, param, create=False):
     return envelope
 
 
+def _create_seeded(clip, param, value):
+    """Create an envelope whose beat-0 value is `value`, leaving the
+    parameter where it was."""
+    previous = None
+    try:
+        previous = param.value
+        param.value = value
+    except Exception:
+        previous = None
+    try:
+        return _envelope(clip, param, create=True)
+    finally:
+        if previous is not None:
+            try:
+                param.value = previous
+            except Exception:
+                pass
+
+
 class _MixerTarget(object):
     """Stands in for a device so mixer parameters share the automation code."""
 
@@ -166,19 +185,33 @@ def set_automation(ctx, args):
     if step <= 0:
         raise errors.InvalidArgument("'step' must be greater than 0 beats.")
 
-    envelope = _envelope(clip, param, create=True)
+    # A clip envelope remembers the parameter's value from the moment it was
+    # created, and that value - not the step written at beat 0 - plays at
+    # beat 0. clear() keeps it. So a rewrite removes the envelope outright, and
+    # a new one is created with the parameter parked on the first point, then
+    # the parameter is put back. (Threshold's shimmer bloom, written while the
+    # synth sat at 0.8, played every event's first grain ~20 dB too loud.)
+    clear_first = args.get("clear_first", True)
+    removal_error = None
+    if clear_first and hasattr(clip, "clear_envelope"):
+        try:
+            clip.clear_envelope(param)
+        except Exception as exc:
+            removal_error = str(exc)
+    envelope = _envelope(clip, param, create=False)
+    recreated = envelope is None
+    if envelope is None:
+        envelope = _create_seeded(clip, param, points[0][1])
+    elif clear_first:
+        try:
+            envelope.clear()
+        except Exception:
+            pass
     if envelope is None:
         raise errors.Unsupported(
             "Parameter '%s' on '%s' cannot be automated inside a clip."
             % (param.name, device.name)
         )
-
-    clear_first = args.get("clear_first", True)
-    if clear_first:
-        try:
-            envelope.clear()
-        except Exception:
-            pass
 
     written = 0
     if len(points) == 1:
@@ -210,6 +243,10 @@ def set_automation(ctx, args):
         "parameter_name": param.name,
         "breakpoints": len(points),
         "steps_written": written,
+        # What Live will actually play at beat 0, so a caller can check it.
+        "value_at_start": float(envelope.value_at_time(0.0)),
+        "recreated": recreated,
+        "removal_error": removal_error,
     }
 
 
@@ -222,9 +259,17 @@ def clear_automation(ctx, args):
     to_beat = args.get("to_beat")
     if from_beat is not None and to_beat is not None:
         envelope.clear_range(float(from_beat), float(to_beat))
-    else:
-        envelope.clear()
-    return {"cleared": True, "parameter_name": param.name}
+        return {"cleared": True, "removed": False, "parameter_name": param.name}
+    # The whole envelope: remove it, so the next write starts a fresh one
+    # (clear() would keep the value it remembers for beat 0).
+    if hasattr(clip, "clear_envelope"):
+        try:
+            clip.clear_envelope(param)
+            return {"cleared": True, "removed": True, "parameter_name": param.name}
+        except Exception:
+            pass
+    envelope.clear()
+    return {"cleared": True, "removed": False, "parameter_name": param.name}
 
 
 COMMANDS = {

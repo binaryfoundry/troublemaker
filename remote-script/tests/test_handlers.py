@@ -496,6 +496,42 @@ class TestAutomation(HandlerTestCase):
                                points=[{"beat": 0, "normalized": 0.5}])
         self.assertEqual(error["code"], "INVALID_ARGUMENT")
 
+    def _beat_zero(self, parameter_name):
+        curve = self.call("live.get_automation", track_id=self.bass, clip_slot=0,
+                          device_id=self.device["device_id"],
+                          parameter_name=parameter_name, resolution=0.25)
+        return curve["points"][0]["value"]
+
+    def test_beat_zero_plays_the_first_point_not_the_value_at_creation(self):
+        # Threshold's shimmer bloom was written while the synth sat at 0.8, so
+        # the first grain of every event played at 0.8 instead of 0.05.
+        self.call("live.set_device_parameter", track_id=self.bass,
+                  device_id=self.device["device_id"], parameter_name="Frequency", value=15000.0)
+        self.call("live.set_automation", track_id=self.bass, clip_slot=0,
+                  device_id=self.device["device_id"], parameter_name="Frequency",
+                  points=[{"beat": 0, "value": 2000.0}, {"beat": 4, "value": 6000.0}])
+        self.assertAlmostEqual(self._beat_zero("Frequency"), 2000.0)
+
+    def test_rewriting_moves_beat_zero_too(self):
+        self.call("live.set_automation", track_id=self.bass, clip_slot=0,
+                  device_id=self.device["device_id"], parameter_name="Frequency",
+                  points=[{"beat": 0, "value": 3000.0}, {"beat": 4, "value": 6000.0}])
+        self.call("live.set_automation", track_id=self.bass, clip_slot=0,
+                  device_id=self.device["device_id"], parameter_name="Frequency",
+                  points=[{"beat": 0, "value": 9000.0}, {"beat": 4, "value": 6000.0}])
+        self.assertAlmostEqual(self._beat_zero("Frequency"), 9000.0)
+
+    def test_writing_automation_leaves_the_parameter_where_it_was(self):
+        self.call("live.set_device_parameter", track_id=self.bass,
+                  device_id=self.device["device_id"], parameter_name="Frequency", value=15000.0)
+        self.call("live.set_automation", track_id=self.bass, clip_slot=0,
+                  device_id=self.device["device_id"], parameter_name="Frequency",
+                  points=[{"beat": 0, "value": 2000.0}, {"beat": 4, "value": 6000.0}])
+        device = self.call("live.get_device_parameters", track_id=self.bass,
+                           device_id=self.device["device_id"])
+        frequency = [p for p in device["parameters"] if p["name"] == "Frequency"][0]
+        self.assertAlmostEqual(frequency["value"], 15000.0)
+
     def test_clears_an_envelope(self):
         self.call("live.set_automation", track_id=self.bass, clip_slot=0,
                   device_id=self.device["device_id"], parameter_name="Frequency",

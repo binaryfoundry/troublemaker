@@ -318,17 +318,28 @@ class Clip(LiveObject):
         self._envelopes[parameter._live_ptr] = envelope
         return envelope
 
+    def clear_envelope(self, parameter):
+        self._check()
+        self._envelopes.pop(parameter._live_ptr, None)
+
 
 class AutomationEnvelope(object):
+    """As Live behaves: an envelope remembers the parameter's value from the
+    moment it was created, and that value - not a step written at beat 0 -
+    is what plays at beat 0. clear() removes the steps but keeps it."""
+
     def __init__(self, parameter):
         self.parameter = parameter
+        self.initial = parameter.value
         self.steps = []
 
     def insert_step(self, time, length, value):
         self.steps.append((time, length, value))
 
     def value_at_time(self, time):
-        best = self.parameter.value
+        if time <= 0:
+            return self.initial
+        best = self.initial
         for start, length, value in self.steps:
             if start <= time < start + length:
                 best = value

@@ -122,11 +122,31 @@ and each preset's demo melody in `MidiClip0` (notes, lengths, velocities,
 macro automation). Unset parameters are stored as `"default"`. Node 22.15+
 has zstd in `zlib`; on older Node, `fzstd` and `cbor-x` decode it.
 
-**`set_automation` writes steps, not ramps.** Points at 0 and 0.09 beats did not
-interpolate: the envelope held the first value and jumped. Draw any shape you
-want to *hear* as explicit points. A 12 dB duck recovering over 40 ms took nine
-points per kick (0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.085 beats), and
-read back correctly through `live.get_automation`.
+**`set_automation` writes stepped ramps at `step` resolution** (default 0.25
+beats). Between two breakpoints it interpolates linearly in steps of `step`, and
+anything finer than `step` is lost: points at 0 and 0.09 beats with the default
+step held the first value and jumped. So pass a small `step` for fast shapes (a
+duck needs 0.0625 or less), and remember the interpolation cuts both ways - a
+duck drawn as "recovered at 0.75, kick at 1.0" **fades out across the last
+quarter beat** instead of holding. Add a hold point one step before the next kick
+(`next - step`, same value) wherever a shape should stay put. Threshold's ducks
+all faded before every kick until they got one.
+
+**A clip envelope plays a remembered value at beat 0, not the step written
+there.** Live gives each clip envelope an opening value; `value_at_time(0)` -
+and the first audio block of playback - use it, and from about 0.005 beats on
+the written steps take over. `envelope.clear()` keeps that value, and so does
+rewriting. On Threshold the shimmer bloom asked for 0.05 at beat 0 but played
+0.8, so the first grain of every event peaked ~20 dB hot (-14.0 dB instead of
+-36.4); the first kick of every growl, sub and melody clip went unducked.
+`live.set_automation` now removes the envelope (`clip.clear_envelope`) and
+creates it with the parameter parked on the first point, and reports
+`value_at_start` - what Live will really play there. That takes on most writes
+but not all (Live's rule for the opening value is not fully understood), and it
+failed every time for a first point at the parameter's exact **minimum** (a
+Utility at -inf): ask for -34 dB instead. So **always check `value_at_start`
+against the first point**, and retry with `live.clear_automation` (which now
+removes the envelope) and a separate write until it matches.
 
 **Sample role rules must match words, not substrings.** `/hats?/` matched the
 "P**hat**" in "CamelPhat", so a pack whose every file is named
