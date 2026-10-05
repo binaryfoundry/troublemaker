@@ -89,6 +89,14 @@ It must be added in four places, and the test suite enforces the last one:
 Bridge-side commands (composites, snapshots) skip step 1 and are dispatched in
 `Bridge.executeBridgeSide`.
 
+**A running bridge does not know a new command.** It validates against the
+schemas it started with, and the MCP server is spawned by the agent session, so
+`live.reload_handlers` updates Live but the bridge still answers
+`UNKNOWN_COMMAND`. Restart the bridge, or, for one call now, send it straight to
+the Remote Script on `127.0.0.1:9877`. That connection takes newline-delimited
+JSON `{"id", "command", "args"}` and shares the bridge's handles; it accepts
+more than one client.
+
 ## Testing
 
 ```bash
@@ -248,6 +256,17 @@ have been wrong every time. Then sweep it on Live with `fx apply`.
   track that already has it does nothing. `live.delete_device` it, then load it
   (Live puts an instrument first in the chain), reapply the patch, read it back.
   A capture with master dynamics bypassed can clip: keep a probe track's fader down.
+- **Arrangement clips are copies.** Editing a Session clip's notes does not
+  change the Arrangement copies placed from it: clear the track's arrangement,
+  place the clips again, and read them back.
+- **Check the Arrangement after a capture session.** Two-beat "ref" clips once
+  appeared at beat 16.85 on nine tracks, putting pitched parts into the DJ
+  intro; the cause is unknown (Arrangement record was off). Look for clips that
+  start off the bar grid with `live.get_arrangement_clips`.
+- **A ducked track hides velocity.** A 6 dB pump on the kick swamps the ~1 dB
+  velocity adds, so per-note level in context correlates with nothing. Verify
+  velocity on an unducked probe track instead. (Half velocity at full
+  `vel_amp` measured -5.95 dB, as predicted.)
 - Return tracks have no clip slots, so devices on returns cannot carry clip
   automation; automate the source track's send (`mixer: send:N`) instead.
 - From a stopped transport a scene starts at once but a recording waits
@@ -335,7 +354,28 @@ their plucks; `docs/lessons.md` now has them measured apart. Before writing a
 lead, read MELODY.md for its function (sections 3, 38, 52), then build it as
 CamelPhat build theirs - from the pack, not from memory. `CAMELPHAT.md` has
 the whole pack's MIDI measured (leads, plucks, chords, bass) and a step-by-step
-procedure with pass/fail numbers:
+procedure with pass/fail numbers.
+
+**Threshold's lead took four rewrites, and each failed on a different thing, in
+this order. Work in the same order:**
+
+1. **The hook.** One shape of 2-5 notes over 1-2 bars, repeated identically
+   (MELODY 4, 18, 38). Hum it. v1 matched every pack median and was heard as
+   "random": it used six bar patterns, and its pitches changed on any step.
+2. **What it means.** Choose an anchor with a story (the orchestra's tuning A) and
+   say how the chords change its meaning. Harmony moving under a repeated note is
+   colour, not a hook: v2 had that and nothing else.
+3. **Its register against the sustained parts.** v3 sang, but it played the
+   strings' own notes and fused into them. v4 moved up an octave, above the pad.
+4. **Emotion in the line.** Held answers approached by a slur, targets that arch
+   to one high point, velocity that follows the phrase (EMOTION 12-15, 43).
+5. **Expression in the patch** (below). v2 was "stock" because the synth played
+   every note the same.
+6. **Then the numbers** (`CAMELPHAT.md` 6). They catch a bad lead; they do not
+   make a good one.
+7. **Then everything that quotes it.** When the lead changes, rewrite the
+   hints, teases and callbacks that point at it. Threshold's break callback still
+   quoted a cell the track no longer had.
 
 - **Sustain, not pluck.** Amp sustain around 0.8, release ~0.3 s, attack
   1-20 ms. A zero-sustain envelope is for a part whose job is a pluck, and
@@ -351,9 +391,16 @@ procedure with pass/fail numbers:
   envelope that closes while the amp sustains, vibrato that fades in on held
   notes, a few cents of drift, glide on slurs only. Write velocities that follow
   the phrase, and automate the cutoff across each 4-bar phrase.
-- **Low.** Write the line around MIDI 50-65 and let the octave layer carry the
-  top, not an octave or two above it on one thin oscillator.
-- **A riff, not an arpeggio.** Rhythm first. Measured over the pack's 34 lead
+- **Low - unless the pad lives there.** Write the line around MIDI 50-65 and let
+  the octave layer carry the top, not an octave or two above it on one thin
+  oscillator. But check the register against the sustained parts first: a lead
+  that plays the pad's own notes fuses into it and stops being a hook (Threshold's
+  strings held A57 D62 F65 G67; its lead played the same notes). Clear the pad,
+  as a vocal would sit.
+- **A hook, not a riff.** One 1-2 bar shape, repeated identically, with at most
+  the final note moving at phrase ends (MELODY 4, 38; EMOTION 15). A riff whose
+  tail changes every bar measures right and still has no hook.
+- **Rhythm first, not an arpeggio.** Measured over the pack's 34 lead
   MIDI files (medians): 4.6 notes a bar, one note ~50 % of the line, 67 % of
   onsets on the 3-3-2 steps (0 3 6 8 11 14), notes ~two-thirds of the gap to the
   next (gate 0.67), MIDI 55-64, repeats 21 % / steps 20 % / leaps 26 %. Check it
@@ -389,6 +436,10 @@ the track then stops cleanly. Build to that:
   stays into the outro plays a root pedal, not the chord loop, so it sits in
   key against the next record; it leaves on a 16-bar line - the DJ's bass
   swap. The intro mirrors it: drums first, bass in on a 16-bar line.
+- **The sub waits for the intro's build to finish.** If the intro has a build
+  (Threshold's orchestral warm-up, bars 17-32), let it complete, breath
+  included, before the sub enters on the next 16-bar line. A sub fading in under
+  the warm-up took its arrival away (user, Threshold).
 - **No pitched material in the first 16 bars or the last 16.** That is where
   the DJ mixes over the neighbouring record, which may be in another key.
   Drones, pads, chords, melodic loops and tonal FX wait for bar 17 - never open
@@ -490,6 +541,10 @@ chain, an artist profile over its genre profile.
 `docs/lessons.md` collects what producing a whole track taught: Live and
 bridge behaviour, measuring a mix, drum clarity, bass and harmony. Read it
 before producing or mixing.
+
+**A key-finder on a single line is circular.** Run on a lead alone it calls the
+most-played note the tonic. Measure a line against its own anchor note
+(`CAMELPHAT.md`), and get the key from the harmony or the user.
 
 **Note ids change.** Deleting and re-adding a note gives it a new id. Always
 re-read before a second edit pass; `live.update_notes` returns

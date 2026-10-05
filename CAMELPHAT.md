@@ -308,6 +308,15 @@ A) and let the chords move under it (5th, then maj7, then 6th). Check both: the
 table below, then the idea - *what does the anchor mean, and how does that
 meaning change?*
 
+**Then make it a hook.** The second rewrite (a riff with sung bar-4 answers) was
+expressive and still "not enough hook". Its tail changed in every bar, and it sat
+on the strings' own notes. The third fixed one 2-bar call and answer, repeated
+identically, and moved it above the pad. That landed it almost on the pack's
+medians (5.0 onsets a bar, anchor 50 %, repeat/step/leap 22/16/29 %). The hooky
+pack lines behave the same way: Spiritual, Vision and Breeze repeat one bar
+identically (AAAA), Window changes only its last bar (AAAB), Melancholia only
+its answers (ABAC), and the pluck Nemesis is a 2-bar ABAB.
+
 ### Checks, as numbers
 
 | Check | Pass |
