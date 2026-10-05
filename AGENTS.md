@@ -276,7 +276,7 @@ user had to point at it mid-build.)
 
 | Element | Guide |
 |---|---|
-| Melody, lead, hook, motif | `MELODY.md` |
+| Melody, lead, hook, motif | `MELODY.md`, then `CAMELPHAT.md` for the cell (rhythm, anchor, register) |
 | Bassline | `BASSLINES.md` (scientific octave names) |
 | Drums | `DRUMS.md` |
 | Chords, pads | `CHORDS.md` |
@@ -328,7 +328,9 @@ Threshold no synth lead held a note for a beat, and most traced arpeggios
 (48-73 % leaps). The cause was a lesson that lumped CamelPhat's leads in with
 their plucks; `docs/lessons.md` now has them measured apart. Before writing a
 lead, read MELODY.md for its function (sections 3, 38, 52), then build it as
-CamelPhat build theirs - from the pack, not from memory:
+CamelPhat build theirs - from the pack, not from memory. `CAMELPHAT.md` has
+the whole pack's MIDI measured (leads, plucks, chords, bass) and a step-by-step
+procedure with pass/fail numbers:
 
 - **Sustain, not pluck.** Amp sustain around 0.8, release ~0.3 s, attack
   1-20 ms. A zero-sustain envelope is for a part whose job is a pluck, and
@@ -425,6 +427,7 @@ the code enforces it yet — apply it by reading, and treat that as a gap.
 |---|---|
 | `JON_HOPKINS.md`, `TINLICKER.md` | `artists.json`, `styles.json`, `artists.ts` |
 | `ERIC.md` (Eric Prydz / Pryda progressive house) | `styles.json`, `bass-patterns.json`, `chords.ts` |
+| `CAMELPHAT.md` - measured from the TPS x CamelPhat pack's 120 MIDI files, not written by an expert: lead kinds, rhythm cells, anchor and bounce, voicings, bass shapes | not encoded |
 
 **Sound, synthesis and effects**
 
