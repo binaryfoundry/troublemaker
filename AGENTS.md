@@ -293,6 +293,33 @@ guide listed is not finished. Before reporting a track done, check the result
 against each always-on guide again - GROOVE.md's §26 checklist and NEW_TRACK.md's
 audit at minimum - and report what failed, not just what passed.
 
+## Basslines - roll, don't meander
+
+**The user wants a rolling bassline by default.** On Threshold a melodic bass
+that changed pitch on almost every note was rejected as "meandering"; the roll
+that replaced it is the one they liked ("that relentless bass"). Black Glass and
+Cathedral are the references - read their Sets, not just their TRACK.md.
+
+- **Rhythm: KBBB** - the three 16ths after every kick, never on the kick
+  (`progressive_rolling` in `bass-patterns.json`). KBB, the gallop (`K . B B`,
+  Black Glass), is the alternative. Not an offbeat house bass, not a melodic line.
+- **Pitch: one root per chord**, held for the whole chord. The octave on the
+  third 16th; a pickup in octaves on the last beat of a 4-bar phrase. Move a note
+  only where the rub audit says so (Threshold's Bb took its fifth, not its octave).
+- **Movement lives in the timbre, not the pitch**: a filter LFO with a 3/16
+  period so the accents rotate against the bar (GROOVE.md 7B), and filter moves
+  written per section.
+- **Sound: a clean sine sub + a hard growl.** Drift sine holding the root (keep
+  it above infra: D at 38, not 26), and AnalogFoundry 101 for the growl -
+  resonance, a 7 Hz filter LFO, Saturator Hard Curve ~9 dB, high-passed so it
+  never doubles the sub's fundamental. Patch: `analogfoundry/presets/threshold-growl.txt`.
+- **Pump it.** Sub silent on the kick and back within an 8th; growl -15 dB on the
+  kick, swelling across its three 16ths. The electronics pump; strings and
+  orchestra are never ducked - that contrast is the point.
+
+Check BASSLINES.md for anything this leaves open, and ask before writing any
+other kind of bassline.
+
 ## Starting a new track - ask for the key
 
 **Before writing any notes for a new track, ask the user what key it should be
