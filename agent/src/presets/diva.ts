@@ -206,7 +206,7 @@ export function convertDiva(d: DivaPreset, name: string): Conversion {
   route(O.TM1Src, n(O.TM1Dpt), DST.pitch, 1 / MOD_SCALE.pitchSemitones, 'pitch mod 1');
   route(O.TM2Src, n(O.TM2Dpt), DST.pitch, 1 / MOD_SCALE.pitchSemitones, 'pitch mod 2');
   route(O.PWMSrc, n(O.PWMDpt), DST.pulseWidth, 1 / 100, 'pulse-width mod');
-  if (n(S('VCA1').PanDpt)) report.dropped.push(`pan modulation (${src[String(Math.round(n(S('VCA1').PanSrc)))]}): AF101 is mono`);
+  if (n(S('VCA1').PanDpt)) report.dropped.push(`pan modulation (${src[String(Math.round(n(S('VCA1').PanSrc)))]}): AF101 has no pan destination`);
   if (n(O.Sh1Dpt)) report.dropped.push('oscillator shape modulation');
 
   // The filter envelope's depth goes to env_cutoff; the rest stays in the matrix.

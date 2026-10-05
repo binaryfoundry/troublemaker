@@ -4,7 +4,7 @@ ANALOG_SYNTH_AGENT.md requires every external dependency to have its licence
 inspected and recorded before use, and warns specifically against casually
 importing GPL code into a project intended to remain permissively licensed.
 
-## Status: one dependency, permissively licensed
+## Status: one framework, permissively licensed
 
 `analogfoundry/` contains **no copied or adapted third-party DSP source**.
 The one external dependency is the plugin framework:
@@ -12,6 +12,13 @@ The one external dependency is the plugin framework:
 | Dependency | Licence | How it is used |
 |---|---|---|
 | [DPF](https://github.com/DISTRHO/DPF) | **ISC** | Plugin wrapper for VST3 and CLAP. Fetched into `external/dpf`, not vendored. Optional: everything but the plugin builds without it. |
+| [pugl](https://github.com/DISTRHO/pugl) (DPF submodule) | **ISC** | The editor's window and OpenGL context. |
+| [NanoVG](https://github.com/memononen/nanovg) and fontstash (in DPF) | **zlib** | The editor's drawing. |
+| stb_truetype (in DPF) | **public domain** | Font rasterising for the editor. |
+| DejaVu Sans (embedded by DPF's `loadSharedResources`) | **Bitstream Vera / DejaVu licence** (free to use and embed) | The editor's only font. |
+
+All of these come with DPF and are used only by the editor (`src/plugin/PluginUI.cpp`);
+the DSP core, renderer and tests do not link them.
 
 ISC is a permissive, GPL-free licence, which is why DPF was chosen over the
 alternatives below. It also ships its own VST3 implementation, so the
@@ -26,7 +33,7 @@ The DSP is written from published algorithms:
 | xorshift32 PRNG | `src/dsp/Oscillator.h` | Marsaglia's published xorshift; three lines of arithmetic, written directly |
 | Exponential ADSR | `src/dsp/Envelope.h` | Standard one-pole-to-target; no external source |
 | Kaiser-windowed half-band FIR | `src/dsp/Decimator.h` | Textbook windowed-sinc design with a Kaiser window; Bessel I0 from its series |
-| Minimal IPluginFactory vtable | `tests/plugin_load_test.cpp` | The COM ABI layout only, declared directly so the test needs no Steinberg SDK |
+| Minimal IPluginFactory / IComponent / IEditController vtables and IIDs | `tests/plugin_load_test.cpp` | The COM ABI layout and the published interface ids only, declared directly so the test needs no Steinberg SDK |
 
 Build dependencies are CMake and a C++17 compiler. Nothing is vendored and
 there is no package manifest to audit.

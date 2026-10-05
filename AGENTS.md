@@ -100,7 +100,7 @@ more than one client.
 ## Testing
 
 ```bash
-npm test                      # 116 tests, no Ableton needed
+npm test                      # 459 tests, no Ableton needed
 npm run typecheck
 npm run cli -- selftest       # round trip, needs Live running
 ```
@@ -578,9 +578,14 @@ existed have not been checked against it. **Re-audit them** (the order in
 - **Re-auditing a track:** update its row (date, result) and its TRACK.md.
 
 Older Sets carry older plugin state. A restored AF101 instance keeps the parameter
-list it was saved with, so expression (0.3) needs a fresh instance (delete, load,
-reapply the patch). Before 0.3, AF101 ignored velocity entirely: any accents
-written into those tracks have never sounded.
+list it was saved with, so expression (0.3) and everything since - the matrix
+(0.4), sync, stereo, voices, env 3 and filter modes (0.5) - need a fresh instance
+(delete, load, reapply the patch, carry any clip envelopes over, re-place the
+Arrangement copies). Before 0.3, AF101 ignored velocity entirely: any accents
+written into those tracks have never sounded. An instance saved with 0.4 is a
+special case (*Synthesis*: its ids shifted in 0.5): take its values from its
+preset file, not from reading it back. Threshold's instances are all 0.5 as of
+2026-10-05.
 
 | Track | Folder | Key / BPM | Last audited | Known gaps from rules learned since | Status |
 |---|---|---|---|---|---|

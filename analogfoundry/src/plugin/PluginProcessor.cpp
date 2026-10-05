@@ -35,9 +35,9 @@ class AnalogFoundry101 : public Plugin {
   const char* getLabel() const override { return "AnalogFoundry101"; }
 
   const char* getDescription() const override {
-    return "Monophonic virtual-analogue synthesiser modelled on a 101-style "
-           "architecture: band-limited saw/pulse/sub/noise through a four-pole "
-           "resonant low-pass with a nonlinear feedback path.";
+    return "Virtual-analogue synthesiser modelled on a 101-style architecture: "
+           "band-limited oscillators through a four-pole resonant ladder with a "
+           "nonlinear feedback path. Monophonic by default, up to eight voices.";
   }
 
   const char* getMaker() const override { return "AnalogFoundry"; }
