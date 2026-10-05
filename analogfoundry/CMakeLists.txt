@@ -61,7 +61,8 @@ if(AF_BUILD_PLUGIN AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/dpf/CMakeLis
   add_subdirectory(external/dpf EXCLUDE_FROM_ALL)
   dpf_add_plugin(AnalogFoundry101
     TARGETS vst3 clap
-    FILES_DSP src/plugin/PluginProcessor.cpp)
+    FILES_DSP src/plugin/PluginProcessor.cpp
+    FILES_UI src/plugin/PluginUI.cpp)
   target_include_directories(AnalogFoundry101 PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src/plugin")
   target_compile_features(AnalogFoundry101 PUBLIC cxx_std_17)
   message(STATUS "AnalogFoundry: building VST3/CLAP via DPF")
@@ -71,7 +72,7 @@ if(AF_BUILD_PLUGIN AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/dpf/CMakeLis
            COMMAND plugin_load_test "$<TARGET_FILE:AnalogFoundry101-vst3>")
 elseif(AF_BUILD_PLUGIN)
   message(STATUS "AnalogFoundry: external/dpf not present, skipping the plugin. "
-                 "git clone --depth 1 https://github.com/DISTRHO/DPF.git analogfoundry/external/dpf")
+                 "git clone --depth 1 --recurse-submodules https://github.com/DISTRHO/DPF.git analogfoundry/external/dpf")
 endif()
 
 enable_testing()

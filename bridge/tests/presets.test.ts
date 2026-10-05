@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { AF101_PARAMS, DST, SRC, packModSlot, placeMatrix, toPresetText, unpackModSlot } from '../../agent/src/presets/af101.js';
+import { AF101_PARAMS, DST, FILTER_MODE, LFO_DIVISION_BEATS, LFO_WAVE, SRC, lfoMode, nearestDivision, packModSlot, placeMatrix, toPresetText, unpackModSlot } from '../../agent/src/presets/af101.js';
 import { convertDiva, parseDiva } from '../../agent/src/presets/diva.js';
 import { convertSerum, decodeSerum } from '../../agent/src/presets/serum.js';
 
@@ -11,7 +11,7 @@ describe('AF101 parameter catalogue', () => {
     const rows = [...header.matchAll(/\{"([a-z0-9_]+)", "[^"]+", "[^"]*", (-?[\d.]+), (-?[\d.]+), (-?[\d.]+)/g)].map((m) => ({
       id: m[1], min: +m[2]!, max: +m[3]!, def: +m[4]!,
     }));
-    expect(rows.length).toBe(58); // Live lists a plugin's parameters only up to 64
+    expect(rows.length).toBe(63); // Live lists a plugin's parameters only up to 64
     expect(AF101_PARAMS).toEqual(rows);
   });
 
@@ -205,16 +205,33 @@ describe('Serum -> AF101', () => {
     expect(c.report.dropped.some((d) => /FX bus 1/.test(d))).toBe(true);
   });
 
-  it('turns a high-pass filter into EQ Eight and leaves the ladder open', () => {
-    const c = convertSerum(serumBody({ VoiceFilter0: { plainParams: { kParamEnable: 1, kParamFreq: 0.3, kParamType: 'H18' } } }), 'SY - Test');
-    expect(c.patch.cutoff).toBe(20000);
-    expect(c.chain[0]?.device).toBe('EQ Eight');
-    expect(c.chain[0]?.settings['1 Frequency A']).toBeCloseTo(8 * Math.pow(22050 / 8, 0.3) * Math.pow(2, 0.4 * 0.5 * OCT), -1);
+  it("plays a high-pass or band-pass on AF101's own filter modes, not EQ Eight", () => {
+    const hz = 8 * Math.pow(22050 / 8, 0.3) * Math.pow(2, 0.4 * 0.5 * OCT);
+    const hp = convertSerum(serumBody({ VoiceFilter0: { plainParams: { kParamEnable: 1, kParamFreq: 0.3, kParamType: 'H18' } } }), 'SY - Test');
+    expect(hp.patch.filter_mode).toBe(FILTER_MODE.highpass);
+    expect(hp.patch.cutoff).toBeCloseTo(hz, -1);
+    expect(hp.chain.some((d) => d.device === 'EQ Eight')).toBe(false);
+    const bp = convertSerum(serumBody({ VoiceFilter0: { plainParams: { kParamEnable: 1, kParamFreq: 0.3, kParamType: 'B12' } } }), 'SY - Test');
+    expect(bp.patch.filter_mode).toBe(FILTER_MODE.bandpass);
   });
 
-  it('flags a polyphonic preset: AF101 is mono', () => {
+  it('plays a polyphonic preset on 8 voices, and a mono one on 1', () => {
     const c = convertSerum(serumBody({ Global0: { plainParams: {} } }), 'SY - Pad');
     expect(c.polyphonic).toBe(true);
+    expect(c.patch.voices).toBe(8);
+    const m = convertSerum(serumBody({ Global0: { plainParams: { kParamMonoToggle: 1 } } }), 'LD - Mono');
+    expect(m.patch.voices).toBeUndefined();
+  });
+});
+
+describe('AF101 LFO modes', () => {
+  it('pack wave, retrigger and division as Voice101.h does', () => {
+    expect(lfoMode(LFO_WAVE.square, false, 0)).toBe(3);
+    expect(lfoMode(LFO_WAVE.sine, true, 9)).toBe(95);
+    expect(lfoMode(LFO_WAVE.sampleHold, true, 13)).toBe(139);
+    expect(LFO_DIVISION_BEATS[nearestDivision(0.75)]).toBe(0.75);
+    expect(LFO_DIVISION_BEATS[nearestDivision(1.1)]).toBe(1);
+    expect(nearestDivision(0)).toBe(0);
   });
 });
 

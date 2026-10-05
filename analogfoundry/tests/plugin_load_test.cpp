@@ -20,6 +20,8 @@
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+
+#include "../src/model/Preset.h"
 #endif
 
 namespace {
@@ -64,11 +66,89 @@ struct IPluginFactoryVtbl {
   int32_t(__stdcall* getFactoryInfo)(IPluginFactory*, PFactoryInfo*);
   int32_t(__stdcall* countClasses)(IPluginFactory*);
   int32_t(__stdcall* getClassInfo)(IPluginFactory*, int32_t, PClassInfo*);
+  int32_t(__stdcall* createInstance)(IPluginFactory*, const char*, const char*, void**);
 };
+
 
 struct IPluginFactory {
   IPluginFactoryVtbl* vtbl;
 };
+
+/// IEditController's ParameterInfo.
+struct ParameterInfo {
+  uint32_t id;
+  int16_t title[128];
+  int16_t shortTitle[128];
+  int16_t units[128];
+  int32_t stepCount;
+  double defaultNormalized;
+  int32_t unitId;
+  int32_t flags;
+};
+
+/// COM-compatible IIDs (Windows byte order), from the VST3 SDK.
+const unsigned char kIComponent[16] = {0x31, 0xFF, 0x31, 0xE8, 0xD5, 0xF2, 0x01, 0x43,
+                                       0x92, 0x8E, 0xBB, 0xEE, 0x25, 0x69, 0x78, 0x02};
+const unsigned char kIEditController[16] = {0xE3, 0xBB, 0xD7, 0xDC, 0x42, 0x77, 0x8D, 0x44,
+                                            0xA8, 0x74, 0xAA, 0xCC, 0x97, 0x9C, 0x75, 0x9E};
+
+/// Call slot `n` of a COM object's vtable.
+template <typename Fn>
+Fn slot(void* object, int n) {
+  return reinterpret_cast<Fn>((*reinterpret_cast<void***>(object))[n]);
+}
+
+std::string narrow(const int16_t* s) {
+  std::string out;
+  for (int i = 0; i < 128 && s[i] != 0; ++i) out += static_cast<char>(s[i]);
+  return out;
+}
+
+/// Parameter ids are part of every saved Set: a host stores values and
+/// automation by id, and DPF's VST3 ids are positions. Parameter i must keep
+/// id 2081 + i, forever. (0.5's first editor build let DPF put two internal parameters in
+/// front; every older Set's settings landed two places up.)
+void checkParameterIds(IPluginFactory* factory, const char* cid) {
+  void* component = nullptr;
+  factory->vtbl->createInstance(factory, cid, reinterpret_cast<const char*>(kIComponent), &component);
+  check(component != nullptr, "factory creates the component");
+  if (component == nullptr) return;
+  slot<int32_t(__stdcall*)(void*, void*)>(component, 3)(component, nullptr);  // initialize
+  void* controller = nullptr;
+  slot<int32_t(__stdcall*)(void*, const char*, void**)>(component, 0)(
+      component, reinterpret_cast<const char*>(kIEditController), &controller);
+  check(controller != nullptr, "the component is its own edit controller (no separate controller)");
+  if (controller != nullptr) {
+    const auto& table = af::parameterTable();
+    const int32_t count = slot<int32_t(__stdcall*)(void*)>(controller, 8)(controller);
+    check(count >= static_cast<int32_t>(table.size()), "controller lists every parameter", std::to_string(count));
+    // DPF lists its own parameters first: the program (1) and 16 x 130 MIDI CC
+    // slots. Ours follow from id 2081, the layout every Set saved with 0.4 or
+    // earlier holds. The UI build that moved them to 2083 is what this catches.
+    const uint32_t kFirstId = 2081;
+    std::string firstBad;
+    int32_t start = -1;
+    for (int32_t k = 0; k < count && start < 0; ++k) {
+      ParameterInfo info;
+      std::memset(&info, 0, sizeof info);
+      slot<int32_t(__stdcall*)(void*, int32_t, ParameterInfo*)>(controller, 9)(controller, k, &info);
+      if (narrow(info.title) == table[0].name) start = k;
+    }
+    check(start >= 0, "controller lists the first parameter by name", table[0].name);
+    for (size_t i = 0; start >= 0 && i < table.size() && start + static_cast<int32_t>(i) < count; ++i) {
+      ParameterInfo info;
+      std::memset(&info, 0, sizeof info);
+      slot<int32_t(__stdcall*)(void*, int32_t, ParameterInfo*)>(controller, 9)(controller, start + static_cast<int32_t>(i), &info);
+      if (firstBad.empty() && (info.id != kFirstId + i || narrow(info.title) != table[i].name))
+        firstBad = "parameter " + std::to_string(i) + ": id " + std::to_string(info.id) + " \"" + narrow(info.title) +
+                   "\", want id " + std::to_string(kFirstId + i) + " \"" + table[i].name + "\"";
+    }
+    check(firstBad.empty(), "parameter i keeps id 2081 + i (the saved-Set layout)", firstBad);
+    slot<uint32_t(__stdcall*)(void*)>(controller, 2)(controller);
+  }
+  slot<int32_t(__stdcall*)(void*)>(component, 4)(component);  // terminate
+  slot<uint32_t(__stdcall*)(void*)>(component, 2)(component);
+}
 
 using GetFactoryProc = IPluginFactory*(__stdcall*)();
 using InitDllProc = bool(__stdcall*)();
@@ -115,18 +195,23 @@ int runWindows(const char* path) {
         std::to_string(classes) + " classes");
 
   bool foundAudioModule = false;
+  char audioModuleCid[16] = {};
   for (int32_t i = 0; i < classes; ++i) {
     PClassInfo ci;
     std::memset(&ci, 0, sizeof(ci));
     if (factory->vtbl->getClassInfo(factory, i, &ci) != 0) continue;
     std::printf("        class %d: \"%s\" category \"%s\"\n", i, ci.name, ci.category);
-    if (std::strcmp(ci.category, "Audio Module Class") == 0) foundAudioModule = true;
+    if (std::strcmp(ci.category, "Audio Module Class") == 0) {
+      foundAudioModule = true;
+      std::memcpy(audioModuleCid, ci.cid, 16);
+    }
     if (std::strstr(ci.name, "AnalogFoundry") != nullptr ||
         std::strstr(ci.name, "101") != nullptr) {
       check(true, "class name identifies this plugin", ci.name);
     }
   }
   check(foundAudioModule, "advertises an Audio Module Class (what a host loads)");
+  if (foundAudioModule) checkParameterIds(factory, audioModuleCid);
 
   factory->vtbl->release(factory);
   if (exitDll != nullptr) exitDll();

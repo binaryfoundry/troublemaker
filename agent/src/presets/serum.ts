@@ -13,17 +13,18 @@
 import { decompress } from 'fzstd';
 import { decode } from 'cbor-x';
 
-import { DST, ENV_CUTOFF_OCTAVES, MOD_SCALE, SRC, WAVE, clampParam, placeMatrix, type Af101Patch, type MatrixSlot } from './af101.js';
+import { DST, ENV_CUTOFF_OCTAVES, FILTER_MODE, LFO_WAVE, MOD_SCALE, SRC, WAVE, clampParam, lfoMode, placeMatrix, type Af101Patch, type MatrixSlot } from './af101.js';
 import { categoryOf, emptyReport, type ChainDevice, type Conversion } from './types.js';
 
 export const SERUM_ASSUMPTIONS: Record<string, string> = {
   S1: 'Filter cutoff is normalised 0-1 on a log scale from 8 Hz to 22.05 kHz (Serum\'s range). A lead\'s cutoff plus its CUTOFF macro lands near 1 kHz on this curve, which is plausible but not verified against Serum.',
   S2: 'Values Serum stores as "default" take Serum\'s factory defaults: envelope A 0.5 ms, D 1 s, S 1.0, R 15 ms; oscillator A on at volume 0.75; B, C, noise and sub off unless enabled.',
-  S3: 'Unison detune 0-1 is taken as 0-100 cents spread (AF101 caps at 50). Serum also spreads unison in stereo; AF101 is mono, so width comes from Chorus-Ensemble after it.',
+  S3: 'Unison detune 0-1 is taken as 0-100 cents spread (AF101 caps at 50). Unison stereo 0-100 % becomes AF101\'s stereo spread 0-1 (both pan the stack across the field).',
   S4: 'A mod amount is a percentage of the destination\'s range: on cutoff, of the 11.4-octave normalised range; on fine tune, of +/-100 cents; on volume, of 0-1.',
   S5: 'Wavetables are chosen by name: analog saw tables (Juno, Model D, Mini, Moog, "Analog/") become AF101\'s saw; "Default Shapes" is read by table position (sine, triangle, saw, square). The table itself is not loaded - Serum\'s factory tables are not on this machine.',
   S6: 'Macros are baked at their saved value. A macro that is itself modulated (e.g. Env 1 -> CUTOFF macro) passes that modulation through to the macro\'s destinations.',
-  S7: 'An LFO with beat sync on, or without a stored sync setting, is approximated at one cycle a beat at 124 BPM (2.07 Hz); free LFOs keep their rate in Hz.',
+  S7: 'An LFO with beat sync on stores no rate in these presets (Serum writes "default"), so it takes Serum\'s default, 1/4, as an AF101 sync division; free LFOs keep their rate in Hz.',
+  S10: 'Serum stores no voice count for a polyphonic preset; it plays on AF101\'s full 8 voices.',
   S9: 'Routing slots 0-4 are oscillators A, B, C, noise and sub. An FX bus (racks 2 and 3) is a parallel send: it is converted only when an oscillator AF101 plays feeds it, at an inline wet of x/(1+x), x = send level x bus volume.',
   S8: "Effects become the nearest Live 12 Standard devices with their wet levels; times and sizes are approximate, and a macro on an effect's wet is applied to every effect of that kind (Serum's FX module numbering is not confirmed).",
 };
@@ -41,7 +42,8 @@ const params = (o: any): Record<string, any> => (o && o.plainParams && o.plainPa
 const num = (v: any, d: number): number => (typeof v === 'number' && Number.isFinite(v) ? v : d);
 const OCT_RANGE = Math.log2(22050 / 8); // 11.43 octaves
 const hzOf = (norm: number) => 8 * Math.pow(22050 / 8, Math.min(1, Math.max(0, norm)));
-const BEAT_HZ = 124 / 60;
+/** The AF101 sync division for Serum's default synced rate, 1/4 (S7). */
+const SERUM_SYNC_DIVISION = 9;
 
 interface Osc {
   index: number;
@@ -50,6 +52,8 @@ interface Osc {
   semis: number; // octave*12 + coarse
   fine: number; // cents
   unison: number;
+  /** Unison stereo 0-1. */
+  stereo: number;
   detune: number;
   table: string;
 }
@@ -123,7 +127,7 @@ export function convertSerum(body: any, name: string): Conversion {
     oscs.push({
       index: i, wave, volume: vol,
       semis: Math.round(num(p.kParamOctave, 0)) * 12 + Math.round(num(p.kParamCoarsePit, 0)),
-      fine: num(p.kParamFine, 0), unison: Math.round(num(p.kParamUnison, 1)), detune: num(p.kParamDetune, 0.25), table: how,
+      fine: num(p.kParamFine, 0), unison: Math.round(num(p.kParamUnison, 1)), detune: num(p.kParamDetune, 0.25), stereo: Math.min(1, Math.max(0, num(p.kParamUnisonStereo, 100) / 100)), table: how,
     });
     if (p.kParamType && p.kParamType !== 'kOsc_WT') report.dropped.push(`Osc ${'ABC'[i]} is a ${p.kParamType} oscillator; treated as ${['saw', 'pulse', 'triangle', 'sine'][wave]}`);
     if (params(wt).kParamWarpMenu) report.dropped.push(`Osc ${'ABC'[i]} warp ${params(wt).kParamWarpMenu}`);
@@ -156,7 +160,8 @@ export function convertSerum(body: any, name: string): Conversion {
     if (voices > 1) {
       patch.unison = Math.min(7, voices);
       patch.unison_detune = Math.min(50, main.detune * 100);
-      report.approximated.push(`unison ${voices} voices${voices > 7 ? ' (AF101 caps at 7)' : ''}, detune ${main.detune.toFixed(3)} -> ${patch.unison_detune.toFixed(1)} ct, mono`);
+      patch.stereo = main.stereo;
+      report.approximated.push(`unison ${voices} voices${voices > 7 ? ' (AF101 caps at 7)' : ''}, detune ${main.detune.toFixed(3)} -> ${patch.unison_detune.toFixed(1)} ct, stereo ${main.stereo.toFixed(2)}`);
       report.assumptions.push('S3');
     }
   }
@@ -194,9 +199,8 @@ export function convertSerum(body: any, name: string): Conversion {
   // --- Filter (S1)
   const f = params(body.VoiceFilter0);
   let cutoffNorm = 1;
-  // AF101 has a low-pass ladder. A high-pass becomes an EQ Eight high-pass with
-  // AF101 left open; a band-pass, a low-pass an octave above plus an EQ high-pass
-  // an octave below. Other types play as the low-pass, and say so.
+  // AF101 has a low-pass ladder, a 24 dB high-pass and a band-pass (filter_mode).
+  // Other types play as the low-pass, and say so.
   let filterKind: 'low' | 'high' | 'band' = 'low';
   if (f.kParamEnable === 1 || Object.keys(f).length) {
     cutoffNorm = num(f.kParamFreq, 0.5);
@@ -231,13 +235,16 @@ export function convertSerum(body: any, name: string): Conversion {
     lfoSlot.set(li, k);
     const p = params(body[`LFO${li}`]);
     const free = p.kParamBeatSync === 0;
-    const rate = free ? num(p.kParamRate, 1) : BEAT_HZ;
-    if (k === 0) patch.lfo_rate = Math.min(50, Math.max(0.01, rate));
-    else patch.lfo2_rate = Math.min(50, Math.max(0.01, rate));
+    const rate = num(p.kParamRate, 1);
+    if (free) {
+      if (k === 0) patch.lfo_rate = Math.min(50, Math.max(0.01, rate));
+      else patch.lfo2_rate = Math.min(50, Math.max(0.01, rate));
+    }
+    patch[k === 0 ? 'lfo1_wave' : 'lfo2_wave'] = lfoMode(LFO_WAVE.sine, false, free ? 0 : SERUM_SYNC_DIVISION);
     if (!free) report.assumptions.push('S7');
     if (p.kParamMode === 'Envelope') report.approximated.push(`LFO ${li + 1} is in envelope mode: played as a free LFO`);
     if (p.kParamType && p.kParamType !== 'Normal') report.dropped.push(`LFO ${li + 1} type ${p.kParamType}`);
-    report.approximated.push(`LFO ${li + 1} -> AF101 LFO ${k + 1} at ${rate.toFixed(2)} Hz${free ? '' : ' (sync approximated)'}, sine (Serum's drawn shape is not read)`);
+    report.approximated.push(`LFO ${li + 1} -> AF101 LFO ${k + 1} ${free ? `at ${rate.toFixed(2)} Hz` : 'synced at 1/4'}, sine (Serum's drawn shape is not read)`);
   });
   for (const li of usedLfos.slice(2)) report.dropped.push(`LFO ${li + 1} (AF101 has two)`);
 
@@ -249,10 +256,19 @@ export function convertSerum(body: any, name: string): Conversion {
     Object.assign(patch, { fenv_separate: 1, fenv_attack: e.attack, fenv_decay: e.decay, fenv_sustain: e.sustain, fenv_release: e.release });
     report.mapped.push(`Env ${filterEnvSrc} -> AF101 filter envelope (A ${e.attack.toFixed(3)} D ${e.decay.toFixed(3)} S ${e.sustain.toFixed(2)} R ${e.release.toFixed(3)})`);
   }
-  for (const s of envUsed.filter((s) => s !== filterEnvSrc)) report.dropped.push(`Env ${s} (AF101 has an amp and a filter envelope)`);
+  // The next envelope a route uses becomes AF101's third (a matrix source).
+  const others = envUsed.filter((s) => s !== filterEnvSrc);
+  const env3Src = others[0];
+  if (env3Src) {
+    const e = envOf(body[`Env${env3Src - 1}`]);
+    Object.assign(patch, { env3_attack: e.attack, env3_decay: e.decay, env3_sustain: e.sustain, env3_release: e.release });
+    report.mapped.push(`Env ${env3Src} -> AF101 env 3 (A ${e.attack.toFixed(3)} D ${e.decay.toFixed(3)} S ${e.sustain.toFixed(2)} R ${e.release.toFixed(3)})`);
+  }
+  for (const s of others.slice(1)) report.dropped.push(`Env ${s} (AF101 has an amp, a filter and a third envelope)`);
   const sourceOf = (src: number): number | undefined => {
     if (src === 1) return SRC.ampEnv;
     if (src === filterEnvSrc) return SRC.filterEnv;
+    if (src === env3Src) return SRC.env3;
     if (src >= 6 && src <= 15 && lfoSlot.has(src - 6)) return lfoSlot.get(src - 6) === 0 ? SRC.lfo1 : SRC.lfo2;
     if (src === 16) return SRC.velocity;
     return undefined;
@@ -352,22 +368,9 @@ export function convertSerum(body: any, name: string): Conversion {
     patch.cutoff = filterHz;
     report.mapped.push(`cutoff ${cutoffNorm.toFixed(3)} (+${staticCutoffOct.toFixed(2)} oct from macros) -> ${patch.cutoff.toFixed(0)} Hz`);
   } else {
-    const hpHz = filterKind === 'high' ? filterHz : filterHz / 2;
-    patch.cutoff = filterKind === 'high' ? 20000 : clampParam('cutoff', filterHz * 2);
-    if (filterKind === 'high') {
-      patch.resonance = 0;
-      patch.env_cutoff = 0;
-      for (const s of slots.filter((x) => x.dst === DST.cutoff)) {
-        report.dropped.push(`${s.why}: it moved a high-pass; AF101's low-pass stays open`);
-        slots.splice(slots.indexOf(s), 1);
-      }
-    }
-    chain.unshift({ device: 'EQ Eight', settings: { '1 Filter On A': 'On', '1 Filter Type A': 'High Pass 12dB', '1 Frequency A': +hpHz.toFixed(0) }, from: `Serum ${filterKind}-pass filter` });
-    report.approximated.push(
-      filterKind === 'high'
-        ? `high-pass filter at ${hpHz.toFixed(0)} Hz -> EQ Eight high-pass; AF101's low-pass left open`
-        : `band-pass filter at ${filterHz.toFixed(0)} Hz -> AF101 low-pass at ${patch.cutoff.toFixed(0)} Hz + EQ Eight high-pass at ${hpHz.toFixed(0)} Hz`,
-    );
+    patch.cutoff = filterHz;
+    patch.filter_mode = filterKind === 'high' ? FILTER_MODE.highpass : FILTER_MODE.bandpass;
+    report.approximated.push(`${filterKind}-pass filter at ${filterHz.toFixed(0)} Hz -> AF101 ${filterKind === 'high' ? '24 dB high-pass' : 'band-pass'} (its cutoff modulation kept)`);
   }
   const { placed, overflow } = placeMatrix(patch, slots);
   for (const s of overflow) report.dropped.push(`${s.why} (matrix full)`);
@@ -418,7 +421,11 @@ export function convertSerum(body: any, name: string): Conversion {
 
   const transposeOctaves = (patch as any).__transpose ?? 0;
   delete (patch as any).__transpose;
-  if (!mono) report.approximated.push('Serum plays this preset polyphonically; AF101 is monophonic');
+  if (!mono) {
+    patch.voices = 8;
+    report.approximated.push('Serum plays this preset polyphonically: AF101 on 8 voices');
+    report.assumptions.push('S10');
+  }
   return {
     name, source: 'serum', category: categoryOf(name), patch, matrix: placed, chain,
     polyphonic: !mono, transposeOctaves, report,

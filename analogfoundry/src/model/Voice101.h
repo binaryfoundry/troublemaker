@@ -10,6 +10,11 @@
 // Optional unison (not on the 101, off by default): up to 7 detuned copies of
 // the saw and pulse feed the same filter. The sub stays on the centre VCO.
 //
+// 0.5 (all off by default, and off is the 0.4 path): LFOs synced to the host's
+// tempo and bar (a division packed into each LFO's mode), stereo unison (the
+// stack panned across a second filter path), a third envelope as a matrix source,
+// and high-pass and band-pass filter modes. Polyphony lives in Synth101.h.
+//
 // Optional oscillators and modulation (0.4, not on the 101, off by default): two
 // more oscillators (saw, pulse, triangle or sine, each with octave, semitone and
 // fine tune) sharing the unison stack; a second LFO; LFO waveforms and retrigger;
@@ -105,9 +110,13 @@ struct Voice101Parameters {
   double osc2Level = 0.0, osc2Wave = 0.0, osc2Octave = 0.0, osc2Semi = 0.0, osc2Fine = 0.0;
   double osc3Level = 0.0, osc3Wave = 0.0, osc3Octave = 0.0, osc3Semi = 0.0, osc3Fine = 0.0;
 
-  // LFOs (0.4). Waves: 0 sine, 1 triangle, 2 saw (rising), 3 square, 4 sample and hold.
-  double lfo1Wave = 0.0, lfo1Retrigger = 0.0;
-  double lfo2RateHz = 2.0, lfo2Wave = 0.0, lfo2Retrigger = 0.0;
+  // LFOs. Each LFO's mode packs wave, retrigger and tempo sync (see LfoMode):
+  //   mode = wave + 5 * retrigger + 10 * division
+  // Waves: 0 sine, 1 triangle, 2 saw (rising), 3 square, 4 sample and hold.
+  // Division 0 is free-running at the LFO's rate in Hz; 1-13 are kLfoDivisionBeats.
+  // 0-4 are 0.4's plain waves, so 0.4 values still mean the same thing.
+  double lfo1Wave = 0.0;
+  double lfo2RateHz = 2.0, lfo2Wave = 0.0;
 
   double pitchBendRange = 2.0;  ///< semitones at full bend
 
@@ -117,7 +126,47 @@ struct Voice101Parameters {
   // 10000 is an empty slot (no source, amount 0).
   double mod1 = 10000, mod2 = 10000, mod3 = 10000, mod4 = 10000;
   double mod5 = 10000, mod6 = 10000, mod7 = 10000, mod8 = 10000;
+
+  // 0.5.
+  double stereoSpread = 0.0;  ///< 0..1: unison voices panned across the field; 0 is mono, bit for bit
+  double voices = 1.0;        ///< 1..8, read by Synth101: 1 is the monophonic 101
+  double env3Attack = 0.002, env3Decay = 0.3, env3Sustain = 0.0, env3Release = 0.1;  ///< a matrix source
+  double filterMode = 0.0;    ///< 0 the ladder low-pass, 1 high-pass (24 dB), 2 band-pass
 };
+
+/// Tempo-sync divisions, in beats (quarter notes).
+inline constexpr double kLfoDivisionBeats[14] = {
+    0.0,          // free
+    0.125,        // 1/32
+    1.0 / 6.0,    // 1/16 triplet
+    0.25,         // 1/16
+    1.0 / 3.0,    // 1/8 triplet
+    0.375,        // dotted 1/16
+    0.5,          // 1/8
+    2.0 / 3.0,    // 1/4 triplet
+    0.75,         // dotted 1/8
+    1.0,          // 1/4
+    2.0,          // 1/2
+    4.0,          // 1 bar
+    8.0,          // 2 bars
+    16.0,         // 4 bars
+};
+constexpr int kLfoDivisions = 13;
+constexpr double kLfoModeMax = 4 + 5 + 10 * kLfoDivisions;  // 139
+
+struct LfoMode {
+  int wave;
+  bool retrigger;
+  int division;  ///< 0 free, 1..13
+};
+inline LfoMode decodeLfoMode(double value) noexcept {
+  long v = std::lround(value);
+  v = v < 0 ? 0 : (v > static_cast<long>(kLfoModeMax) ? static_cast<long>(kLfoModeMax) : v);
+  return {static_cast<int>(v % 5), ((v / 5) % 2) == 1, static_cast<int>(v / 10)};
+}
+inline double encodeLfoMode(int wave, bool retrigger, int division) noexcept {
+  return wave + 5.0 * (retrigger ? 1 : 0) + 10.0 * division;
+}
 
 /// The matrix slots as member pointers, in order.
 inline double Voice101Parameters::* const kModSlots[8] = {
@@ -127,7 +176,7 @@ inline double Voice101Parameters::* const kModSlots[8] = {
 
 /// One matrix slot as a single parameter value:
 ///   (source * 17 + destination) * 20001 + round((amount + 1) * 10000)
-/// Amount resolution is 1/10000; the largest value, 3,400,169, survives a host's
+/// Amount resolution is 1/10000; the largest value, 3,740,186, survives a host's
 /// 32-bit normalised parameter (it rounds back to the same integer).
 struct ModSlot {
   int source;
@@ -135,7 +184,7 @@ struct ModSlot {
   double amount;
 };
 constexpr double kModSlotEmpty = 10000.0;
-constexpr double kModSlotMax = 3400169.0;
+constexpr double kModSlotMax = 3740186.0;  // (10 * 17 + 16) * 20001 + 20000
 inline double packModSlot(int source, int dest, double amount) noexcept {
   const double a = amount < -1.0 ? -1.0 : (amount > 1.0 ? 1.0 : amount);
   return (source * 17.0 + dest) * 20001.0 + std::round((a + 1.0) * 10000.0);
@@ -150,11 +199,12 @@ inline void setModSlot(Voice101Parameters& p, int slot, int source, int dest, do
 }
 inline ModSlot getModSlot(const Voice101Parameters& p, int slot) noexcept { return unpackModSlot(p.*(kModSlots[slot])); }
 
-/// Modulation sources. Envelopes, velocity, wheel and pressure are 0..1; LFOs,
-/// key and the per-note random value are -1..1.
+/// Modulation sources. Envelopes (amp, filter and the third, kSrcModEnv),
+/// velocity, wheel and pressure are 0..1; LFOs, key and the per-note random value
+/// are -1..1.
 enum ModSource {
   kSrcNone = 0, kSrcAmpEnv, kSrcFilterEnv, kSrcLfo1, kSrcLfo2, kSrcVelocity,
-  kSrcKey, kSrcModWheel, kSrcAftertouch, kSrcNoteRandom, kSrcCount
+  kSrcKey, kSrcModWheel, kSrcAftertouch, kSrcNoteRandom, kSrcModEnv, kSrcCount
 };
 
 /// Modulation destinations. Amount 1 with a source at 1 moves each by: cutoff
@@ -177,24 +227,32 @@ class Voice101 {
       for (auto& o : e.unison) o.setSampleRate(sampleRate_);
     }
     filter_.setSampleRate(sampleRate_);
+    filterR_.setSampleRate(sampleRate_);
     amplitudeEnvelope_.setSampleRate(sampleRate_);
     filterEnvelope_.setSampleRate(sampleRate_);
+    modEnvelope_.setSampleRate(sampleRate_);
     vca_.setSampleRate(sampleRate_);
+    vcaR_.setSampleRate(sampleRate_);
     cutoffSmoother_.configure(sampleRate_, 0.005);
     velocitySmoother_.configure(sampleRate_, 0.003);
     variationEngine_.configure(variation_, sampleRate_);
     filter_.setStageSpread(variationEngine_.stageSpread());
+    filterR_.setStageSpread(variationEngine_.stageSpread());
     reset();
   }
 
   /// CPU/quality trade. Changes the filter's oversampling factor.
-  void setQuality(Quality q) noexcept { filter_.setQuality(q); }
+  void setQuality(Quality q) noexcept {
+    filter_.setQuality(q);
+    filterR_.setQuality(q);
+  }
 
   /// Component tolerance, drift and circuit noise. Off unless asked for.
   void setVariation(const AnalogVariation& v) noexcept {
     variation_ = v;
     variationEngine_.configure(v, sampleRate_);
     filter_.setStageSpread(variationEngine_.stageSpread());
+    filterR_.setStageSpread(variationEngine_.stageSpread());
   }
   const AnalogVariation& variation() const noexcept { return variation_; }
 
@@ -212,6 +270,17 @@ class Voice101 {
     filter_.setResonance(p.resonance);
     filter_.setStageNonlinearity(p.filterStageDrive);
     filter_.setInputNonlinearity(p.filterInputDrive);
+    filterR_.setResonance(p.resonance);
+    filterR_.setStageNonlinearity(p.filterStageDrive);
+    filterR_.setInputNonlinearity(p.filterInputDrive);
+    modEnvelope_.setAttack(p.env3Attack);
+    modEnvelope_.setDecay(p.env3Decay);
+    modEnvelope_.setSustain(p.env3Sustain);
+    modEnvelope_.setRelease(p.env3Release);
+    lfoMode_[0] = decodeLfoMode(p.lfo1Wave);
+    lfoMode_[1] = decodeLfoMode(p.lfo2Wave);
+    stereo_ = p.stereoSpread > 0.0 && unisonExtra_ > 0;
+    filterMode_ = static_cast<int>(clamp(std::lround(p.filterMode), 0, 2));
     amplitudeEnvelope_.setAttack(p.attack);
     amplitudeEnvelope_.setDecay(p.decay);
     amplitudeEnvelope_.setSustain(p.sustain);
@@ -253,9 +322,13 @@ class Voice101 {
     aftertouch_ = 0.0;
     pitchBend_ = 0.0;
     filter_.reset();
+    filterR_.reset();
     amplitudeEnvelope_.reset();
     filterEnvelope_.reset();
+    modEnvelope_.reset();
     vca_.reset();
+    vcaR_.reset();
+    for (auto& f : svf_) f.reset();
     noise_.reset();
     lfoPhase_ = 0.0;
     driftPhaseA_ = 0.0;
@@ -293,6 +366,7 @@ class Voice101 {
     held_ = false;
     amplitudeEnvelope_.noteOff();
     filterEnvelope_.noteOff();
+    modEnvelope_.noteOff();
   }
 
   /// MIDI CC 123: every held note released, through the release stage.
@@ -302,6 +376,7 @@ class Voice101 {
     held_ = false;
     amplitudeEnvelope_.noteOff();
     filterEnvelope_.noteOff();
+    modEnvelope_.noteOff();
   }
 
   /// MIDI CC 120: silence now, without a release - what a host's panic expects.
@@ -315,6 +390,18 @@ class Voice101 {
   void setPitchBend(double bend) noexcept { pitchBend_ = bend < -1.0 ? -1.0 : (bend > 1.0 ? 1.0 : bend); }
   void setModWheel(double v) noexcept { modWheel_ = v < 0.0 ? 0.0 : (v > 1.0 ? 1.0 : v); }
   void setAftertouch(double v) noexcept { aftertouch_ = v < 0.0 ? 0.0 : (v > 1.0 ? 1.0 : v); }
+
+  /// The host's tempo and position, once per block. A synced LFO follows the
+  /// beat while the transport plays (locked to the bar) and keeps the synced rate
+  /// while it is stopped.
+  void setTransport(double bpm, double beatPosition, bool playing) noexcept {
+    bpm_ = bpm > 1.0 ? bpm : 120.0;
+    beatPosition_ = beatPosition;
+    playing_ = playing;
+  }
+
+  /// The voice's note, or -1 (Synth101 allocates voices by it).
+  int currentNote() const noexcept { return held_ ? currentNote_ : -1; }
 
  private:
   /// Sound a note: pitch, glide and, unless it is legato, the envelopes.
@@ -337,8 +424,9 @@ class Voice101 {
       amplitudeEnvelope_.noteOn();
       filterEnvelope_.noteOn();
       vibratoTime_ = 0.0;
-      if (params_.lfo1Retrigger >= 0.5) lfoPhase_ = 0.0;
-      if (params_.lfo2Retrigger >= 0.5) lfo2Phase_ = 0.0;
+      modEnvelope_.noteOn();
+      if (lfoMode_[0].retrigger) lfoPhase_ = 0.0;
+      if (lfoMode_[1].retrigger) lfo2Phase_ = 0.0;
     }
     // A fresh random value for every note, legato or not (Serum's NoteOn Rand).
     randomState_ ^= randomState_ << 13;
@@ -381,28 +469,66 @@ class Voice101 {
 
  public:
 
-  /// Produce one sample. Realtime-safe.
+  /// Produce one sample. Realtime-safe. Mono: with stereo spread on, the left
+  /// channel (use processStereo).
   double process() noexcept {
+    double l, r;
+    render(false, l, r);
+    return l;
+  }
+
+  /// Produce one stereo sample. With stereo spread 0 (or no unison) both sides
+  /// are process(), bit for bit.
+  void processStereo(double& left, double& right) noexcept {
+    if (!stereo_) {
+      left = right = process();
+      return;
+    }
+    render(true, left, right);
+  }
+
+ private:
+  /// One LFO's phase step: free-running in Hz, or synced to the host's beat.
+  double stepLfo(int k, double& phase, double rateHz) noexcept {
+    const LfoMode& m = lfoMode_[k];
+    if (m.division == 0) {
+      phase = wrap01(phase + rateHz / sampleRate_);
+      return phase;
+    }
+    const double beats = kLfoDivisionBeats[m.division];
+    if (playing_ && !m.retrigger) {
+      // Locked to the bar: the same phase at the same beat, every pass.
+      const double cycles = beatPosition_ / beats;
+      phase = cycles - std::floor(cycles);
+    } else {
+      phase = wrap01(phase + (bpm_ / 60.0 / beats) / sampleRate_);
+    }
+    return phase;
+  }
+
+  void render(bool stereo, double& outL, double& outR) noexcept {
     // --- Envelopes first: the matrix reads them. (Their state does not depend
     // on the signal, so ticking them here changes no number.)
     const double envelope = filterEnvelope_.tick();
     double amplitude = amplitudeEnvelope_.tick();
+    const double env3 = modEnvelope_.tick();
 
     // --- LFOs (unipolar phase, bipolar output). A rate modulation uses the
     // previous sample's matrix value: the LFO cannot wait for itself.
     double rate1 = params_.lfoRateHz;
     if (lfoRateMod_[0] != 0.0) rate1 *= std::pow(2.0, lfoRateMod_[0] * 4.0);
     const double before1 = lfoPhase_;
-    lfoPhase_ = wrap01(lfoPhase_ + rate1 / sampleRate_);
-    const double lfo = lfoValue(params_.lfo1Wave, lfoPhase_, lfoPhase_ < before1, lfo1Hold_);
+    stepLfo(0, lfoPhase_, rate1);
+    const double lfo = lfoValue(lfoMode_[0].wave, lfoPhase_, lfoPhase_ < before1, lfo1Hold_);
     double lfo2 = 0.0;
     if (lfo2Used_) {
       double rate2 = params_.lfo2RateHz;
       if (lfoRateMod_[1] != 0.0) rate2 *= std::pow(2.0, lfoRateMod_[1] * 4.0);
       const double before2 = lfo2Phase_;
-      lfo2Phase_ = wrap01(lfo2Phase_ + rate2 / sampleRate_);
-      lfo2 = lfoValue(params_.lfo2Wave, lfo2Phase_, lfo2Phase_ < before2, lfo2Hold_);
+      stepLfo(1, lfo2Phase_, rate2);
+      lfo2 = lfoValue(lfoMode_[1].wave, lfo2Phase_, lfo2Phase_ < before2, lfo2Hold_);
     }
+    if (playing_) beatPosition_ += bpm_ / 60.0 / sampleRate_;
 
     // --- Modulation matrix
     double mod[kDstCount] = {};
@@ -417,6 +543,7 @@ class Voice101 {
       source[kSrcModWheel] = modWheel_;
       source[kSrcAftertouch] = aftertouch_;
       source[kSrcNoteRandom] = noteRandom_;
+      source[kSrcModEnv] = env3;
       for (int i = 0; i < matrixSlots_; ++i) mod[slotDest_[i]] += source[slotSource_[i]] * slotAmount_[i];
       lfoRateMod_[0] = mod[kDstLfo1Rate];
       lfoRateMod_[1] = mod[kDstLfo2Rate];
@@ -488,26 +615,47 @@ class Voice101 {
       if (mod[kDstSubLevel] != 0.0) subLevel = clamp(subLevel + mod[kDstSubLevel], 0.0, 1.0);
       if (mod[kDstNoiseLevel] != 0.0) noiseLevel = clamp(noiseLevel + mod[kDstNoiseLevel], 0.0, 1.0);
     }
-    double mixed;
-    if (unisonExtra_ == 0) {
-      mixed = oscillator_.saw() * sawLevel * OscillatorCalibration::sawGain() +
-              oscillator_.pulse() * pulseLevel * OscillatorCalibration::pulseGain() +
-              oscillator_.subOctaveDown() * subLevel * OscillatorCalibration::subGain() +
-              noise_.next() * noiseLevel * OscillatorCalibration::noiseGain();
-    } else {
-      // Detuned voices are uncorrelated, so their sum grows as sqrt(N): scale
-      // by 1/sqrt(N) and the stack sits at a single saw's level, keeping the
-      // mixer's calibration. The sub stays on the centre oscillator, in tune.
-      double saw = unisonUsesCentre_ ? oscillator_.saw() : 0.0;
-      double pulse = unisonUsesCentre_ ? oscillator_.pulse() : 0.0;
-      for (int i = 0; i < unisonExtra_; ++i) {
-        saw += unison_[i].saw();
-        pulse += unison_[i].pulse();
+    double mixed = 0.0, mixedR = 0.0;
+    if (!stereo) {
+      if (unisonExtra_ == 0) {
+        mixed = oscillator_.saw() * sawLevel * OscillatorCalibration::sawGain() +
+                oscillator_.pulse() * pulseLevel * OscillatorCalibration::pulseGain() +
+                oscillator_.subOctaveDown() * subLevel * OscillatorCalibration::subGain() +
+                noise_.next() * noiseLevel * OscillatorCalibration::noiseGain();
+      } else {
+        // Detuned voices are uncorrelated, so their sum grows as sqrt(N): scale
+        // by 1/sqrt(N) and the stack sits at a single saw's level, keeping the
+        // mixer's calibration. The sub stays on the centre oscillator, in tune.
+        double saw = unisonUsesCentre_ ? oscillator_.saw() : 0.0;
+        double pulse = unisonUsesCentre_ ? oscillator_.pulse() : 0.0;
+        for (int i = 0; i < unisonExtra_; ++i) {
+          saw += unison_[i].saw();
+          pulse += unison_[i].pulse();
+        }
+        mixed = saw * unisonGain_ * sawLevel * OscillatorCalibration::sawGain() +
+                pulse * unisonGain_ * pulseLevel * OscillatorCalibration::pulseGain() +
+                oscillator_.subOctaveDown() * subLevel * OscillatorCalibration::subGain() +
+                noise_.next() * noiseLevel * OscillatorCalibration::noiseGain();
       }
-      mixed = saw * unisonGain_ * sawLevel * OscillatorCalibration::sawGain() +
-              pulse * unisonGain_ * pulseLevel * OscillatorCalibration::pulseGain() +
-              oscillator_.subOctaveDown() * subLevel * OscillatorCalibration::subGain() +
-              noise_.next() * noiseLevel * OscillatorCalibration::noiseGain();
+    } else {
+      // Stereo: each unison voice is panned (equal power, centre = unity), the
+      // centre voice, sub and noise sit in the middle. Two filter paths follow.
+      double sawL = unisonUsesCentre_ ? oscillator_.saw() : 0.0;
+      double pulseL = unisonUsesCentre_ ? oscillator_.pulse() : 0.0;
+      double sawR = sawL, pulseR = pulseL;
+      for (int i = 0; i < unisonExtra_; ++i) {
+        const double sv = unison_[i].saw(), pv = unison_[i].pulse();
+        sawL += sv * panL_[i];
+        sawR += sv * panR_[i];
+        pulseL += pv * panL_[i];
+        pulseR += pv * panR_[i];
+      }
+      const double centre = oscillator_.subOctaveDown() * subLevel * OscillatorCalibration::subGain() +
+                            noise_.next() * noiseLevel * OscillatorCalibration::noiseGain();
+      mixed = sawL * unisonGain_ * sawLevel * OscillatorCalibration::sawGain() +
+              pulseL * unisonGain_ * pulseLevel * OscillatorCalibration::pulseGain() + centre;
+      mixedR = sawR * unisonGain_ * sawLevel * OscillatorCalibration::sawGain() +
+               pulseR * unisonGain_ * pulseLevel * OscillatorCalibration::pulseGain() + centre;
     }
     for (int k = 0; k < 2; ++k) {
       if (!extraUsed_[k]) continue;
@@ -516,9 +664,18 @@ class Voice101 {
       double f = frequency * extraRatio_[k];
       const double pitchMod = mod[k == 0 ? kDstOsc2Pitch : kDstOsc3Pitch];
       if (pitchMod != 0.0) f *= std::pow(2.0, pitchMod * 2.0);
-      mixed += level * renderExtra(extra_[k], extraWave_[k], f);
+      if (!stereo) {
+        mixed += level * renderExtra(extra_[k], extraWave_[k], f);
+      } else {
+        double l, r;
+        renderExtraStereo(extra_[k], extraWave_[k], f, l, r);
+        mixed += level * l;
+        mixedR += level * r;
+      }
     }
-    mixed += variationEngine_.tickNoise();
+    const double circuitNoise = variationEngine_.tickNoise();
+    mixed += circuitNoise;
+    mixedR += circuitNoise;
 
     // --- Filter cutoff: base, envelope, LFO, keyboard tracking
     double cutoff = params_.cutoffHz;
@@ -535,17 +692,45 @@ class Voice101 {
       octaves += params_.velocityToCutoff * (velocity_ - 1.0) * kVelocityCutoffOctaves;
     if (matrixSlots_ > 0) octaves += mod[kDstCutoff] * 5.0;
     cutoff *= std::pow(2.0, octaves);
-    filter_.setCutoff(cutoffSmoother_.next(cutoff));
-    if (resonanceModulated_) filter_.setResonance(clamp(params_.resonance + mod[kDstResonance], 0.0, 1.0));
-
-    const double filtered = filter_.process(mixed);
+    const double smoothed = cutoffSmoother_.next(cutoff);
+    const double resonance = resonanceModulated_ ? clamp(params_.resonance + mod[kDstResonance], 0.0, 1.0) : params_.resonance;
+    double filtered, filteredR = 0.0;
+    if (filterMode_ == 0) {
+      filter_.setCutoff(smoothed);
+      if (resonanceModulated_) filter_.setResonance(resonance);
+      filtered = filter_.process(mixed);
+      if (stereo) {
+        filterR_.setCutoff(smoothed);
+        if (resonanceModulated_) filterR_.setResonance(resonance);
+        filteredR = filterR_.process(mixedR);
+      }
+    } else {
+      filtered = svfMode(0, mixed, smoothed, resonance);
+      if (stereo) filteredR = svfMode(1, mixedR, smoothed, resonance);
+    }
 
     // --- VCA
     if (params_.velocityToAmp > 0.0)
       amplitude *= velocitySmoother_.next(1.0 - params_.velocityToAmp * (1.0 - velocity_));
     if (matrixSlots_ > 0 && mod[kDstAmp] != 0.0) amplitude *= clamp(1.0 + mod[kDstAmp], 0.0, 2.0);
-    return vca_.process(filtered, amplitude) * params_.outputLevel;
+    outL = vca_.process(filtered, amplitude) * params_.outputLevel;
+    outR = stereo ? vcaR_.process(filteredR, amplitude) * params_.outputLevel : outL;
   }
+
+  /// High-pass (two cascaded 12 dB sections, 24 dB) or band-pass (one section,
+  /// unity peak) - TPT state-variable filters at the base rate, for the modes
+  /// the ladder does not have. side 0 = left/mono, 1 = right.
+  double svfMode(int side, double x, double cutoffHz, double resonance) noexcept {
+    const double fc = clamp(cutoffHz, 10.0, sampleRate_ * 0.45);
+    const double k = 2.0 - 1.9 * resonance;  // res 0: Q 0.5; res 1: Q 10
+    if (filterMode_ == 1) {
+      const double y = svf_[side * 2].highpass(x, fc, k, sampleRate_);
+      return svf_[side * 2 + 1].highpass(y, fc, k, sampleRate_);
+    }
+    return k * svf_[side * 2].bandpass(x, fc, k, sampleRate_);
+  }
+
+ public:
 
   static double noteToHz(int midiNote) noexcept {
     return 440.0 * std::pow(2.0, (midiNote - 69) / 12.0);
@@ -617,6 +802,22 @@ class Voice101 {
     return sum * unisonGain_;
   }
 
+  /// Oscillator 2 or 3 in stereo: the stack panned as oscillator 1's is.
+  void renderExtraStereo(ExtraOscillator& e, int wave, double frequency, double& l, double& r) noexcept {
+    e.main.setFrequency(frequency);
+    e.main.tick();
+    l = r = unisonUsesCentre_ ? waveOf(e.main, wave) : 0.0;
+    for (int i = 0; i < unisonExtra_; ++i) {
+      e.unison[i].setFrequency(frequency * unisonRatio_[i]);
+      e.unison[i].tick();
+      const double v = waveOf(e.unison[i], wave);
+      l += v * panL_[i];
+      r += v * panR_[i];
+    }
+    l *= unisonGain_;
+    r *= unisonGain_;
+  }
+
   void configureExtras() noexcept {
     const double level[2] = {params_.osc2Level, params_.osc3Level};
     const double wave[2] = {params_.osc2Wave, params_.osc3Wave};
@@ -672,6 +873,12 @@ class Voice101 {
     for (long j = 0; j < n; ++j) {
       if (unisonUsesCentre_ && j == centre) continue;
       const double position = -1.0 + 2.0 * static_cast<double>(j) / static_cast<double>(n - 1);
+      // Pan follows detune position: the sharpest voice furthest right. Equal
+      // power, scaled so a centred voice is unity on both sides.
+      const double spread = clamp(params_.stereoSpread, 0.0, 1.0);
+      const double angle = (position * spread + 1.0) * (kPi / 4.0);
+      panL_[k] = std::sqrt(2.0) * std::cos(angle);
+      panR_[k] = std::sqrt(2.0) * std::sin(angle);
       unisonRatio_[k++] = std::pow(2.0, position * params_.unisonDetuneCents / 1200.0);
     }
     unisonExtra_ = k;
@@ -688,9 +895,19 @@ class Voice101 {
   double unisonGain_ = 1.0;
   NoiseGenerator noise_{};
   Filter101 filter_{};
+  Filter101 filterR_{};  ///< the right side of stereo unison
   Envelope amplitudeEnvelope_{};
   Envelope filterEnvelope_{};
+  Envelope modEnvelope_{};  ///< the third envelope, a matrix source only
   Vca vca_{};
+  Vca vcaR_{};
+  StateVariableFilter svf_[4]{};  ///< high/band-pass: two sections per side
+  double panL_[kMaxUnisonExtra]{}, panR_[kMaxUnisonExtra]{};
+  bool stereo_ = false;
+  int filterMode_ = 0;
+  LfoMode lfoMode_[2] = {{0, false, 0}, {0, false, 0}};
+  double bpm_ = 120.0, beatPosition_ = 0.0;
+  bool playing_ = false;
   ParameterSmoother cutoffSmoother_{};
   ParameterSmoother velocitySmoother_{};
   AnalogVariation variation_{};

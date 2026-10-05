@@ -1,17 +1,17 @@
 # AnalogFoundry 101
 
-An SH-101-style monophonic virtual-analogue synthesiser, built to
+An SH-101-style virtual-analogue synthesiser - monophonic by default, up to
+eight voices when asked - built to
 `ANALOG_SYNTH_AGENT.md`. Original code, no third-party DSP — see
 [THIRD_PARTY.md](THIRD_PARTY.md).
 
-**All ten milestones are implemented.** 126 automated checks across four
-suites, all passing. One open defect and one manual step are documented below
-rather than buried.
+**All ten milestones are implemented.** 232 automated checks across four
+suites, all passing. What is still open is listed at the end rather than buried.
 
 ## Build
 
 ```bash
-git clone --depth 1 https://github.com/DISTRHO/DPF.git analogfoundry/external/dpf
+git clone --depth 1 --recurse-submodules https://github.com/DISTRHO/DPF.git analogfoundry/external/dpf
 cmake -S analogfoundry -B analogfoundry/build -G "Visual Studio 17 2022" -A x64
 cmake --build analogfoundry/build --config Release
 cd analogfoundry/build && ctest -C Release
@@ -20,10 +20,14 @@ cd analogfoundry/build && ctest -C Release
 Builds with MSVC 14.44 (VS 2022 Community); CMake's VS generator finds the
 compiler without a developer prompt. DPF is optional — without
 `external/dpf` everything except the plugin still builds, and CMake says so.
+The editor needs DPF's `pugl` submodule: a DPF clone without it fails in
+`dgl-opengl` (`pugl/pugl.h` not found) and leaves the previous plugin binary in
+place, so check for errors rather than for a `.vst3` file. In an existing clone,
+`git -C analogfoundry/external/dpf submodule update --init --depth 1`.
 
 ```
 100% tests passed, 0 tests failed out of 4
-  plugin_loads   9 checks     model      44 checks
+  plugin_loads  10 checks     model     149 checks
   dsp           47 checks     hardening  26 checks
 ```
 
@@ -45,6 +49,7 @@ compiler without a developer prompt. DPF is optional — without
 | — | Expression (beyond the 101, 0.3) | Velocity to amp and cutoff, a **separate filter ADSR**, a vibrato that **fades in** after each note, slow **pitch drift**, and **glide on slurs only**. All off by default and **bit-identical when off** (full velocity is too). Measured: velocity 0.5 at full amp depth **-6.0 dB**; a soft note darker; the separate envelope closes the tone while the note sustains (brightness 1.35x early vs late, 1.00 shared); vibrato under 15 % of full depth in the first 200 ms, full after the fade; drift of 15 cents wanders 8-32 cents peak to peak; a detached note under legato glide starts on pitch, a slurred one slides. Why: the CamelPhat leads route velocity to cutoff (16 of 18), an envelope to cutoff, slow LFO to fine tune (8) and vibrato on a macro, none of which the 101's one envelope could do |
 | — | Note memory and MIDI panic (0.3.1) | Last-note priority as before, but up to 16 held notes are remembered: releasing the newest returns, legato, to the newest note still held (it used to release the voice). Releasing an older note changes nothing that sounds. **CC 123** (all notes off) releases everything through the release stage; **CC 120** (all sound off) silences on the next sample. Reference renders byte-identical to 0.3.0; 13 checks |
 | — | Oscillators and modulation (0.4) | **Oscillators 2 and 3**: saw, pulse, triangle or sine, each with level, octave, semitone and fine tune, through the shared unison stack. **LFO 2**, waveforms for both LFOs (sine, triangle, saw, square, sample-and-hold) and retrigger. **Pitch bend** (range 0-24 st), **mod wheel**, **aftertouch**. An **8-slot modulation matrix**: 9 sources (both envelopes, both LFOs, velocity, key, wheel, pressure, per-note random) to 16 destinations (cutoff, pitch, each oscillator's pitch and level, pulse width, resonance, amp, noise, sub, LFO rates, fine). Off by default, and reference renders are **byte-identical** to 0.3.1. Measured: each osc-2 wave within 0.5 dB of the saw's level; octave, semitone and fine tune to 0.5 Hz; bend to its range; velocity -> amp x1.5 = +3.5 dB; envelope -> pitch drops an octave to the note; LFO-2 square -> pitch exactly two semitones apart; sample-and-hold steps and repeats; note random differs per note and repeats per run; every feature at its extreme stays finite. 23 checks. Worst case (3 oscillators x 7-voice unison, all 8 slots) **22.7x realtime** |
+| — | Sync, stereo, polyphony (0.5) | **Tempo-synced LFOs**: each LFO's mode packs wave, retrigger and one of 13 divisions (1/32 to 4 bars, with triplets and dotted), read from the host's tempo and bar position. While the transport plays a synced LFO is **locked to the bar**: a note started one cycle later sounds the same (difference < 1 %), half a cycle later the other way; retriggered, it starts with the note. Measured 1/4 at 120 = 2.0 Hz, at 150 = 2.5 Hz, 1/8 at 120 = 4 Hz. **Stereo**: unison voices panned equal-power across the field (`stereo` 0-1); spread 1 takes the channel correlation below 0.8 and holds each channel's level within 1.5 dB; spread 0, or unison off, is mono bit for bit. **Polyphony**: `voices` 1-8; one voice is the monophonic 101 **bit for bit** (legato, glide, note memory), more give each note its own voice and steal the oldest; a three-note chord sounds each note within 3 dB, 30 dB above the gaps. **Envelope 3**, a free ADSR as a matrix source. **Filter modes**: the ladder low-pass, a 24 dB high-pass (the fundamental down 40 dB) and a 2-pole band-pass (unity at the cutoff, the fundamental down 15 dB). Reference renders **byte-identical** to 0.4 after the filter fix. 23 checks. An editor shows every parameter in words and the matrix as "LFO 1 -> Cutoff +35 %" |
 
 ## CPU
 
@@ -58,79 +63,63 @@ compiler without a developer prompt. DPF is optional — without
 | 4x + all nonlinearity and variation | 22x |
 | 4x + unison, 7 voices | 25x (26x with 0.3) |
 | 4x + 3 oscillators x unison 7 + 8 matrix slots (0.4) | 22.7x |
+| 8 voices, 4 notes x unison 7, stereo (0.5) | 2.9x |
+| 8 voices, 8 notes x unison 7, stereo (0.5) | 1.4x |
 | Effect, 4x | 26x |
 
-## Two things that are not finished
+Stereo runs a second filter per voice and each note its own voice, so a pad costs
+notes x unison x 2 filters: four notes of a 7-voice stereo stack is a third of a
+core. Use 2-3 unison voices for pads; the converted Serum pads ask for up to 7.
 
-**A real defect at 2x oversampling.** Measured against the analog prototype
-(ideal −12.04 dB at the corner, −1.05 dB at 3 kHz for a 12 kHz corner):
+## The 2x oversampling defect - fixed in 0.5
 
-| Quality | 3 kHz | corner |
+For a long time 2x put a 12 kHz corner at −18.1 dB instead of −12.0, and 4x was
+1.4 dB off too, though every part measured transparent alone. The cause was C++,
+not DSP: `Filter101::process` passed two `processOversampled()` calls as the
+arguments of one function. Their order is unspecified, and MSVC evaluates
+arguments right to left, so each pair of oversampled samples went through the
+ladder's state backwards in time. Each sample now has its own statement:
+
+| Quality | 3 kHz | corner (ideal −12.04) |
 |---|---|---|
 | 1x | −0.67 | −12.04 |
-| **2x** | **−1.29** | **−18.08** |
-| 4x | −1.11 | −13.41 |
+| 2x | — | **−12.04** (was −18.08) |
+| 4x | −1.03 (ideal −1.05) | **−12.04** (was −13.41) |
 
-1x matches at the corner because TPT prewarping places it there by
-construction, and 4x tracks the prototype better across the passband. Both are
-defensible. 2x is worse than *both*, which is not a trade-off — it is a bug.
-Isolated as far as: the cascade alone is rate-independent (−11.9 dB at 48, 96
-and 192 kHz) and the interpolator/decimator pair is transparent to 0.00 dB at
-every frequency tested, yet composing them produces this. Unresolved. The
-default is therefore **4x**, and `model_tests` pins the 2x number so any
-change to it is caught.
+`model_tests` now holds 2x and 4x to within 0.2 dB of the ideal. The default
+stays 4x, which still folds the least aliasing. Its sound moved slightly, by
+being right.
 
-**Live is not scanning any VST3 folder.** The plugin is installed to the
-standard user-level VST3 location:
+## Installing in Live
+
+**Live on this machine loads AF101 from a custom VST3 folder**, not the system
+one. Its plugin database records the path:
 
 ```
-%LOCALAPPDATA%\Programs\Common\VST3\AnalogFoundry101.vst3
+%USERPROFILE%\Documents\VST3\AnalogFoundry101.vst3
 ```
 
-That is a VST3 system folder by specification, so no custom path should be
-needed - but Live currently finds nothing there. Its own log is unambiguous:
+Install there, with Live closed (it holds the file open). A copy left in the
+system folder, `%LOCALAPPDATA%\Programs\Common\VST3`, is ignored, and Live then
+keeps loading the old build. The log line `plugin processor successfully loaded:
+... v0.x.0` says which version actually loaded; check it after every install.
+`PluginScanner.txt` in Live's Preferences folder gives the path it scanned.
 
-```
-info: PluginManager: Scan start ------------------
-info: PluginManager: Scan end --------------------
-```
-
-Nothing between the two lines: zero modules scanned, and `PluginScanDb.txt`
-has empty module and plugin tables to match. So plugin folders are switched
-off (or were empty at scan time), not merely stale. `live.browse` with
-`{"category": "plugins"}` returns 0 entries, which is how this was confirmed
-rather than assumed.
-
-The fix is one visit to Preferences, and **no restart** - Rescan works live:
-
-> Preferences -> Plug-Ins -> enable **Use VST3 Plug-In System Folders**
-> (and/or set a Custom Folder) -> **Rescan**
-
-The API cannot change this: Live stores it in a binary `Preferences.cfg` that
-it rewrites on exit, so editing it under a running Live would be both risky
-and futile.
-
-## What the tests caught that listening would not have
-
-- A 50 ms attack finishing in **19.5 ms**. The attack aims past 1.0 for the
-  right curve but ends at 1.0, so it needs its own exponent.
-- An aliasing test measuring **nothing**: at 2 kHz with a 48 kHz rate every
-  alias folds onto a harmonic. Moving to 1873 Hz took the reading from 0.6 dB
-  to 13.8 dB. The oscillator was fine; the measurement was worthless.
-- **4x oversampling aliasing *more* than 1x**, because decimation was two
-  one-poles. Replaced with a Kaiser half-band FIR.
-- Then still worse, because the input was **zero-order held** rather than
-  interpolated. Adding a matching half-band interpolator took a 12 kHz corner
-  from −21.9 dB to −13.4, and the folded-energy figure to 123 dB better.
-- A nonlinearity test reporting **1e-15** — numerical zero — because it
-  correlated against `sin` only, so anything in quadrature cancelled.
+Live needs **Preferences -> Plug-Ins -> Use VST3 Plug-In System Folders** on,
+then **Rescan** (no restart). That was done once on this machine, and Live has
+listed AF101 since. If `live.browse {"category": "plugins"}` ever returns 0
+entries again, that switch is the first thing to check. Close Live before
+copying a new build over the installed one, since Live holds the file open. A
+Set restores a plugin with the parameter list it was saved with, so a new
+parameter shows up only on a fresh instance (delete the device, then load it
+again).
 
 ## Layout
 
 ```
 src/dsp/      Oscillator, Filter101, Decimator, Envelope (+ Vca, smoother)
-src/model/    Voice101, Effect101, Calibration, Preset
-src/plugin/   DPF wrapper (VST3 + CLAP)
+src/model/    Voice101, Synth101 (voices), Effect101, Calibration, Preset
+src/plugin/   DPF wrapper (VST3 + CLAP), the editor (PluginUI) and Labels.h
 tests/        dsp, model, hardening, plugin_load
 tools/        render_note, bench, analyse.py
 ```
@@ -143,7 +132,11 @@ same engine serve the renderer, the tests and the VST3.
 `npm run convert-preset -- <.SerumPreset | .h2p | folder>... [--out DIR]` (from the
 repo root) writes, for each preset, an AF101 patch (`.txt`), the Live devices to put
 after it (`.chain.json`) and a report (`.md`) of what was mapped, approximated and
-dropped, with every unit assumption by code (S1-S9, D1-D9). The code is
+dropped, with every unit assumption by code (S1-S10, D1-D9). Since 0.5 a polyphonic
+preset plays on AF101's voices (8 for Serum, Diva's own count), Serum's unison stereo
+becomes `stereo`, a Serum high- or band-pass uses `filter_mode` rather than an EQ
+Eight, synced LFOs are synced (1/4, the default the pack stores), and a third
+envelope a route uses becomes env 3. The code is
 `agent/src/presets/`, and the tests are `bridge/tests/presets.test.ts`. The default
 output, `presets/converted/`, is **git-ignored**: patches derived from a licensed
 pack stay on this machine.
@@ -166,8 +159,9 @@ analogfoundry/build/Release/render_note.exe --note 45 --seconds 2.2 \
 
 `--preset FILE` loads a patch first (later flags override it) and `--velocity V`
 sets the note's velocity. `--unison N --detune CENTS` stack up to 7 detuned voices (the outermost at
-+/- the detune). Unison is mono for now: the voices sum into one filter and
-both outputs carry it, so widen it after the synth (Chorus-Ensemble).
++/- the detune), and `--stereo S` spreads them across the field. `--voices N --chord 60,64,67`
+plays a chord, and `--bpm B` runs a transport so synced LFOs follow it. The WAV is true
+stereo; with spread 0 both channels are identical.
 
 Render into `<User Library>/Samples/<project>/` and Live indexes it
 immediately — no Place needs adding, unlike an arbitrary folder.
@@ -179,3 +173,13 @@ this for a 101-style bass because the raw behaviour feels right?* — is a
 listening question, and nothing here has been listened to. Reference matching
 has the tools (Milestone 7) but no real 101 recordings have been compared
 against yet; that needs source material.
+
+Not yet checked in Live, and stated so rather than assumed:
+
+- **Pitch bend, mod wheel, aftertouch and CC 123/120** are measured offline, but
+  have not been played from a controller through Live.
+- **The editor** builds and loads with the plugin (`plugin_load_test`), but has
+  not been seen on screen: the standalone build needs a JACK server, which this
+  machine does not have. Open it in Live before relying on it.
+- **Host tempo**: the sync tests drive the transport directly. Live's reported
+  bar position reaching the LFOs is wired (`getTimePosition`) but not yet heard.

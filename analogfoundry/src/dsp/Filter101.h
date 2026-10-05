@@ -98,11 +98,19 @@ class Filter101 {
 
   /// One sample in, one sample out. Realtime-safe: no allocation, no locks.
   double process(double input) noexcept {
+    // Every oversampled sample is run through the ladder in time order, one
+    // statement each. Passing two processOversampled() calls as the arguments of
+    // one function left their order to the compiler; MSVC evaluates arguments
+    // right to left, so each pair ran backwards through the filter's state. That
+    // was the long-unexplained 2x defect (a 12 kHz corner at -18.1 dB instead of
+    // -12.0) and the 4x path's -1.4 dB error, both measured in model_tests.
     if (oversample_ == 1) return processOversampled(input);
     if (oversample_ == 2) {
       double a, b;
       up1_.process(input, a, b);
-      return down1_.process(processOversampled(a), processOversampled(b));
+      const double ya = processOversampled(a);
+      const double yb = processOversampled(b);
+      return down1_.process(ya, yb);
     }
     // 4x: two cascaded halvings each way, rather than one wide filter.
     double x2a, x2b;
@@ -110,8 +118,12 @@ class Filter101 {
     double a, b, c, d;
     up2_.process(x2a, a, b);
     up2_.process(x2b, c, d);
-    const double ya = down2_.process(processOversampled(a), processOversampled(b));
-    const double yb = down2_.process(processOversampled(c), processOversampled(d));
+    const double ra = processOversampled(a);
+    const double rb = processOversampled(b);
+    const double rc = processOversampled(c);
+    const double rd = processOversampled(d);
+    const double ya = down2_.process(ra, rb);
+    const double yb = down2_.process(rc, rd);
     return down1_.process(ya, yb);
   }
 

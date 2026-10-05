@@ -16,7 +16,8 @@
 #include "DistrhoPlugin.hpp"
 
 #include "../model/Preset.h"
-#include "../model/Voice101.h"
+#include "../model/Synth101.h"
+#include "Labels.h"
 
 START_NAMESPACE_DISTRHO
 
@@ -42,7 +43,7 @@ class AnalogFoundry101 : public Plugin {
   const char* getMaker() const override { return "AnalogFoundry"; }
   const char* getHomePage() const override { return DISTRHO_PLUGIN_URI; }
   const char* getLicense() const override { return "ISC"; }
-  uint32_t getVersion() const override { return d_version(0, 4, 0); }  // 0.4: oscillators 2-3, LFO 2, matrix, bend
+  uint32_t getVersion() const override { return d_version(0, 5, 0); }  // 0.5: tempo sync, stereo, polyphony, env 3, filter modes
 
   /// Stable across releases: changing it makes hosts lose existing projects.
   int64_t getUniqueId() const override { return d_cconst('A', 'F', '1', '1'); }
@@ -57,18 +58,11 @@ class AnalogFoundry101 : public Plugin {
     // A voice count is a whole number: the host should step it, not sweep it.
     if (std::strcmp(d.id, "unison") == 0) parameter.hints |= kParameterIsInteger;
     // On/off switches: a host should show and automate them as toggles.
-    if (std::strcmp(d.id, "fenv_separate") == 0 || std::strcmp(d.id, "legato_glide") == 0 ||
-        std::strcmp(d.id, "lfo1_retrig") == 0 || std::strcmp(d.id, "lfo2_retrig") == 0)
+    if (std::strcmp(d.id, "fenv_separate") == 0 || std::strcmp(d.id, "legato_glide") == 0)
       parameter.hints |= kParameterIsBoolean;
+    if (std::strcmp(d.id, "voices") == 0) parameter.hints |= kParameterIsInteger;
     // Choices show their names, so an automation lane reads "Saw", not "0".
-    static const char* const kOscWaves[] = {"Saw", "Pulse", "Triangle", "Sine"};
-    static const char* const kLfoWaves[] = {"Sine", "Triangle", "Saw", "Square", "S&H"};
-    static const char* const kSources[] = {"None", "Amp Env", "Filter Env", "LFO 1", "LFO 2",
-                                           "Velocity", "Key", "Mod Wheel", "Aftertouch", "Note Random"};
-    static const char* const kDests[] = {"None", "Cutoff", "Pitch", "Osc 1 Pitch", "Osc 2 Pitch",
-                                         "Osc 3 Pitch", "Pulse Width", "Resonance", "Amp", "Osc 1 Level",
-                                         "Osc 2 Level", "Osc 3 Level", "Noise Level", "Sub Level",
-                                         "LFO 1 Rate", "LFO 2 Rate", "Fine"};
+    namespace L = af::labels;
     const std::string id = d.id;
     const auto ends = [&](const char* tail) {
       const size_t n = std::strlen(tail);
@@ -77,10 +71,9 @@ class AnalogFoundry101 : public Plugin {
     if (ends("_oct") || ends("_semi")) parameter.hints |= kParameterIsInteger;
     // A packed matrix slot (Voice101.h packModSlot) is an integer code.
     if (id.size() == 4 && id.compare(0, 3, "mod") == 0) parameter.hints |= kParameterIsInteger;
-    if (id == "osc2_wave" || id == "osc3_wave") setChoices(parameter, kOscWaves, 4);
-    else if (id == "lfo1_wave" || id == "lfo2_wave") setChoices(parameter, kLfoWaves, 5);
-    else if (ends("_src")) setChoices(parameter, kSources, 10);
-    else if (ends("_dst")) setChoices(parameter, kDests, 17);
+    if (id == "osc2_wave" || id == "osc3_wave") setChoices(parameter, L::kOscWaves, 4);
+    else if (id == "lfo1_wave" || id == "lfo2_wave") setLfoModes(parameter);
+    else if (id == "filter_mode") setChoices(parameter, L::kFilterModes, 3);
     parameter.name = d.name;
     parameter.symbol = d.id;
     parameter.unit = d.unit;
@@ -174,6 +167,16 @@ class AnalogFoundry101 : public Plugin {
     float* left = outputs[0];
     float* right = outputs[1];
 
+    // The host's tempo and bar position, for synced LFOs.
+    const TimePosition& time = getTimePosition();
+    if (time.bbt.valid) {
+      const double beat = (time.bbt.bar - 1) * static_cast<double>(time.bbt.beatsPerBar) + (time.bbt.beat - 1) +
+                          time.bbt.tick / (time.bbt.ticksPerBeat > 0 ? time.bbt.ticksPerBeat : 1920.0);
+      voice_.setTransport(time.bbt.beatsPerMinute, beat, time.playing);
+    } else {
+      voice_.setTransport(120.0, 0.0, false);
+    }
+
     uint32_t eventIndex = 0;
     for (uint32_t frame = 0; frame < frames; ++frame) {
       // Apply every event timed at or before this frame, so note timing is
@@ -182,9 +185,10 @@ class AnalogFoundry101 : public Plugin {
         handleMidi(midiEvents[eventIndex]);
         ++eventIndex;
       }
-      const float sample = static_cast<float>(voice_.process());
-      left[frame] = sample;
-      right[frame] = sample;  // the voice is mono; a stereo stage comes later
+      double l, r;
+      voice_.processStereo(l, r);  // equal on both sides unless stereo spread is on
+      left[frame] = static_cast<float>(l);
+      right[frame] = static_cast<float>(r);
     }
     // Events past the end of the buffer still belong to this block.
     while (eventIndex < midiEventCount) {
@@ -195,6 +199,21 @@ class AnalogFoundry101 : public Plugin {
 
  private:
   static constexpr uint32_t kProgramCount = 4;
+
+  /// LFO modes: wave + 5 * retrigger + 10 * division, labelled "Sine", "Saw retrig",
+  /// "Square 1/8D" ... so an automation lane reads as what it does.
+  static void setLfoModes(Parameter& parameter) {
+    const uint8_t count = static_cast<uint8_t>(af::kLfoModeMax + 1);
+    parameter.hints |= kParameterIsInteger;
+    parameter.enumValues.count = count;
+    parameter.enumValues.restrictedMode = true;
+    auto* values = new ParameterEnumerationValue[count];
+    for (uint8_t i = 0; i < count; ++i) {
+      values[i].label = af::labels::lfoMode(i).c_str();
+      values[i].value = static_cast<float>(i);
+    }
+    parameter.enumValues.values = values;
+  }
 
   static void setChoices(Parameter& parameter, const char* const* labels, uint8_t count) {
     parameter.hints |= kParameterIsInteger;
@@ -236,7 +255,7 @@ class AnalogFoundry101 : public Plugin {
     if (event.size >= 2 && (event.data[0] & 0xF0) == 0xD0) voice_.setAftertouch((event.data[1] & 0x7F) / 127.0);
   }
 
-  af::Voice101 voice_;
+  af::Synth101 voice_;
   af::Voice101Parameters params_;
 
   DISTRHO_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AnalogFoundry101)

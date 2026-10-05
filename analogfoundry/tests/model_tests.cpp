@@ -15,6 +15,7 @@
 #include "../src/dsp/Decimator.h"
 #include "../src/model/Effect101.h"
 #include "../src/model/Preset.h"
+#include "../src/model/Synth101.h"
 #include "../src/model/Voice101.h"
 
 namespace {
@@ -275,32 +276,23 @@ void nonlinearityTests() {
                 rejectionDb);
   }
 
-  // 2. Response accuracy against the analog prototype - and an open defect.
+  // 2. Response accuracy against the analog prototype.
   //
   //    A 4-pole lowpass with corner fc is -12.04 dB at fc and -1.05 dB an
   //    octave and a bit below (3 kHz for a 12 kHz corner). Measured:
   //
   //        quality   3 kHz     12 kHz (corner)
   //        1x        -0.67     -12.04
-  //        2x        -1.29     -18.08
-  //        4x        -1.11     -13.42
+  //        2x        (-1.29)   -12.04   (was -18.08)
+  //        4x        -1.03     -12.04   (was -13.42)
   //        analog    -1.05     -12.04
   //
-  //    1x matches exactly at the corner because TPT prewarping places it
-  //    there by construction, but it is too flat below. 4x tracks the
-  //    prototype better across the passband and overshoots slightly at the
-  //    corner. Both are defensible approximations.
-  //
-  //    2x is neither: it is worse than 1x AND worse than 4x, which is not a
-  //    trade-off, it is a bug. Non-monotonic behaviour in the oversampling
-  //    factor cannot be explained by approximation error. It has been
-  //    isolated as far as: the cascade itself is rate-independent (-11.9 dB
-  //    at 48/96/192 kHz), and the interpolator-decimator pair is transparent
-  //    to within 0.00 dB at every frequency tested - yet composing them
-  //    produces this. That contradiction is unresolved.
-  //
-  //    So this asserts only what is proven, and pins the 2x number so that
-  //    any change to it - fix or regression - is caught.
+  //    2x used to be worse than both 1x and 4x - a bug, not a trade-off - with
+  //    the resampler pair alone transparent to 0.00 dB. The cause: the ladder ran
+  //    each oversampled pair in the order the compiler evaluated two function
+  //    arguments, and MSVC goes right to left, so every pair ran backwards
+  //    (Filter101::process). Fixed, every factor now lands on the corner; this
+  //    asserts that, and that 4x still tracks the passband better than 1x.
   {
     auto cornerDb = [&](af::Quality q, double requestedHz, double atHz) {
       af::Filter101 f;
@@ -324,9 +316,8 @@ void nonlinearityTests() {
     const double twoX = cornerDb(af::Quality::Normal, 12000.0, 12000.0);
     const double fourX = cornerDb(af::Quality::High, 12000.0, 12000.0);
     check(std::fabs(oneX + 12.04) < 0.5, "1x corner matches the 4-pole ideal", oneX);
-    check(std::fabs(fourX + 12.04) < 2.0, "4x corner within 2 dB of the ideal", fourX);
-    // Pinned, not endorsed. See the note above.
-    check(std::fabs(twoX + 18.1) < 1.0, "2x corner is at its known (wrong) value", twoX);
+    check(std::fabs(twoX + 12.04) < 0.2, "2x corner matches the 4-pole ideal (was -18.1)", twoX);
+    check(std::fabs(fourX + 12.04) < 0.2, "4x corner matches the 4-pole ideal (was -13.4)", fourX);
     // Passband accuracy, where 4x should beat 1x against the analog curve.
     const double oneLow = cornerDb(af::Quality::Draft, 12000.0, 3000.0);
     const double fourLow = cornerDb(af::Quality::High, 12000.0, 3000.0);
@@ -1336,13 +1327,13 @@ void oscillatorMatrixTests() {
     af::Voice101Parameters q;
     q.osc2Level = 0.5; q.osc2Wave = 2; q.osc2Octave = 1; q.osc2Semi = -5; q.osc2Fine = 12;
     q.osc3Level = 0.25; q.osc3Wave = 3; q.osc3Octave = -2;
-    q.lfo1Wave = 4; q.lfo1Retrigger = 1; q.lfo2RateHz = 0.7; q.lfo2Wave = 1; q.lfo2Retrigger = 1;
+    q.lfo1Wave = af::encodeLfoMode(4, true, 0); q.lfo2RateHz = 0.7; q.lfo2Wave = af::encodeLfoMode(1, true, 0);
     q.pitchBendRange = 12;
     af::setModSlot(q, 7, 9, 16, -0.25);
     const auto back = af::loadPreset(af::savePreset(q));
     const af::ModSlot m8 = af::getModSlot(back, 7);
     check(back.osc2Semi == -5 && back.osc3Octave == -2 && back.lfo2RateHz == 0.7 && m8.source == 9 && m8.dest == 16 &&
-              m8.amount == -0.25 && back.lfo1Retrigger == 1,
+              m8.amount == -0.25 && af::decodeLfoMode(back.lfo1Wave).retrigger && af::decodeLfoMode(back.lfo1Wave).wave == 4,
           "0.4 fields round-trip through a preset", m8.amount);
     const auto old = af::loadPreset("analogfoundry101 1\nsaw 1\nvel_cutoff 0.3\n");
     check(old.osc2Level == 0.0 && af::getModSlot(old, 0).source == 0 && old.lfo2RateHz == 2.0, "an older preset loads with 0.4 off",
@@ -1350,8 +1341,266 @@ void oscillatorMatrixTests() {
   }
 }
 
+// 0.5: tempo-synced LFOs, stereo spread, polyphony, a third envelope and filter
+// modes. Off by default, off is the 0.4 path bit for bit, each measured when on.
+namespace {
+/// Magnitude of one frequency (Goertzel), normalised by length.
+double toneAt(const std::vector<double>& x, double hz, double sr = 48000.0) {
+  const double w = 2.0 * 3.14159265358979323846 * hz / sr;
+  double s1 = 0.0, s2 = 0.0;
+  for (double v : x) {
+    const double s0 = v + 2.0 * std::cos(w) * s1 - s2;
+    s2 = s1;
+    s1 = s0;
+  }
+  return std::sqrt(std::fabs(s1 * s1 + s2 * s2 - 2.0 * std::cos(w) * s1 * s2)) / static_cast<double>(x.size());
+}
+double db(double ratio) { return 20.0 * std::log10(ratio > 1e-15 ? ratio : 1e-15); }
+
+struct Stereo {
+  std::vector<double> l, r;
+};
+Stereo renderStereo(const af::Voice101Parameters& p, const std::vector<int>& notes, int samples, double bpm = 0.0,
+                    double beat = 0.0, bool playing = false) {
+  af::Synth101 s;
+  s.setSampleRate(48000.0);
+  s.setParameters(p);
+  s.reset();
+  if (bpm > 0.0) s.setTransport(bpm, beat, playing);
+  for (int n : notes) s.noteOn(n);
+  Stereo out;
+  for (int i = 0; i < samples; ++i) {
+    double l, r;
+    s.processStereo(l, r);
+    out.l.push_back(l);
+    out.r.push_back(r);
+  }
+  return out;
+}
+/// RMS of the difference over RMS: 0 for the same sound, ~1 or more for another.
+double difference(const std::vector<double>& a, const std::vector<double>& b) {
+  std::vector<double> d(a.size());
+  for (size_t i = 0; i < a.size(); ++i) d[i] = a[i] - b[i];
+  return rms(d) / rms(a);
+}
+double correlation(const std::vector<double>& a, const std::vector<double>& b) {
+  double ab = 0.0, aa = 0.0, bb = 0.0;
+  for (size_t i = 0; i < a.size(); ++i) {
+    ab += a[i] * b[i];
+    aa += a[i] * a[i];
+    bb += b[i] * b[i];
+  }
+  return ab / std::sqrt(aa * bb);
+}
+/// Edges per second of a square amplitude modulation: 10 ms RMS windows (two
+/// cycles of the note, so its own ripple stays small) crossing their mean.
+double edgesPerSecond(const std::vector<double>& x, size_t skip) {
+  const size_t w = 480;
+  std::vector<double> lv;
+  for (size_t i = skip; i + w <= x.size(); i += w) {
+    double e = 0.0;
+    for (size_t j = i; j < i + w; ++j) e += x[j] * x[j];
+    lv.push_back(std::sqrt(e / static_cast<double>(w)));
+  }
+  double mean = 0.0;
+  for (double v : lv) mean += v;
+  mean /= static_cast<double>(lv.size());
+  int edges = 0;
+  for (size_t i = 1; i < lv.size(); ++i) edges += (lv[i - 1] < mean) != (lv[i] < mean) ? 1 : 0;
+  return edges / (static_cast<double>(lv.size()) * 0.01);
+}
+af::Voice101Parameters squareTremolo(int division, bool retrigger) {
+  af::Voice101Parameters p = openSaw();
+  p.lfo1Wave = af::encodeLfoMode(3, retrigger, division);
+  p.lfoRateHz = 7.0;  // ignored once synced
+  af::setModSlot(p, 0, af::kSrcLfo1, af::kDstAmp, 1.0);
+  return p;
+}
+}  // namespace
+
+void release05Tests() {
+  std::printf("tempo sync, stereo, polyphony, env 3, filter modes (0.5)\n");
+  const af::Voice101Parameters d;
+  check(d.stereoSpread == 0.0 && d.voices == 1.0 && d.filterMode == 0.0 && af::decodeLfoMode(d.lfo1Wave).division == 0,
+        "0.5 is off by default", 0.0);
+
+  // One voice through Synth101 is Voice101, bit for bit, through a legato phrase.
+  {
+    af::Voice101Parameters p = openSaw();
+    p.glideSeconds = 0.05;
+    p.unisonVoices = 3.0;
+    p.unisonDetuneCents = 12.0;
+    af::Voice101 v;
+    af::Synth101 s;
+    v.setSampleRate(48000.0); s.setSampleRate(48000.0);
+    v.setParameters(p); s.setParameters(p);
+    v.reset(); s.reset();
+    bool identical = true;
+    for (int i = 0; i < 48000; ++i) {
+      if (i == 0) { v.noteOn(45); s.noteOn(45); }
+      if (i == 9000) { v.noteOn(52); s.noteOn(52); }
+      if (i == 15000) { v.noteOff(45); s.noteOff(45); }
+      if (i == 30000) { v.noteOff(52); s.noteOff(52); }
+      double l, r;
+      s.processStereo(l, r);
+      const double m = v.process();
+      identical = identical && l == m && r == m;
+    }
+    check(identical, "one voice is the mono 101, bit for bit, on both channels", 0.0);
+  }
+
+  // Stereo spread: needs unison; 0 is mono; 1 decorrelates without losing level.
+  {
+    af::Voice101Parameters p = openSaw();
+    p.unisonVoices = 5.0;
+    p.unisonDetuneCents = 20.0;
+    const Stereo mono = renderStereo(p, {57}, 48000);
+    check(same(mono.l, mono.r), "spread 0 is the same on both channels", 0.0);
+    af::Voice101Parameters q = p;
+    q.stereoSpread = 1.0;
+    const Stereo wide = renderStereo(q, {57}, 48000);
+    const double c = correlation(wide.l, wide.r);
+    check(c < 0.8, "spread 1 decorrelates the channels", c);
+    q.stereoSpread = 0.3;
+    const Stereo some = renderStereo(q, {57}, 48000);
+    const double c3 = correlation(some.l, some.r);
+    check(c3 > c && c3 < 0.999, "spread 0.3 sits between mono and full", c3);
+    const double levelDb = db(rms(wide.l) / rms(mono.l));
+    check(std::fabs(levelDb) < 1.5, "spread keeps each channel's level within 1.5 dB", levelDb);
+    af::Voice101Parameters single = openSaw();
+    single.stereoSpread = 1.0;
+    const Stereo one = renderStereo(single, {57}, 9600);
+    check(same(one.l, one.r), "spread with unison off stays mono", 0.0);
+  }
+
+  // Polyphony: a chord sounds every note; beyond the voice count the oldest goes.
+  {
+    af::Voice101Parameters p = openSaw();
+    p.voices = 4.0;
+    af::Synth101 s;
+    s.setSampleRate(48000.0);
+    s.setParameters(p);
+    s.reset();
+    for (int n : {57, 61, 64}) s.noteOn(n);  // A3 C#4 E4: 220, 277.2, 329.6 Hz
+    std::vector<double> x;
+    for (int i = 0; i < 4800; ++i) s.process();
+    for (int i = 0; i < 48000; ++i) x.push_back(s.process());
+    check(s.activeVoices() == 3, "a three-note chord takes three voices", s.activeVoices());
+    const double a = toneAt(x, 220.0), cs = toneAt(x, 277.18), e = toneAt(x, 329.63), gap = toneAt(x, 250.0);
+    check(std::fabs(db(cs / a)) < 3.0 && std::fabs(db(e / a)) < 3.0, "each chord note at the same level", db(e / a));
+    check(db(a / gap) > 30.0, "the chord's notes stand 30 dB above the gaps", db(a / gap));
+
+    af::Voice101Parameters two = openSaw();
+    two.voices = 2.0;
+    af::Synth101 t;
+    t.setSampleRate(48000.0);
+    t.setParameters(two);
+    t.reset();
+    t.noteOn(57); t.process();
+    t.noteOn(61); t.process();
+    t.noteOn(64); t.process();
+    const bool oldestGone = t.voice(0).currentNote() != 57 && t.voice(1).currentNote() != 57;
+    check(oldestGone && t.activeVoices() == 2, "a third note on two voices steals the oldest", t.activeVoices());
+    t.noteOff(61);
+    const bool stillHeld = t.voice(0).currentNote() == 64 || t.voice(1).currentNote() == 64;
+    check(stillHeld, "a note-off releases only its own voice", 0.0);
+  }
+
+  // Tempo sync: a square on the amp at a quarter note is 2 Hz at 120, 2.5 at 150.
+  {
+    const af::Voice101Parameters q = squareTremolo(9, false);  // 1/4
+    const double e120 = edgesPerSecond(renderStereo(q, {57}, 96000, 120.0).l, 4800);
+    const double e150 = edgesPerSecond(renderStereo(q, {57}, 96000, 150.0).l, 4800);
+    check(std::fabs(e120 - 4.0) < 0.6, "1/4 at 120 BPM is 2 Hz (4 edges a second)", e120);
+    check(std::fabs(e150 - 5.0) < 0.6, "1/4 at 150 BPM is 2.5 Hz", e150);
+    const double e8 = edgesPerSecond(renderStereo(squareTremolo(6, false), {57}, 96000, 120.0).l, 4800);
+    check(std::fabs(e8 - 8.0) < 0.8, "1/8 at 120 BPM is 4 Hz", e8);
+    const double eFree = edgesPerSecond(renderStereo(squareTremolo(0, false), {57}, 96000, 120.0).l, 4800);
+    check(std::fabs(eFree - 14.0) < 1.0, "division 0 runs free at the rate in Hz", eFree);
+
+    // Playing, it locks to the bar: a start one cycle later is the same sound;
+    // half a cycle later is not. Retriggered, the start beat does not matter.
+    const auto at0 = renderStereo(q, {57}, 48000, 120.0, 0.0, true).l;
+    const auto at1 = renderStereo(q, {57}, 48000, 120.0, 1.0, true).l;
+    const auto atHalf = renderStereo(q, {57}, 48000, 120.0, 0.5, true).l;
+    // (Not bit for bit: beat 1 + t and beat 0 + t round differently.)
+    check(difference(at0, at1) < 0.01, "a synced LFO is locked to the beat while playing", difference(at0, at1));
+    check(difference(at0, atHalf) > 0.5, "half a beat later is the other half of the cycle", difference(at0, atHalf));
+    const af::Voice101Parameters rq = squareTremolo(9, true);
+    check(same(renderStereo(rq, {57}, 48000, 120.0, 0.0, true).l, renderStereo(rq, {57}, 48000, 120.0, 0.5, true).l),
+          "a retriggered synced LFO starts with the note, not the beat", 0.0);
+  }
+
+  // Envelope 3 as a source: a pitch blip that decays to the held pitch.
+  {
+    af::Voice101Parameters p = bareSine2();
+    p.env3Attack = 0.0;
+    p.env3Decay = 0.15;
+    p.env3Sustain = 0.0;
+    af::setModSlot(p, 0, af::kSrcModEnv, af::kDstPitch, 0.5);  // 12 semitones at the peak
+    const auto x = renderVelocity(p, 57, 1.0, 48000, 0);
+    const double early = meanFrequency(upCrossings(x, 48000.0), 0.0, 0.02);
+    const double late = meanFrequency(upCrossings(x, 48000.0), 0.6, 1.0);
+    // The first 20 ms average across the decay: 440 Hz at the onset, ~370 by then.
+    check(early > 340.0, "env 3 lifts the start toward an octave up", early);
+    check(std::fabs(late - 220.0) < 2.0, "env 3 decays back to the note", late);
+  }
+
+  // Filter modes: high-pass removes the fundamental, band-pass keeps the middle.
+  {
+    af::Voice101Parameters p = openSaw();
+    p.cutoffHz = 1500.0;
+    p.resonance = 0.2;
+    const auto lp = renderHeld(p, 33, 48000);  // 55 Hz
+    p.filterMode = 1.0;
+    const auto hp = renderHeld(p, 33, 48000);
+    p.filterMode = 2.0;
+    const auto bp = renderHeld(p, 33, 48000);
+    const double lpFund = toneAt(lp, 55.0), hpFund = toneAt(hp, 55.0), bpFund = toneAt(bp, 55.0);
+    const double hpHigh = toneAt(hp, 55.0 * 80), lpHigh = toneAt(lp, 55.0 * 80);
+    check(db(lpFund / hpFund) > 40.0, "high-pass takes the fundamental down 40 dB", db(lpFund / hpFund));
+    check(db(hpHigh / lpHigh) > 20.0, "high-pass keeps what low-pass cuts (4.4 kHz)", db(hpHigh / lpHigh));
+    const double bpMid = toneAt(bp, 55.0 * 27);  // 1485 Hz, at the cutoff
+    // A 2-pole band-pass: unity at the cutoff, 6 dB an octave on each side.
+    // Measured against the open saw, not the ladder, whose own corner is -12 dB.
+    const auto open = renderHeld(openSaw(), 33, 48000);
+    const double fundCut = db(toneAt(open, 55.0) / bpFund), midGain = db(bpMid / toneAt(open, 55.0 * 27));
+    check(fundCut > 15.0, "band-pass takes the fundamental down 15 dB", fundCut);
+    check(std::fabs(midGain) < 3.0, "band-pass passes the cutoff within 3 dB", midGain);
+    check(finiteAll(hp) && finiteAll(bp), "high- and band-pass stay finite", 0.0);
+  }
+
+  // Presets: 0.5 fields round-trip; a 0.4 retrigger switch maps into the mode.
+  {
+    af::Voice101Parameters q;
+    q.stereoSpread = 0.6; q.voices = 6; q.env3Decay = 0.9; q.env3Sustain = 0.25; q.filterMode = 2;
+    q.lfo2Wave = af::encodeLfoMode(2, true, 8);
+    af::setModSlot(q, 3, af::kSrcModEnv, af::kDstFine, -0.5);
+    const auto back = af::loadPreset(af::savePreset(q));
+    const af::LfoMode m = af::decodeLfoMode(back.lfo2Wave);
+    check(back.stereoSpread == 0.6 && back.voices == 6 && back.env3Decay == 0.9 && back.filterMode == 2 && m.wave == 2 &&
+              m.retrigger && m.division == 8 && af::getModSlot(back, 3).source == af::kSrcModEnv,
+          "0.5 fields round-trip through a preset", back.voices);
+    const auto legacy = af::loadPreset("analogfoundry101 1\nlfo1_retrig 1\nlfo1_wave 3\nlfo2_wave 1\n");
+    const af::LfoMode l1 = af::decodeLfoMode(legacy.lfo1Wave), l2 = af::decodeLfoMode(legacy.lfo2Wave);
+    check(l1.wave == 3 && l1.retrigger && l1.division == 0 && l2.wave == 1 && !l2.retrigger,
+          "a 0.4 preset's retrigger switch becomes the retriggered mode", legacy.lfo1Wave);
+  }
+
+  // Worst case: 8 voices, 7-voice unison, stereo, band-pass, env 3 and sync.
+  {
+    af::Voice101Parameters q = openSaw();
+    q.voices = 8; q.unisonVoices = 7; q.unisonDetuneCents = 50; q.stereoSpread = 1; q.filterMode = 2; q.resonance = 1;
+    q.lfo1Wave = af::encodeLfoMode(4, false, 1);
+    af::setModSlot(q, 0, af::kSrcModEnv, af::kDstCutoff, 1.0);
+    af::setModSlot(q, 1, af::kSrcLfo1, af::kDstPitch, 1.0);
+    const Stereo x = renderStereo(q, {36, 48, 55, 60, 64, 67, 71, 74, 79}, 48000, 174.0, 0.0, true);
+    check(finiteAll(x.l) && finiteAll(x.r) && peak(x.l) < 40.0, "every 0.5 feature at its extreme stays finite", peak(x.l));
+  }
+}
+
 int main() {
-  std::printf("AnalogFoundry 101 - model tests (M5, M6, M8, M10, unison, expression, note memory, 0.4)\n\n");
+  std::printf("AnalogFoundry 101 - model tests (M5, M6, M8, M10, unison, expression, note memory, 0.4, 0.5)\n\n");
   calibrationTests();
   nonlinearityTests();
   variationTests();
@@ -1360,6 +1609,7 @@ int main() {
   expressionTests();
   noteMemoryTests();
   oscillatorMatrixTests();
+  release05Tests();
   std::printf("\n%d checks, %d failures\n", gChecks, gFailures);
   return gFailures == 0 ? 0 : 1;
 }

@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "../src/model/Effect101.h"
+#include "../src/model/Synth101.h"
 #include "../src/model/Voice101.h"
 
 namespace {
@@ -142,6 +143,32 @@ int main() {
     const auto end = std::chrono::steady_clock::now();
     gSink = sink;
     report("voice, 4x + 3 osc x unison 7 + matrix", audioSeconds,
+           std::chrono::duration<double>(end - start).count());
+  }
+
+  // 0.5: polyphony and stereo. A four-note chord, then all eight voices, each
+  // with a 7-voice unison spread across the field: the worst a pad can ask.
+  for (int notes : {4, 8}) {
+    af::Voice101Parameters poly = p;
+    poly.voices = 8.0;
+    poly.unisonVoices = 7.0;
+    poly.unisonDetuneCents = 25.0;
+    poly.stereoSpread = 1.0;
+    af::Synth101 synth;
+    synth.setSampleRate(sr);
+    synth.setParameters(poly);
+    synth.reset();
+    for (int n = 0; n < notes; ++n) synth.noteOn(48 + 3 * n);
+    const auto start = std::chrono::steady_clock::now();
+    double sink = 0.0;
+    for (int i = 0; i < samples; ++i) {
+      double l, r;
+      synth.processStereo(l, r);
+      sink += l + r;
+    }
+    const auto end = std::chrono::steady_clock::now();
+    gSink = sink;
+    report(notes == 4 ? "synth, 4 notes x unison 7, stereo" : "synth, 8 notes x unison 7, stereo", audioSeconds,
            std::chrono::duration<double>(end - start).count());
   }
 

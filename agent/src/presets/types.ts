@@ -35,7 +35,7 @@ export interface Conversion {
   patch: Af101Patch;
   matrix: MatrixSlot[];
   chain: ChainDevice[];
-  /** The source plays chords; AF101 is monophonic (AGENTS.md *Synthesis*). */
+  /** The source plays chords: the patch sets AF101's `voices` above 1. */
   polyphonic: boolean;
   /** Octaves the clip must be transposed by when the source's base pitch is beyond AF101's +/-12 st tune. */
   transposeOctaves: number;
@@ -54,7 +54,7 @@ export function categoryOf(name: string): string {
 /** A Markdown report a person can read beside the patch. */
 export function reportMarkdown(c: Conversion, assumptionText: Record<string, string>): string {
   const lines = [`# ${c.name} -> AnalogFoundry 101`, '', `Source: ${c.source === 'serum' ? 'Serum 2' : 'Diva'} (${c.category || 'uncategorised'})`, ''];
-  if (c.polyphonic) lines.push('**Polyphonic source.** AF101 is monophonic: use this patch for single-note parts only, or a Live device for chords.', '');
+  if (c.polyphonic) lines.push(`**Polyphonic source.** The patch plays on ${c.patch.voices ?? 8} AF101 voices; set \`voices 1\` for a monophonic part.`, '');
   if (c.transposeOctaves) lines.push(`**Transpose the clip ${c.transposeOctaves > 0 ? 'up' : 'down'} ${Math.abs(c.transposeOctaves)} octave(s):** the source sits beyond AF101's +/-12 st tune.`, '');
   const section = (title: string, items: string[]) => {
     lines.push(`## ${title}`, '');

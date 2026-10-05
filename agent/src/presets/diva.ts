@@ -8,7 +8,7 @@
  * (D1...) and listed in the report; the oscillator-model reading below was
  * inferred from which fields vary per model across the 60 pack presets.
  */
-import { DST, ENV_CUTOFF_OCTAVES, LFO_WAVE, MOD_SCALE, SRC, WAVE, clampParam, placeMatrix, type Af101Patch, type MatrixSlot } from './af101.js';
+import { DST, ENV_CUTOFF_OCTAVES, LFO_WAVE, MOD_SCALE, SRC, WAVE, clampParam, lfoMode, placeMatrix, type Af101Patch, type MatrixSlot } from './af101.js';
 import { categoryOf, emptyReport, type ChainDevice, type Conversion } from './types.js';
 
 export const DIVA_ASSUMPTIONS: Record<string, string> = {
@@ -19,7 +19,7 @@ export const DIVA_ASSUMPTIONS: Record<string, string> = {
   D5: 'Oscillator models: 0 Triple VCO (Vol/Tune/Shape per oscillator; Shape 5 = saw, above toward pulse, below toward triangle), 1 and 3 Dual VCO (wave switches, OscMix crossfading 0 = osc 1 to 100 = osc 2), 2 DCO (Saw/Pulse switches, Vol3 = sub, Noise), 4 Digital (wave types unknown: saw).',
   D6: 'OSC Drift 0-100 % is read as 0-10 cents of slow pitch wander.',
   D7: 'VCC Mode 0 is polyphonic, 1 mono, 2 legato.',
-  D8: 'LFO rates are not read reliably from the file: synced LFOs are approximated at one cycle a beat at 124 BPM.',
+  D8: 'LFO rates are not read reliably from the file: every LFO plays tempo-synced at 1/4 (one cycle a beat).',
   D9: 'Effects become the nearest Live 12 Standard devices: Chorus -> Chorus-Ensemble, Delay -> Delay (dotted 8th), Plate -> Reverb, wet = wet / (dry + wet).',
 };
 
@@ -55,7 +55,8 @@ const n = (v: string | undefined, d = 0): number => {
 };
 const seconds = (knob: number) => Math.max(0.0005, 12 * Math.pow(Math.min(100, Math.max(0, knob)) / 100, 4));
 const noteHz = (x: number) => 440 * Math.pow(2, (x - 69) / 12);
-const BEAT_HZ = 124 / 60;
+/** The AF101 sync division for 1/4 (D8). */
+const QUARTER_NOTE = 9;
 
 export function convertDiva(d: DivaPreset, name: string): Conversion {
   const report = emptyReport();
@@ -174,13 +175,11 @@ export function convertDiva(d: DivaPreset, name: string): Conversion {
   if (n(F.Model) > 1) report.approximated.push(`filter model ${F.Model} -> AF101's ladder`);
 
   // --- LFOs (D8)
-  for (const [k, id] of [['LFO1', 'lfo_rate'], ['LFO2', 'lfo2_rate']] as const) {
+  for (const k of ['LFO1', 'LFO2'] as const) {
     const L = S(k);
     const wave = n(L.Wave, 1);
     const lfoWave = [LFO_WAVE.sine, LFO_WAVE.triangle, LFO_WAVE.saw, LFO_WAVE.square, LFO_WAVE.sampleHold][Math.max(0, Math.min(4, Math.round(wave) - 1))] ?? LFO_WAVE.sine;
-    patch[id] = BEAT_HZ;
-    patch[k === 'LFO1' ? 'lfo1_wave' : 'lfo2_wave'] = lfoWave;
-    if (L.Trig === '1') patch[k === 'LFO1' ? 'lfo1_retrig' : 'lfo2_retrig'] = 1;
+    patch[k === 'LFO1' ? 'lfo1_wave' : 'lfo2_wave'] = lfoMode(lfoWave, L.Trig === '1', QUARTER_NOTE);
   }
   report.assumptions.push('D8');
 
@@ -229,7 +228,10 @@ export function convertDiva(d: DivaPreset, name: string): Conversion {
     report.approximated.push(`portamento ${V.Porta} -> ${patch.glide.toFixed(3)} s`);
   }
   report.assumptions.push('D7');
-  if (polyphonic) report.approximated.push(`Diva plays this polyphonically (${V.Voices} voices); AF101 is monophonic`);
+  if (polyphonic) {
+    patch.voices = Math.max(2, Math.min(8, Math.round(n(V.Voices, 8)) || 8));
+    report.approximated.push(`Diva plays this polyphonically (${V.Voices} voices): AF101 on ${patch.voices}`);
+  }
 
   // --- Effects (D9)
   for (const slot of ['FX1', 'FX2']) {

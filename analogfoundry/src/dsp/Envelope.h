@@ -150,6 +150,42 @@ class Vca {
   double smoothedGain_ = 0.0;
 };
 
+/// TPT state-variable filter (Zavalishin), one 12 dB/octave section. Used for
+/// the high-pass and band-pass modes; the ladder stays the low-pass.
+class StateVariableFilter {
+ public:
+  void reset() noexcept { ic1_ = ic2_ = 0.0; }
+
+  double highpass(double x, double hz, double k, double sampleRate) noexcept {
+    double lp, bp, hp;
+    tick(x, hz, k, sampleRate, lp, bp, hp);
+    return hp;
+  }
+  double bandpass(double x, double hz, double k, double sampleRate) noexcept {
+    double lp, bp, hp;
+    tick(x, hz, k, sampleRate, lp, bp, hp);
+    return bp;
+  }
+
+ private:
+  void tick(double x, double hz, double k, double sampleRate, double& lp, double& bp, double& hp) noexcept {
+    const double g = std::tan(3.14159265358979323846 * hz / sampleRate);
+    const double a1 = 1.0 / (1.0 + g * (g + k));
+    const double a2 = g * a1;
+    const double a3 = g * a2;
+    const double v3 = x - ic2_;
+    const double v1 = a1 * ic1_ + a2 * v3;
+    const double v2 = ic2_ + a2 * ic1_ + a3 * v3;
+    ic1_ = 2.0 * v1 - ic1_;
+    ic2_ = 2.0 * v2 - ic2_;
+    lp = v2;
+    bp = v1;
+    hp = x - k * v1 - v2;
+  }
+
+  double ic1_ = 0.0, ic2_ = 0.0;
+};
+
 /// One-pole smoother for control values that would otherwise step.
 class ParameterSmoother {
  public:

@@ -78,7 +78,7 @@ for (const file of files) {
   mkdirSync(dir, { recursive: true });
   const header = [
     `${name} - converted from ${c.source === 'serum' ? 'Serum 2' : 'Diva'} by agent/src/presets (see ${name}.md)`,
-    ...(c.polyphonic ? ['polyphonic source: AF101 is mono - single-note parts only'] : []),
+    ...(c.polyphonic ? [`polyphonic source: ${c.patch.voices ?? 8} voices`] : []),
     ...(c.transposeOctaves ? [`transpose the clip ${c.transposeOctaves} octave(s)`] : []),
   ];
   writeFileSync(join(dir, `${name}.txt`), toPresetText(c.patch, header));

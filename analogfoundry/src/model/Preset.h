@@ -93,20 +93,28 @@ inline const std::vector<ParameterDescriptor>& parameterTable() {
       {"osc3_oct", "Osc 3 Octave", "", -3.0, 3.0, 0.0, &Voice101Parameters::osc3Octave},
       {"osc3_semi", "Osc 3 Semitone", "st", -12.0, 12.0, 0.0, &Voice101Parameters::osc3Semi},
       {"osc3_fine", "Osc 3 Fine", "ct", -100.0, 100.0, 0.0, &Voice101Parameters::osc3Fine},
-      {"lfo1_wave", "LFO 1 Wave", "", 0.0, 4.0, 0.0, &Voice101Parameters::lfo1Wave},
-      {"lfo1_retrig", "LFO 1 Retrigger", "", 0.0, 1.0, 0.0, &Voice101Parameters::lfo1Retrigger},
+      // LFO modes pack wave + 5 * retrigger + 10 * sync division (Voice101.h LfoMode).
+      {"lfo1_wave", "LFO 1 Mode", "", 0.0, 139.0, 0.0, &Voice101Parameters::lfo1Wave},
       {"lfo2_rate", "LFO 2 Rate", "Hz", 0.01, 50.0, 2.0, &Voice101Parameters::lfo2RateHz},
-      {"lfo2_wave", "LFO 2 Wave", "", 0.0, 4.0, 0.0, &Voice101Parameters::lfo2Wave},
-      {"lfo2_retrig", "LFO 2 Retrigger", "", 0.0, 1.0, 0.0, &Voice101Parameters::lfo2Retrigger},
+      {"lfo2_wave", "LFO 2 Mode", "", 0.0, 139.0, 0.0, &Voice101Parameters::lfo2Wave},
       {"bend_range", "Pitch Bend Range", "st", 0.0, 24.0, 2.0, &Voice101Parameters::pitchBendRange},
-      {"mod1", "Mod 1", "", 0.0, 3400169.0, 10000.0, &Voice101Parameters::mod1},
-      {"mod2", "Mod 2", "", 0.0, 3400169.0, 10000.0, &Voice101Parameters::mod2},
-      {"mod3", "Mod 3", "", 0.0, 3400169.0, 10000.0, &Voice101Parameters::mod3},
-      {"mod4", "Mod 4", "", 0.0, 3400169.0, 10000.0, &Voice101Parameters::mod4},
-      {"mod5", "Mod 5", "", 0.0, 3400169.0, 10000.0, &Voice101Parameters::mod5},
-      {"mod6", "Mod 6", "", 0.0, 3400169.0, 10000.0, &Voice101Parameters::mod6},
-      {"mod7", "Mod 7", "", 0.0, 3400169.0, 10000.0, &Voice101Parameters::mod7},
-      {"mod8", "Mod 8", "", 0.0, 3400169.0, 10000.0, &Voice101Parameters::mod8},
+      {"mod1", "Mod 1", "", 0.0, 3740186.0, 10000.0, &Voice101Parameters::mod1},
+      {"mod2", "Mod 2", "", 0.0, 3740186.0, 10000.0, &Voice101Parameters::mod2},
+      {"mod3", "Mod 3", "", 0.0, 3740186.0, 10000.0, &Voice101Parameters::mod3},
+      {"mod4", "Mod 4", "", 0.0, 3740186.0, 10000.0, &Voice101Parameters::mod4},
+      {"mod5", "Mod 5", "", 0.0, 3740186.0, 10000.0, &Voice101Parameters::mod5},
+      {"mod6", "Mod 6", "", 0.0, 3740186.0, 10000.0, &Voice101Parameters::mod6},
+      {"mod7", "Mod 7", "", 0.0, 3740186.0, 10000.0, &Voice101Parameters::mod7},
+      {"mod8", "Mod 8", "", 0.0, 3740186.0, 10000.0, &Voice101Parameters::mod8},
+      // 0.5: stereo, polyphony, a third envelope and filter modes. Each default
+      // is the 0.4 path. (63 parameters: Live lists a plugin's only up to 64.)
+      {"stereo", "Stereo Spread", "", 0.0, 1.0, 0.0, &Voice101Parameters::stereoSpread},
+      {"voices", "Voices", "", 1.0, 8.0, 1.0, &Voice101Parameters::voices},
+      {"env3_attack", "Env 3 Attack", "s", 0.0, 10.0, 0.002, &Voice101Parameters::env3Attack},
+      {"env3_decay", "Env 3 Decay", "s", 0.0, 10.0, 0.3, &Voice101Parameters::env3Decay},
+      {"env3_sustain", "Env 3 Sustain", "", 0.0, 1.0, 0.0, &Voice101Parameters::env3Sustain},
+      {"env3_release", "Env 3 Release", "s", 0.0, 10.0, 0.1, &Voice101Parameters::env3Release},
+      {"filter_mode", "Filter Mode", "", 0.0, 2.0, 0.0, &Voice101Parameters::filterMode},
   };
   return table;
 }
@@ -153,6 +161,7 @@ inline std::string savePreset(const Voice101Parameters& p) {
 inline Voice101Parameters loadPreset(const std::string& text) {
   Voice101Parameters p;
   for (const auto& d : parameterTable()) p.*(d.member) = d.defaultValue;
+  bool retrig1 = false, retrig2 = false;
 
   size_t pos = 0;
   while (pos < text.size()) {
@@ -166,6 +175,11 @@ inline Voice101Parameters loadPreset(const std::string& text) {
     if (space == std::string::npos) continue;
     const std::string key = line.substr(0, space);
     const std::string value = line.substr(space + 1);
+    // 0.4 kept LFO retrigger as its own parameter; 0.5 packs it into the mode.
+    if (key == "lfo1_retrig" || key == "lfo2_retrig") {
+      if (std::atof(value.c_str()) >= 0.5) (key[3] == '1' ? retrig1 : retrig2) = true;
+      continue;
+    }
     for (const auto& d : parameterTable()) {
       if (key == d.id) {
         p.*(d.member) = std::atof(value.c_str());
@@ -173,6 +187,8 @@ inline Voice101Parameters loadPreset(const std::string& text) {
       }
     }
   }
+  if (retrig1 && decodeLfoMode(p.lfo1Wave).retrigger == false) p.lfo1Wave += 5.0;
+  if (retrig2 && decodeLfoMode(p.lfo2Wave).retrigger == false) p.lfo2Wave += 5.0;
   return clampToRanges(p);
 }
 

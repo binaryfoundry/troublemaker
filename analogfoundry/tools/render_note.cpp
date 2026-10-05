@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "../src/model/Preset.h"
+#include "../src/model/Synth101.h"
 #include "../src/model/Voice101.h"
 
 namespace {
@@ -32,6 +33,8 @@ struct Args {
   bool normalise = true;
   std::string out = "render.wav";
   af::Voice101Parameters p{};
+  std::vector<int> chord;   ///< extra notes played with `note` (needs --voices > 1)
+  double bpm = 0.0;         ///< > 0: the transport plays at this tempo from beat 0
 };
 
 bool matches(const char* a, const char* b) { return std::strcmp(a, b) == 0; }
@@ -42,10 +45,11 @@ void writeLittleEndian(std::vector<unsigned char>& bytes, unsigned long value, i
 
 /// 24-bit stereo WAV. 24-bit because the renders feed a sampler and the extra
 /// headroom costs nothing offline.
-bool writeWav(const std::string& path, const std::vector<double>& mono, double sampleRate) {
+bool writeWav(const std::string& path, const std::vector<double>& left, const std::vector<double>& right,
+              double sampleRate) {
   const int channels = 2;
   const int bits = 24;
-  const unsigned long frames = static_cast<unsigned long>(mono.size());
+  const unsigned long frames = static_cast<unsigned long>(left.size());
   const unsigned long dataBytes = frames * channels * (bits / 8);
 
   std::vector<unsigned char> header;
@@ -71,11 +75,12 @@ bool writeWav(const std::string& path, const std::vector<double>& mono, double s
 
   std::vector<unsigned char> body;
   body.reserve(dataBytes);
-  for (double sample : mono) {
-    double clipped = sample < -1.0 ? -1.0 : (sample > 1.0 ? 1.0 : sample);
-    const long value = static_cast<long>(clipped * 8388607.0);
-    const unsigned long bits24 = static_cast<unsigned long>(value) & 0xFFFFFFu;
-    for (int c = 0; c < channels; ++c) writeLittleEndian(body, bits24, 3);
+  for (size_t i = 0; i < left.size(); ++i) {
+    for (double sample : {left[i], right[i]}) {
+      const double clipped = sample < -1.0 ? -1.0 : (sample > 1.0 ? 1.0 : sample);
+      const long value = static_cast<long>(clipped * 8388607.0);
+      writeLittleEndian(body, static_cast<unsigned long>(value) & 0xFFFFFFu, 3);
+    }
   }
   std::fwrite(body.data(), 1, body.size(), f);
   std::fclose(f);
@@ -102,6 +107,10 @@ void usage() {
       "  --glide S         portamento time\n"
       "  --preset FILE     load an AF101 preset first; later flags override it\n"
       "  --velocity V      note velocity 0..1 (default 1)\n"
+      "  --chord N,N,...   more notes with --note (needs --voices 2..8)\n"
+      "  --voices N        1 = mono 101 (default), 2..8 = polyphonic\n"
+      "  --stereo S        stereo unison spread 0..1 (needs --unison > 1)\n"
+      "  --bpm B           play the transport at B from beat 0 (synced LFOs follow it)\n"
       "  --unison N        unison voices 1..7 (off by default)\n"
       "  --detune CENTS    unison detune: the outermost voices sit at +/- this\n"
       "  --level L         output level\n");
@@ -162,6 +171,20 @@ int main(int argc, char** argv) {
     else if (matches(k, "--unison")) a.p.unisonVoices = value();
     else if (matches(k, "--detune")) a.p.unisonDetuneCents = value();
     else if (matches(k, "--level")) a.p.outputLevel = value();
+    else if (matches(k, "--stereo")) a.p.stereoSpread = value();
+    else if (matches(k, "--voices")) a.p.voices = value();
+    else if (matches(k, "--bpm")) a.bpm = value();
+    else if (matches(k, "--chord")) {
+      if (i + 1 >= argc) { usage(); return 2; }
+      std::string list = argv[++i];
+      size_t pos = 0;
+      while (pos < list.size()) {
+        const size_t comma = list.find(',', pos);
+        a.chord.push_back(std::atoi(list.substr(pos, comma - pos).c_str()));
+        if (comma == std::string::npos) break;
+        pos = comma + 1;
+      }
+    }
     else {
       std::fprintf(stderr, "ERROR: unknown option %s (try --help)\n", k);
       return 2;
@@ -169,32 +192,41 @@ int main(int argc, char** argv) {
   }
   if (a.noteSeconds < 0.0) a.noteSeconds = a.seconds * 0.6;
 
-  af::Voice101 voice;
+  af::Synth101 voice;
   voice.setSampleRate(a.sampleRate);
   voice.setParameters(a.p);
   voice.reset();
+  if (a.bpm > 0.0) voice.setTransport(a.bpm, 0.0, true);
   voice.noteOn(a.note, a.velocity);
+  for (int n : a.chord) voice.noteOn(n, a.velocity);
 
   const long total = static_cast<long>(a.seconds * a.sampleRate);
   const long gate = static_cast<long>(a.noteSeconds * a.sampleRate);
-  std::vector<double> out;
+  std::vector<double> out, outR;
   out.reserve(static_cast<size_t>(total));
+  outR.reserve(static_cast<size_t>(total));
   double peak = 0.0;
   for (long i = 0; i < total; ++i) {
-    if (i == gate) voice.noteOff(a.note);
-    const double s = voice.process();
-    peak = peak > (s < 0 ? -s : s) ? peak : (s < 0 ? -s : s);
-    out.push_back(s);
+    if (i == gate) {
+      voice.noteOff(a.note);
+      for (int n : a.chord) voice.noteOff(n);
+    }
+    double l, r;
+    voice.processStereo(l, r);
+    peak = std::fmax(peak, std::fmax(std::fabs(l), std::fabs(r)));
+    out.push_back(l);
+    outR.push_back(r);
   }
 
   if (a.normalise && peak > 1.0e-9) {
     const double target = std::pow(10.0, a.normaliseDbfs / 20.0);
     const double gain = target / peak;
     for (double& s : out) s *= gain;
+    for (double& s : outR) s *= gain;
     peak = target;
   }
 
-  if (!writeWav(a.out, out, a.sampleRate)) {
+  if (!writeWav(a.out, out, outR, a.sampleRate)) {
     std::fprintf(stderr, "ERROR: could not write %s\n", a.out.c_str());
     return 1;
   }

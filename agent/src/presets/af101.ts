@@ -13,6 +13,9 @@ export interface Af101Param {
   def: number;
 }
 
+/** The largest packed matrix slot: (kSrcCount - 1) * 17 + 16 routes, amount +1. */
+const MOD_SLOT_MAX = 3740186;
+
 const P = (id: string, min: number, max: number, def: number): Af101Param => ({ id, min, max, def });
 
 export const AF101_PARAMS: Af101Param[] = [
@@ -27,11 +30,35 @@ export const AF101_PARAMS: Af101Param[] = [
   P('legato_glide', 0, 1, 0),
   P('osc2_level', 0, 1, 0), P('osc2_wave', 0, 3, 0), P('osc2_oct', -3, 3, 0), P('osc2_semi', -12, 12, 0), P('osc2_fine', -100, 100, 0),
   P('osc3_level', 0, 1, 0), P('osc3_wave', 0, 3, 0), P('osc3_oct', -3, 3, 0), P('osc3_semi', -12, 12, 0), P('osc3_fine', -100, 100, 0),
-  P('lfo1_wave', 0, 4, 0), P('lfo1_retrig', 0, 1, 0), P('lfo2_rate', 0.01, 50, 2), P('lfo2_wave', 0, 4, 0),
-  P('lfo2_retrig', 0, 1, 0), P('bend_range', 0, 24, 2),
+  // LFO modes pack wave, retrigger and tempo sync (lfoMode).
+  P('lfo1_wave', 0, 139, 0), P('lfo2_rate', 0.01, 50, 2), P('lfo2_wave', 0, 139, 0), P('bend_range', 0, 24, 2),
   // One parameter per matrix slot (packModSlot): Live lists only 64 plugin parameters.
-  ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => P(`mod${n}`, 0, 3400169, 10000)),
+  ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => P(`mod${n}`, 0, MOD_SLOT_MAX, 10000)),
+  // 0.5: stereo, polyphony, a third envelope (a matrix source) and filter modes.
+  P('stereo', 0, 1, 0), P('voices', 1, 8, 1), P('env3_attack', 0, 10, 0.002), P('env3_decay', 0, 10, 0.3),
+  P('env3_sustain', 0, 1, 0), P('env3_release', 0, 10, 0.1), P('filter_mode', 0, 2, 0),
 ];
+
+/** filter_mode values. */
+export const FILTER_MODE = { lowpass: 0, highpass: 1, bandpass: 2 } as const;
+
+/** Tempo-sync divisions in beats, index = the division in an LFO mode (0 = free). */
+export const LFO_DIVISION_BEATS = [0, 1 / 8, 1 / 6, 1 / 4, 1 / 3, 3 / 8, 1 / 2, 2 / 3, 3 / 4, 1, 2, 4, 8, 16] as const;
+
+/** An LFO mode value, exactly as Voice101.h encodeLfoMode: wave + 5 * retrigger + 10 * division. */
+export function lfoMode(wave: number, retrigger: boolean, division = 0): number {
+  return wave + 5 * (retrigger ? 1 : 0) + 10 * division;
+}
+
+/** The sync division nearest a length in beats (in log time), or 0 for none. */
+export function nearestDivision(beats: number): number {
+  if (!(beats > 0)) return 0;
+  let best = 1;
+  for (let i = 1; i < LFO_DIVISION_BEATS.length; i++) {
+    if (Math.abs(Math.log(beats / LFO_DIVISION_BEATS[i]!)) < Math.abs(Math.log(beats / LFO_DIVISION_BEATS[best]!))) best = i;
+  }
+  return best;
+}
 
 /** Oscillator waves (osc2_wave, osc3_wave). */
 export const WAVE = { saw: 0, pulse: 1, triangle: 2, sine: 3 } as const;
@@ -41,6 +68,7 @@ export const LFO_WAVE = { sine: 0, triangle: 1, saw: 2, square: 3, sampleHold: 4
 /** Matrix sources (Voice101.h ModSource). */
 export const SRC = {
   none: 0, ampEnv: 1, filterEnv: 2, lfo1: 3, lfo2: 4, velocity: 5, key: 6, modWheel: 7, aftertouch: 8, noteRandom: 9,
+  env3: 10,
 } as const;
 /** Matrix destinations (Voice101.h ModDest) and what amount 1 means for each. */
 export const DST = {
@@ -77,7 +105,7 @@ export function packModSlot(src: number, dst: number, amt: number): number {
   return (src * 17 + dst) * 20001 + Math.round((a + 1) * 10000);
 }
 export function unpackModSlot(v: number): { src: number; dst: number; amt: number } {
-  const x = Math.round(Math.max(0, Math.min(3400169, v)));
+  const x = Math.round(Math.max(0, Math.min(MOD_SLOT_MAX, v)));
   const route = Math.floor(x / 20001);
   return { src: Math.floor(route / 17), dst: route % 17, amt: (x % 20001) / 10000 - 1 };
 }

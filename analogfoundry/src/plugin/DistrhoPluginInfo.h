@@ -11,19 +11,30 @@
 #define DISTRHO_PLUGIN_NAME "AnalogFoundry 101"
 #define DISTRHO_PLUGIN_URI "https://example.invalid/analogfoundry/101"
 
-// A monophonic synth: MIDI in, stereo out, no audio input.
+// A synth: MIDI in, stereo out, no audio input.
 #define DISTRHO_PLUGIN_IS_SYNTH 1
-#define DISTRHO_PLUGIN_HAS_UI 0
+#define DISTRHO_PLUGIN_HAS_UI 1
+#define DISTRHO_UI_USE_NANOVG 1
+#define DISTRHO_UI_DEFAULT_WIDTH 900
+#define DISTRHO_UI_DEFAULT_HEIGHT 470
+#define DISTRHO_UI_USER_RESIZABLE 0
+// The editor reaches the plugin directly, in one VST3 component. Without this DPF
+// gives a UI build a separate controller and puts two internal parameters (buffer
+// size, sample rate) ahead of ours. VST3 parameter ids are positions, so every
+// AF101 parameter moved up two and every saved Set's values and automation landed
+// on the wrong controls (Threshold's shimmer level envelope drove Stage Drive).
+// Parameter ids are part of the saved-Set format: never let them move.
+#define DISTRHO_PLUGIN_WANT_DIRECT_ACCESS 1
 #define DISTRHO_PLUGIN_NUM_INPUTS 0
 #define DISTRHO_PLUGIN_NUM_OUTPUTS 2
 #define DISTRHO_PLUGIN_WANT_MIDI_INPUT 1
 #define DISTRHO_PLUGIN_WANT_MIDI_OUTPUT 0
 #define DISTRHO_PLUGIN_WANT_PROGRAMS 1
 #define DISTRHO_PLUGIN_WANT_STATE 0
-#define DISTRHO_PLUGIN_WANT_TIMEPOS 0
+#define DISTRHO_PLUGIN_WANT_TIMEPOS 1
 
-#define DISTRHO_PLUGIN_VST3_CATEGORIES "Instrument|Synth|Mono"
-#define DISTRHO_PLUGIN_CLAP_FEATURES "instrument", "synthesizer", "mono"
+#define DISTRHO_PLUGIN_VST3_CATEGORIES "Instrument|Synth"
+#define DISTRHO_PLUGIN_CLAP_FEATURES "instrument", "synthesizer", "stereo"
 
 // Reverse-DNS and stable for the life of the plugin: a host keys saved state
 // off it. Omitting it is a hard compile error in DPF's CLAP backend, which a

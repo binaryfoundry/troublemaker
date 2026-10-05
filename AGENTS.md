@@ -197,24 +197,33 @@ built to `ANALOG_SYNTH_AGENT.md`, measured rather than guessed (see
 `analogfoundry/README.md` for the numbers). Reach for a Live device only when
 one of the exceptions below applies, and say which one.
 
-**It is monophonic.** That is the whole constraint, and it decides everything:
+**It is monophonic by default, and polyphonic when asked** (`voices` 1-8, 0.5).
+One voice is the 101 bit for bit: last-note priority, legato glide, note memory.
+Set `voices` to the part's maximum simultaneous notes, and no higher:
 
 | Part | Instrument |
 |---|---|
-| Bass, lead, acid line, any single-note part | **AnalogFoundry 101** |
-| Pads, chords, anything with simultaneous notes | a Live device — a monosynth would play one note of the chord |
+| Bass, lead, acid line, any single-note part | **AnalogFoundry 101**, `voices 1` |
+| Pads, chords, stabs | **AnalogFoundry 101**, `voices` = the most notes at once (up to 8) |
 | A pure sine sub | a Live device. AF101's sub oscillator is a square; it has no sine, and the sub band is the one most closely matched to the references |
+| More than 8 simultaneous notes, or a wavetable/FM/sampled timbre | a Live device, and say why |
 
-Overlapping notes in a monophonic part are fine and often deliberate: an
-overlap is how a glide is written, and AF101 handles it as legato - it slides
-to the new pitch without retriggering the envelope. Check whether a part is
-*really* polyphonic before ruling the synth out. Count maximum simultaneous
-notes, not overlaps.
+Keep single-note parts on one voice even though more are available. Overlapping
+notes in a monophonic part are often deliberate: an overlap is how a glide is
+written, and with one voice AF101 slides to the new pitch without retriggering
+the envelope. With two or more, the same overlap plays two notes instead. Count
+maximum simultaneous notes, not overlaps.
+
+**Polyphony costs CPU in proportion to notes x unison x filters.** Stereo spread
+runs a second filter per voice: four notes of a 7-voice stereo stack is a third
+of a core (`analogfoundry/README.md` *CPU*). Pads want 2-3 unison voices.
 
 **Two ways to use it, because the bridge cannot insert plugins.**
 
 1. **VST3** (`analogfoundry/build/bin/`, installed to
-   `%LOCALAPPDATA%\Programs\Common\VST3`). A human has to enable VST3 folders
+   `%USERPROFILE%\Documents\VST3` - Live's custom folder on this machine; a copy
+   in the system folder is ignored. Install with Live closed, and check Log.txt's
+   `successfully loaded ... v0.x.0` line for the version that actually loaded). A human has to enable VST3 folders
    in Live's Preferences and rescan once; the API cannot do it, and until then
    `live.browse {"category": "plugins"}` returns 0 entries. After that it
    loads like any browser item and its parameters automate normally.
@@ -228,13 +237,19 @@ table drives the preset format, the host's automation list and the DSP ranges
 — so those three can never disagree. Add a parameter in one place:
 `parameterTable()` in `src/model/Preset.h`.
 
-**What it has (0.4):** three oscillators (saw, pulse, triangle, sine; octave,
-semitone, fine) through one unison stack of up to 7, a square sub, noise; a ladder
-low-pass; amp and filter envelopes; two LFOs (five waves, retrigger); velocity,
-key, mod wheel, aftertouch, pitch bend, per-note random; an 8-slot modulation
-matrix; vibrato fade-in, drift, legato-only glide, note memory. It has **no**
-wavetables, no high-pass or band-pass filter (use EQ Eight after it), no stereo
-(width comes after it), and no effects (Live devices do that). The
+**What it has (0.5):** three oscillators (saw, pulse, triangle, sine; octave,
+semitone, fine) through one unison stack of up to 7, spread in stereo by `stereo`;
+a square sub, noise; a ladder low-pass, a 24 dB high-pass or a band-pass
+(`filter_mode`); amp, filter and a third envelope (a matrix source); two LFOs (five
+waves, retrigger, and tempo sync from 1/32 to 4 bars, locked to the bar while
+Live plays); velocity, key, mod wheel, aftertouch, pitch bend, per-note random; an
+8-slot modulation matrix; vibrato fade-in, drift, legato-only glide, note memory;
+1-8 voices. Its editor shows every parameter in words and the matrix as
+"LFO 1 -> Cutoff +35 %". It has **no** wavetables and no effects (Live devices do
+that). One filter per voice: a Serum or Diva patch with a high-pass *and* a
+low-pass still needs EQ Eight for one of them. An LFO's mode packs wave, retrigger
+and sync division into one parameter, `wave + 5*retrigger + 10*division`
+(`Voice101.h` `LfoMode`), for the same 64-parameter reason as the matrix. The
 `agent/src/presets/af101.ts` catalogue mirrors the parameter table, and
 `bridge/tests/presets.test.ts` fails if they drift apart.
 
@@ -246,7 +261,8 @@ before trusting it, and record what changed if you adjust it. Converted patches
 are derived from licensed packs: they live in the git-ignored
 `analogfoundry/presets/converted/` and are never committed. A restored AF101 in an
 older Set keeps its old parameter list: delete it and load a fresh instance to get
-0.4's (*Live facts*).
+the current one's (*Live facts*). 0.5 has 63 parameters, one under Live's 64: a
+new parameter has to replace or pack an old one.
 
 **Changing the DSP:** build and run the tests
 (`ctest -C Release` in `analogfoundry/build`), and measure before and after.
@@ -255,6 +271,31 @@ numbers — an attack finishing in 19.5 ms instead of 50, oversampling that
 made aliasing *worse*, a test reporting 1e-15 because it correlated against
 one quadrature. Never claim a behaviour is matched because one preset sounded
 good.
+
+**Never put two stateful calls in one expression.** The 2x oversampling defect
+(a corner at −18 dB instead of −12, open for months) was
+`down.process(processOversampled(a), processOversampled(b))`. C++ leaves argument
+order unspecified, MSVC evaluates right to left, and the filter state ran
+backwards. Every part measured clean alone, so isolating parts could not find
+it. Give each call that changes state its own statement.
+
+**Parameter ids are part of the saved-Set format.** Live stores a plugin's values
+and automation by parameter id, and DPF's VST3 ids are positions: AF101's
+parameter i is id 2081 + i (after DPF's program and MIDI-CC slots). Adding the
+editor turned on DPF's separate controller, which inserts two parameters first;
+every older Set's settings and envelopes moved two places up (Threshold's shimmer
+level envelope drove Stage Drive). `DISTRHO_PLUGIN_WANT_DIRECT_ACCESS 1` keeps
+the layout, and `plugin_load_test` now fails if any id moves. Only ever append
+parameters; never insert, remove or reorder one without a migration plan. 0.5
+broke this once: it removed 0.4's two LFO retrigger switches, so an instance saved
+with 0.4 has its ids from LFO 2 Rate on shifted by one or two. Its own state comes
+back (DPF saves by symbol), but Live's automation and stored values go by id: replace
+such an instance with a fresh one. (Only Threshold's Bass and AF probe were saved with
+0.4; neither had AF101 automation.)
+
+**Check the build log, not the output file.** A failed plugin build leaves the
+previous `.vst3` in place, and `plugin_load_test` passes on it. The editor needs
+DPF's `pugl` submodule (`git submodule update --init` in `external/dpf`).
 
 ## Composition and effects
 
@@ -437,8 +478,9 @@ this order. Work in the same order:**
 - **Thick.** Saw-based, two oscillators an octave apart, a sub, unison or its
   equivalent, a ladder low-pass with a little drive, chorus into delay.
   AnalogFoundry 101 has **unison** (`unison` 1-7 voices, `unison_detune` in
-  cents; off by default). It is mono - the stack shares one filter - so add
-  width after it (Chorus-Ensemble), and an octave layer with a second instance.
+  cents; off by default) and spreads it in stereo with `stereo` (0.5). The stack
+  shares one filter per side; add an octave layer with a second instance, and
+  Chorus-Ensemble when the width should move.
 - **Expressive, not static.** A patch that plays every note the same sounds
   stock (Threshold's lead, twice). Use AF101 0.3's expression, as the CamelPhat
   Serum leads do (`CAMELPHAT.md` 6b): velocity to cutoff, a separate filter
