@@ -75,31 +75,52 @@ run, and never carry them over from before a restart.
 
 **Read the preset files before emulating a synth.** The TPS x CamelPhat pack
 ships Diva presets as **plain ASCII** (`.h2p`): every oscillator, filter and
-envelope value is readable with no plugin installed. Parsing all 60 gave the
+envelope value is readable with no plugin installed. Parsing them gave the
 house style outright, and it contradicted what had been built by ear:
 
-| Measured across the presets | Bass (16) | Lead+pluck (29) | Pad (15) |
+| Measured across the Diva presets | Bass (16) | Lead+pluck (29) | Pad (15) |
 |---|---|---|---|
 | Filter resonance = 0 | 16/16 | 22/29 | 10/15 |
 | Filter envelope routed to cutoff | 16/16 | 29/29 | 15/15 |
 | ...with that envelope's sustain at 0 | 13/16 | 28/29 | 11/15 |
-| Amp sustain (median) | 27% | **0%** | 49% |
 | High-pass frequency | 30 Hz | 30 Hz | 30 Hz |
 | Filter-env depth (median) | 46 | 36 | 18 |
 
-So the house sound is **zero resonance, a per-note filter envelope that snaps
-shut, and a plucked amp envelope** - none of which needs the plugin. Drift
-reproduces all three (its filter Mod 1 source is Env 2). A bass built with
-100% sustain, 22% resonance and no filter envelope was wrong on every count,
-and the fix changed the character without moving the measured spectrum: the
-capture stayed PASS at the same LUFS, with PLR landing on the reference median.
+So the house sound is **zero resonance and a per-note filter envelope that
+snaps shut** - none of which needs the plugin. Drift reproduces both (its
+filter Mod 1 source is Env 2). A bass built with 100% sustain, 22% resonance
+and no filter envelope was wrong on every count, and the fix changed the
+character without moving the measured spectrum: the capture stayed PASS at the
+same LUFS, with PLR landing on the reference median.
 
-Serum 2 presets (`.SerumPreset`) are a plain JSON metadata header followed by
-a compressed binary blob - only the header is readable, and its tags
-(`Wavetable`, `Embedded-Data`) name the one thing a stock Live synth cannot
-reproduce: a bespoke wavetable. That gap is real for exposed leads and plucks;
-it is close to irrelevant for a bass sitting under a 1.8 kHz low-pass, where
-envelope and resonance decide the character.
+**Leads are not plucks.** The table above first lumped them together, with an
+amp-sustain median of 0% - and every lead built from that number came out
+plinky, on every track from camelbone to Threshold. Measured by category the
+pack says the opposite for leads:
+
+| Amp sustain (median, share >= 30%) | Leads | Plucks | Synths / pads | Bass |
+|---|---|---|---|---|
+| Diva (`LD` 16, `PL` 15, `SY` 13, `BS` 16) | 20%, 4/16 | **0%**, 0/15 | 49%, 10/13 | 27%, 5/16 |
+| Serum 2 (`LD` 18, `PL` 14, `SY` 13, `BS` 15) | **80%**, 13/18 | **0%**, 2/14 | 76%, 11/13 | 50%, 10/15 |
+
+The plucked amp envelope belongs to plucks only. A CamelPhat lead (medians of
+the 18 Serum leads) is Juno or Minimoog saw wavetables, two oscillators with
+one an octave up, a sub, **6-9 unison voices** on 10 of 18, amp attack 1-20 ms,
+**sustain 0.8, release ~0.3 s**, a Moog-ladder low-pass with ~10 % resonance
+and 15-20 % drive, then chorus -> delay -> compressor. It is played **low** -
+the demo melodies sit around MIDI 50-65 and let the octave layer and sub fill
+the top and bottom - and the pack's lead MIDI is mostly **one dominant note in
+a 3-3-2 rhythm** (`x..x..x.x..x..x.`) with each note held to the next. The hook
+is rhythm and tone, not contour. Ours were one thin oscillator, an octave or
+two higher, tracing arpeggios.
+
+Serum 2 presets (`.SerumPreset`) are **not** opaque. After the `XferJson`
+header (a u64 length and a JSON header) come a u32 size, a u32 format, and a
+**zstd frame** (magic `28 B5 2F FD`) holding **CBOR** with every parameter -
+oscillators and wavetable paths, envelopes, filters, mod matrix, FX racks -
+and each preset's demo melody in `MidiClip0` (notes, lengths, velocities,
+macro automation). Unset parameters are stored as `"default"`. Node 22.15+
+has zstd in `zlib`; on older Node, `fzstd` and `cbor-x` decode it.
 
 **`set_automation` writes steps, not ramps.** Points at 0 and 0.09 beats did not
 interpolate: the envelope held the first value and jumped. Draw any shape you

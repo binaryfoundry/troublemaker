@@ -320,6 +320,34 @@ Cathedral are the references - read their Sets, not just their TRACK.md.
 Check BASSLINES.md for anything this leaves open, and ask before writing any
 other kind of bassline.
 
+## Leads - not plucks
+
+**Every lead so far has been a pluck, and the user hears all the tracks as
+similar and plinky.** Across camelbone, Cowboy, Black Glass, Cathedral and
+Threshold no synth lead held a note for a beat, and most traced arpeggios
+(48-73 % leaps). The cause was a lesson that lumped CamelPhat's leads in with
+their plucks; `docs/lessons.md` now has them measured apart. Before writing a
+lead, read MELODY.md for its function (sections 3, 38, 52), then build it as
+CamelPhat build theirs - from the pack, not from memory:
+
+- **Sustain, not pluck.** Amp sustain around 0.8, release ~0.3 s, attack
+  1-20 ms. A zero-sustain envelope is for a part whose job is a pluck, and
+  says so in the track's TRACK.md.
+- **Thick.** Saw-based, two oscillators an octave apart, a sub, unison or its
+  equivalent, a ladder low-pass with a little drive, chorus into delay.
+  AnalogFoundry 101 has **unison** (`unison` 1-7 voices, `unison_detune` in
+  cents; off by default). It is mono - the stack shares one filter - so add
+  width after it (Chorus-Ensemble), and an octave layer with a second instance.
+- **Low.** Write the line around MIDI 50-65 and let the octave layer carry the
+  top, not an octave or two above it on one thin oscillator.
+- **A riff, not an arpeggio.** Rhythm first; one dominant note with neighbours,
+  notes held to the next, a syncopation the drums do not already play. Check it
+  against GROOVE.md: if the bass is the groove layer, the lead's syncopation
+  must not become a second one by accident.
+- **Read the presets.** `.h2p` is plain text; `.SerumPreset` is zstd + CBOR with
+  a demo melody inside (`docs/lessons.md`). Measure the lead you write against
+  them - note length, held share, steps vs leaps - before calling it done.
+
 ## Starting a new track - ask for the key
 
 **Before writing any notes for a new track, ask the user what key it should be
