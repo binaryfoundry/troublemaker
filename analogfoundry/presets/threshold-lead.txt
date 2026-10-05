@@ -3,7 +3,8 @@
 #   - saw + pulse + a little sub, five unison voices at 18 cents, a little drive;
 #     the sub came down from 0.45 (QC had low-mids +2.4 dB over the reference)
 #   - amp sustain 0.85, release 0.35: a lead, not a pluck
-#   - its own filter envelope snapping almost shut (16 of 18 Serum leads route an
+#   - cutoff 1600, its own filter envelope closing to 0.3 (v4: 900 and 0.12 left the hook
+#     10 dB under the mix at 2-4 kHz - HOOKS 20); the envelope snaps toward shut (16 of 18 Serum leads route an
 #     envelope to the cutoff; Diva's filter-env sustain is 0 in 28 of 29): each note
 #     blooms and darkens while it keeps sounding
 #   - velocity to cutoff and amp (16 of 18 Serum leads: velocity -> cutoff)
@@ -17,7 +18,7 @@ sub 0.3
 noise 0
 pw 0.45
 tune 0
-cutoff 900
+cutoff 1600
 resonance 0.1
 env_cutoff 0.35
 lfo_cutoff 0
@@ -40,7 +41,7 @@ vel_cutoff 0.35
 fenv_separate 1
 fenv_attack 0.003
 fenv_decay 0.4
-fenv_sustain 0.12
+fenv_sustain 0.3
 fenv_release 0.3
 vib_fade 0.5
 drift 5

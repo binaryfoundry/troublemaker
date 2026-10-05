@@ -109,6 +109,11 @@ The fake Remote Script in `bridge/tests/bridge.test.ts` speaks the real
 protocol, so protocol, reconnect, snapshot and transaction behaviour are all
 covered without Ableton.
 
+**The fake models Live as measured, never as guessed.** When a Live quirk is
+found, reproduce it in Live before modelling it in `fake_live.py`. A fix that
+passes against a guessed model can fail in Live: the first fix for the envelope
+seeding quirk did, and it was reverted along with its model.
+
 Golden musical tests assert **properties**, not exact note lists: pitch
 sequence preserved, note count within a range, some notes moved off-grid. Do
 not tighten them into exact-output tests — variation is the point of these
@@ -263,6 +268,11 @@ have been wrong every time. Then sweep it on Live with `fx apply`.
   appeared at beat 16.85 on nine tracks, putting pitched parts into the DJ
   intro; the cause is unknown (Arrangement record was off). Look for clips that
   start off the bar grid with `live.get_arrangement_clips`.
+- **An envelope seeded with the value the parameter already has starts at the
+  parameter's default.** Threshold's lead duck began at 0 dB, not -6, after an
+  earlier run had left Utility Output at -6. Changing the value and setting it
+  back within one request does not count: move the parameter off the seed value
+  in a request of its own, then write the envelope, and check `value_at_start`.
 - **A ducked track hides velocity.** A 6 dB pump on the kick swamps the ~1 dB
   velocity adds, so per-note level in context correlates with nothing. Verify
   velocity on an unducked probe track instead. (Half velocity at full
@@ -294,13 +304,14 @@ user had to point at it mid-build.)
 | `EDM-COMPOSITION.md` | effects and advanced rhythm, as perception → mechanism |
 | `EDM-TIPS.md` | melody method, harmony complexity ladder, transition families, mix heuristics |
 | `GROOVE.md` | every rhythmic part: assign anchor / groove / ornament roles (§15) before writing any of them; exactly one groove layer; run the §26 checklist |
+| `HOOKS.md` | choose the hook type and attention hierarchy (§8) before writing it; one primary hook per section (§9); introduce, remove, return (§11); 80/20 variation (§12); the arrangement map (§41) in TRACK.md; the audit (§42) and the /40 score (§31), without inflation, before reporting a track done |
 | `NEW_TRACK.md` | the finishing pass: diagnose in its order, minimum effective change, the 10-category audit scored /100 without inflation, and the Professional Finish Report |
 
 **Per element, in addition:**
 
 | Element | Guide |
 |---|---|
-| Melody, lead, hook, motif | `MELODY.md`, then `CAMELPHAT.md` for the cell (rhythm, anchor, register) |
+| Melody, lead, hook, motif | `HOOKS.md` for the hook's identity and arrangement, `MELODY.md` for writing the line, then `CAMELPHAT.md` for the cell (rhythm, anchor, register) |
 | Bassline | `BASSLINES.md` (scientific octave names) |
 | Drums | `DRUMS.md` |
 | Chords, pads | `CHORDS.md` |
@@ -312,10 +323,12 @@ Plus the genre or artist profile the brief names (see *Which guide for which
 job*). Where guides conflict, the more specific one wins, as below.
 
 **Show the work.** The track's `TRACK.md` lists, for each element, the guides
-applied and the rules taken from them by section number. An element with no
+applied and the rules taken from them by section number, and the result of
+*Auditing a track* (below). An element with no
 guide listed is not finished. Before reporting a track done, check the result
-against each always-on guide again - GROOVE.md's §26 checklist and NEW_TRACK.md's
-audit at minimum - and report what failed, not just what passed.
+against each always-on guide again - GROOVE.md's §26 checklist, HOOKS.md's §42
+audit and NEW_TRACK.md's audit at minimum - and report what failed, not just what
+passed.
 
 ## Basslines - roll, don't meander
 
@@ -360,7 +373,7 @@ procedure with pass/fail numbers.
 this order. Work in the same order:**
 
 1. **The hook.** One shape of 2-5 notes over 1-2 bars, repeated identically
-   (MELODY 4, 18, 38). Hum it. v1 matched every pack median and was heard as
+   (HOOKS 5, 12, 18; MELODY 4, 18, 38). Hum it. v1 matched every pack median and was heard as
    "random": it used six bar patterns, and its pitches changed on any step.
 2. **What it means.** Choose an anchor with a story (the orchestra's tuning A) and
    say how the chords change its meaning. Harmony moving under a repeated note is
@@ -375,7 +388,15 @@ this order. Work in the same order:**
    make a good one.
 7. **Then everything that quotes it.** When the lead changes, rewrite the
    hints, teases and callbacks that point at it. Threshold's break callback still
-   quoted a cell the track no longer had.
+   quoted a cell the track no longer had, and so did the violins' peak line -
+   a second, retired melody on top of the hook at the peak (HOOKS 9, 34). Search
+   every pitched part for the old cell, not just the ones you remember.
+8. **Then audit it (HOOKS 42) and measure it in context.** Capture the hook alone,
+   everything else alone and each candidate competitor (master dynamics
+   bypassed), and compare their mean level in the hook's bands - its
+   fundamentals (350-800 Hz for a lead around A69), 800 Hz-2 kHz and 2-4 kHz. Threshold's hook was level with the growl in its own band and 10 dB
+   under the mix at 2-4 kHz; opening the patch fixed it. Make room before raising
+   the fader (HOOKS 22).
 
 - **Sustain, not pluck.** Amp sustain around 0.8, release ~0.3 s, attack
   1-20 ms. A zero-sustain envelope is for a part whose job is a pluck, and
@@ -409,6 +430,76 @@ this order. Work in the same order:**
 - **Read the presets.** `.h2p` is plain text; `.SerumPreset` is zstd + CBOR with
   a demo melody inside (`docs/lessons.md`). Measure the lead you write against
   them - note length, held share, steps vs leaps - before calling it done.
+
+## Auditing a track
+
+Run every check, in this order, before calling a track done and whenever a track
+is re-audited. Each line says how to *measure* it; a check answered from memory
+or by reading the code is not done. Report failures first, score without
+inflation, and record the date, the result and the guides used in the track's
+TRACK.md.
+
+1. **Arrangement hygiene.** `live.get_arrangement_clips` on every track: no clip
+   that starts off the bar grid, no stray "ref" clips, and Arrangement copies
+   matching their Session clips (they are copies - re-place after editing).
+2. **DJ intro and outro** (above): no pitched material in the first or last 16
+   bars, changes on 8/16-bar lines, the sub in only after the intro's build,
+   melodic layers out first, the last 8-16 bars drums only. Use `checkStylePlan`
+   for what it encodes, and check the rest by hand.
+3. **Rubs.** Every pitched part against every other, in arrangement time: no
+   semitone or minor-ninth overlap longer than a 32nd unless it is a written,
+   resolving appoggiatura.
+4. **Groove** (GROOVE §26). List every syncopated part, LFO rates included:
+   exactly one groove layer.
+5. **Hook** (HOOKS §42, §31, §41). Name the primary hook in one sentence and
+   classify every other part (secondary, support, texture, transition). Write the
+   arrangement map. Search **every** pitched part for retired motifs. Check the
+   hook's register against the sustained parts. Measure it in context: the hook,
+   the rest and each competitor captured alone, compared in the hook's bands. Score
+   /40 and name the weakest category.
+6. **Lead** (`CAMELPHAT.md` 6). The numbers, plus expression: does velocity reach
+   the sound, does the filter move within the note and across the phrase? Verify
+   velocity on an unducked probe track.
+7. **Bass** (*Basslines* above): rolling, one root per chord, the low end owned
+   by one part at a time.
+8. **Automation.** Every clip envelope's `value_at_start` equals its first point.
+9. **Emotion** (EMOTION §53-56): three levers per emotional change, one surprise per
+   section, the peak protected (highest note, widest, brightest kept for it), and
+   something withheld.
+10. **Mix.** Soloed balance against the kick with master dynamics bypassed (keep
+    probe faders down: a bypassed capture can clip), then QC against the
+    reference. Make room before raising a fader.
+11. **Finish** (NEW_TRACK.md): the 10-category audit /100 and the Professional
+    Finish Report.
+
+**Listening tests are the user's.** Hum-back (HOOKS §13) and one-finger (§14) need
+an ear. Supply the material, e.g. the hook rendered on a plain tone, and record
+the result as open until the user answers. Do not score a listening test
+yourself.
+
+## Back catalogue - re-audit with current knowledge
+
+Every rule above was learned on a track, and the tracks made before a rule
+existed have not been checked against it. **Re-audit them** (the order in
+*Auditing a track*), fix what the user approves, and keep this table current:
+
+- **Adding a rule** to this file or to a guide: add it to *Known gaps* for every
+  track it could affect, and set that track's status back to *due*.
+- **Re-auditing a track:** update its row (date, result) and its TRACK.md.
+
+Older Sets carry older plugin state. A restored AF101 instance keeps the parameter
+list it was saved with, so expression (0.3) needs a fresh instance (delete, load,
+reapply the patch). Before 0.3, AF101 ignored velocity entirely: any accents
+written into those tracks have never sounded.
+
+| Track | Folder | Key / BPM | Last audited | Known gaps from rules learned since | Status |
+|---|---|---|---|---|---|
+| camelbone | `D:/ableton/tinman` | A minor (8A), 124 | never, against the rules below | leads plucked and arpeggiated (*Leads*); no hook audit (HOOKS); AF101 before 0.3 (velocity silent, filter tied to amp); bass before *Basslines*; GROOVE one-layer check; DJ intro/outro pitch rule; envelope `value_at_start` | due |
+| Cowboy | `D:/ableton/cowboy` | unknown - **no TRACK.md**, write one from the Set first | never | all of the above | due |
+| Black Glass | `D:/ableton/blackglass` | E minor (9A), 125 | never, against the rules below | lead plucked (*Leads*); no hook audit; AF101 before 0.3; DJ intro (its sub fades in from bar 17 - check against "sub after the build"); GROOVE one-layer; register of any lead against its strings; envelope `value_at_start` | due |
+| Cathedral | `D:/ableton/cathedral` | E minor (9A), 126 | never, against the rules below | lead plucked (*Leads*); no hook audit; AF101 before 0.3; orchestral builds vs hook hierarchy (HOOKS 9); GROOVE one-layer; register against the strings; envelope `value_at_start` | due |
+| Clockwork | `D:/ableton/clockwork` | D minor (7A), 121 | never | **no Set in the folder** - ask the user where it was saved; then everything above | due - blocked on the Set |
+| Threshold | `D:/ableton/threshold` | D minor (7A), 124 | 2026-10-05: HOOKS audit, 28/40; CAMELPHAT; QC PASS | listening tests (HOOKS 13, 14) open; HOOKS 30 four variants not written; return at bar 97 identical to 65; sound identity 2/5; GROOVE §26 not re-run since the lead became the groove layer; NEW_TRACK audit not done | partly done |
 
 ## Starting a new track - ask for the key
 
@@ -475,6 +566,7 @@ the code enforces it yet — apply it by reading, and treat that as a gap.
 | `COMPOSITION.md` | House / deep house / techno end to end; sets the decision order idea → groove → arrangement → sound → balance → … → loudness | `agent/src/arrangement.ts`, `styles.json` |
 | `MELODIC-TECHNO.md` | Genre profile: tempo, motif, chord loop, drum and bass templates, arrangement. Uses **Live octave names** (C1 = 36) | `melodic-techno.json`, `styles.json`, `melody.ts` |
 | `HOUSE.md` | House / tech-house build order: groove -> kick/bass -> hook -> arrangement. Riffs rhythmically distinct from the bass, one primary hook, remove something before a drop, sidechained chord stabs, high-pass non-bass parts, balance in mono, quality gates A-F. Written for Wavetable, which Standard lacks: use AF101 or Drift | not encoded |
+| `HOOKS.md` | The hook as the track's identity: five hook types and how to choose one, the primary-hook rule, introduce-remove-return, 80/20 variation, memory and one-finger tests, rhythmic fingerprint, layering and mixing a hook, failure modes, the arrangement map, the audit, a /40 score | not encoded |
 | `MELODY.md` | Writing leads: rhythm before pitch, target 3rds/7ths not roots, question/answer, phrase arcs, **the tonic is a destination** | `checkMelodyShape` in `agent/src/melody.ts` |
 | `EDM-TIPS.md` | Melody method, harmony complexity ladder, transition families, mix heuristics. A summary — full file not supplied | `checkMelody` in `agent/src/melody.ts` |
 | `CHORDS.md` | Chord progressions and voicings. A summary — full file not supplied | `chord-progressions.json`, `chords.ts` |
@@ -519,7 +611,8 @@ the code enforces it yet — apply it by reading, and treat that as a gap.
 | `docs/capabilities.md` | What the bridge can and cannot do in Live |
 
 Where guides overlap, the more specific one wins for its own job: `MELODIC-TECHNO.md` over `HOUSE.md` for a melodic track, `MELODY.md`
-over `EDM-TIPS.md` for leads, `MIXING.md` over `COMPOSITION.md` for the master
+over `EDM-TIPS.md` for leads, `HOOKS.md` over `MELODY.md` for what the hook is and
+where it appears (MELODY.md still governs how its line is written), `MIXING.md` over `COMPOSITION.md` for the master
 chain, an artist profile over its genre profile.
 
 - **Octave names differ between documents.** BASSLINES.md is read as

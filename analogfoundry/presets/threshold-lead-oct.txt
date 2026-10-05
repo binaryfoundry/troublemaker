@@ -8,7 +8,7 @@ sub 0
 noise 0
 pw 0.5
 tune 12
-cutoff 1800
+cutoff 2600
 resonance 0.05
 env_cutoff 0.3
 lfo_cutoff 0
