@@ -1,0 +1,96 @@
+/**
+ * AnalogFoundry 101's parameters, as the converters write them.
+ *
+ * Mirrors `parameterTable()` in analogfoundry/src/model/Preset.h - the single
+ * source of truth for the synth. `bridge/tests/presets.test.ts` parses that
+ * header and fails if this list drifts from it.
+ */
+
+export interface Af101Param {
+  id: string;
+  min: number;
+  max: number;
+  def: number;
+}
+
+const P = (id: string, min: number, max: number, def: number): Af101Param => ({ id, min, max, def });
+
+export const AF101_PARAMS: Af101Param[] = [
+  P('saw', 0, 1, 1), P('pulse', 0, 1, 0), P('sub', 0, 1, 0), P('noise', 0, 1, 0), P('pw', 0.02, 0.98, 0.5),
+  P('tune', -12, 12, 0), P('cutoff', 10, 20000, 2000), P('resonance', 0, 1, 0), P('env_cutoff', 0, 1, 0),
+  P('lfo_cutoff', 0, 1, 0), P('track', 0, 1, 0), P('attack', 0, 10, 0.002), P('decay', 0, 10, 0.3),
+  P('sustain', 0, 1, 0), P('release', 0, 10, 0.1), P('lfo_rate', 0.01, 50, 5), P('lfo_pitch', 0, 12, 0),
+  P('lfo_pw', 0, 1, 0), P('glide', 0, 5, 0), P('stage_drive', 0, 1, 0), P('input_drive', 0, 1, 0),
+  P('level', 0, 1, 0.8), P('unison', 1, 7, 1), P('unison_detune', 0, 50, 0), P('vel_amp', 0, 1, 0),
+  P('vel_cutoff', 0, 1, 0), P('fenv_separate', 0, 1, 0), P('fenv_attack', 0, 10, 0.002), P('fenv_decay', 0, 10, 0.3),
+  P('fenv_sustain', 0, 1, 0), P('fenv_release', 0, 10, 0.1), P('vib_fade', 0, 5, 0), P('drift', 0, 30, 0),
+  P('legato_glide', 0, 1, 0),
+  P('osc2_level', 0, 1, 0), P('osc2_wave', 0, 3, 0), P('osc2_oct', -3, 3, 0), P('osc2_semi', -12, 12, 0), P('osc2_fine', -100, 100, 0),
+  P('osc3_level', 0, 1, 0), P('osc3_wave', 0, 3, 0), P('osc3_oct', -3, 3, 0), P('osc3_semi', -12, 12, 0), P('osc3_fine', -100, 100, 0),
+  P('lfo1_wave', 0, 4, 0), P('lfo1_retrig', 0, 1, 0), P('lfo2_rate', 0.01, 50, 2), P('lfo2_wave', 0, 4, 0),
+  P('lfo2_retrig', 0, 1, 0), P('bend_range', 0, 24, 2),
+  ...[1, 2, 3, 4, 5, 6, 7, 8].flatMap((n) => [P(`mod${n}_src`, 0, 9, 0), P(`mod${n}_dst`, 0, 16, 0), P(`mod${n}_amt`, -1, 1, 0)]),
+];
+
+/** Oscillator waves (osc2_wave, osc3_wave). */
+export const WAVE = { saw: 0, pulse: 1, triangle: 2, sine: 3 } as const;
+/** LFO waves. */
+export const LFO_WAVE = { sine: 0, triangle: 1, saw: 2, square: 3, sampleHold: 4 } as const;
+
+/** Matrix sources (Voice101.h ModSource). */
+export const SRC = {
+  none: 0, ampEnv: 1, filterEnv: 2, lfo1: 3, lfo2: 4, velocity: 5, key: 6, modWheel: 7, aftertouch: 8, noteRandom: 9,
+} as const;
+/** Matrix destinations (Voice101.h ModDest) and what amount 1 means for each. */
+export const DST = {
+  none: 0, cutoff: 1, pitch: 2, osc1Pitch: 3, osc2Pitch: 4, osc3Pitch: 5, pulseWidth: 6, resonance: 7, amp: 8,
+  osc1Level: 9, osc2Level: 10, osc3Level: 11, noiseLevel: 12, subLevel: 13, lfo1Rate: 14, lfo2Rate: 15, fine: 16,
+} as const;
+/** Amount 1 with a source at 1 moves cutoff 5 octaves, pitch 24 st, fine 100 ct, LFO rate 4 octaves. */
+export const MOD_SCALE = { cutoffOctaves: 5, pitchSemitones: 24, fineCents: 100, lfoRateOctaves: 4 } as const;
+/** env_cutoff 1 opens the filter this many octaves; vel_cutoff 1 lowers velocity 0 this many. */
+export const ENV_CUTOFF_OCTAVES = 6;
+
+export type Af101Patch = Record<string, number>;
+
+export interface MatrixSlot {
+  src: number;
+  dst: number;
+  amt: number;
+  /** Where it came from, for the report. */
+  why: string;
+}
+
+const byId = new Map(AF101_PARAMS.map((p) => [p.id, p]));
+
+export function clampParam(id: string, value: number): number {
+  const p = byId.get(id);
+  if (!p) throw new Error(`AF101 has no parameter '${id}'`);
+  if (!Number.isFinite(value)) return p.def;
+  return Math.min(p.max, Math.max(p.min, value));
+}
+
+/** Fill the 8 matrix slots, strongest first. Returns what was placed and what did not fit. */
+export function placeMatrix(patch: Af101Patch, slots: MatrixSlot[]): { placed: MatrixSlot[]; overflow: MatrixSlot[] } {
+  const kept = slots.filter((s) => s.amt !== 0).sort((a, b) => Math.abs(b.amt) - Math.abs(a.amt));
+  const placed = kept.slice(0, 8).map((s, i) => {
+    const amt = clampParam(`mod${i + 1}_amt`, s.amt);
+    patch[`mod${i + 1}_src`] = s.src;
+    patch[`mod${i + 1}_dst`] = s.dst;
+    patch[`mod${i + 1}_amt`] = amt;
+    return { ...s, amt };
+  });
+  return { placed, overflow: kept.slice(8) };
+}
+
+/** The AF101 preset text format: `name value` per line; omitted names keep their default. */
+export function toPresetText(patch: Af101Patch, comment: string[] = []): string {
+  const lines = comment.map((c) => `# ${c}`);
+  lines.push('analogfoundry101 1');
+  for (const p of AF101_PARAMS) {
+    if (!(p.id in patch)) continue;
+    const v = clampParam(p.id, patch[p.id] ?? p.def);
+    lines.push(`${p.id} ${+v.toPrecision(6)}`);
+  }
+  return lines.join('\n') + '\n';
+}

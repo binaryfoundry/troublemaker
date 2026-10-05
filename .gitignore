@@ -10,3 +10,6 @@ __pycache__/
 # CMake build output for analogfoundry
 analogfoundry/build/
 analogfoundry/external/
+
+# Patches converted from licensed preset packs stay on this machine
+analogfoundry/presets/converted/

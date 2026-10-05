@@ -228,6 +228,26 @@ table drives the preset format, the host's automation list and the DSP ranges
 — so those three can never disagree. Add a parameter in one place:
 `parameterTable()` in `src/model/Preset.h`.
 
+**What it has (0.4):** three oscillators (saw, pulse, triangle, sine; octave,
+semitone, fine) through one unison stack of up to 7, a square sub, noise; a ladder
+low-pass; amp and filter envelopes; two LFOs (five waves, retrigger); velocity,
+key, mod wheel, aftertouch, pitch bend, per-note random; an 8-slot modulation
+matrix; vibrato fade-in, drift, legato-only glide, note memory. It has **no**
+wavetables, no high-pass or band-pass filter (use EQ Eight after it), no stereo
+(width comes after it), and no effects (Live devices do that). The
+`agent/src/presets/af101.ts` catalogue mirrors the parameter table, and
+`bridge/tests/presets.test.ts` fails if they drift apart.
+
+**Serum and Diva presets convert** with `npm run convert-preset` (see
+`analogfoundry/README.md`). Read the report before using a patch: it says what was
+approximated or dropped and which unit assumptions apply. The **timbre is
+unverified** (neither synth is installed here), so audition a converted patch
+before trusting it, and record what changed if you adjust it. Converted patches
+are derived from licensed packs: they live in the git-ignored
+`analogfoundry/presets/converted/` and are never committed. A restored AF101 in an
+older Set keeps its old parameter list: delete it and load a fresh instance to get
+0.4's (*Live facts*).
+
 **Changing the DSP:** build and run the tests
 (`ctest -C Release` in `analogfoundry/build`), and measure before and after.
 Several bugs in that engine were invisible to listening and only showed up as

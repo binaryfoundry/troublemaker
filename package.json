@@ -20,10 +20,13 @@
     "test:all": "vitest run && python remote-script/tests/test_handlers.py",
     "fake-live": "python remote-script/tests/fake_live_host.py",
     "test:live": "tsx bridge/tests/live-integration.ts",
-    "test:mcp": "tsx mcp/smoke.ts"
+    "test:mcp": "tsx mcp/smoke.ts",
+    "convert-preset": "tsx agent/src/presets/cli.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.0",
+    "cbor-x": "^1.6.6",
+    "fzstd": "^0.1.1",
     "ws": "^8.18.0",
     "zod": "^3.25.76"
   },
