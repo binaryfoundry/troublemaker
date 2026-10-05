@@ -985,14 +985,130 @@ void expressionTests() {
   }
 }
 
+// Note memory and MIDI panic (0.3.1). Last-note priority as before, but a held
+// note is remembered: releasing the newest returns, legato, to the one still
+// held. CC 123 releases everything; CC 120 silences at once.
+namespace {
+struct Run {
+  af::Voice101 v;
+  explicit Run(const af::Voice101Parameters& p) {
+    v.setSampleRate(48000.0);
+    v.setParameters(p);
+    v.reset();
+  }
+  std::vector<double> take(int samples) {
+    std::vector<double> out;
+    out.reserve(static_cast<size_t>(samples));
+    for (int i = 0; i < samples; ++i) out.push_back(v.process());
+    return out;
+  }
+};
+}  // namespace
+
+void noteMemoryTests() {
+  std::printf("note memory and MIDI panic\n");
+  af::Voice101Parameters p = openSaw();
+  p.release = 0.05;
+
+  // Hold A1, press A2 over it, let go of A2: the voice returns to A1, still sounding.
+  {
+    Run r(p);
+    r.v.noteOn(45);
+    r.take(9600);
+    r.v.noteOn(57);
+    r.take(9600);
+    r.v.noteOff(57);
+    const auto after = r.take(9600);
+    const double f = meanFrequency(upCrossings(std::vector<double>(after.begin() + 2400, after.end()), 48000.0), 0.0, 1.0);
+    check(std::fabs(f - 110.0) < 2.0, "releasing the newest note returns to the held one", f);
+    check(rms(std::vector<double>(after.begin() + 4800, after.end())) > 0.3, "and it keeps sounding (no release)",
+          rms(after));
+    check(r.v.heldNoteCount() == 1, "one note is still held", r.v.heldNoteCount());
+  }
+
+  // Releasing the older note first changes nothing that sounds; then the voice releases.
+  {
+    Run r(p);
+    r.v.noteOn(45);
+    r.take(4800);
+    r.v.noteOn(57);
+    r.take(4800);
+    r.v.noteOff(45);
+    const auto still = r.take(9600);
+    const double f = meanFrequency(upCrossings(still, 48000.0), 0.0, 1.0);
+    check(std::fabs(f - 220.0) < 2.0, "releasing an older note leaves the sounding one alone", f);
+    r.v.noteOff(57);
+    r.take(9600);
+    check(!r.v.isActive(), "releasing the last held note releases the voice", 0.0);
+  }
+
+  // The same calls as before 0.3.1 render the same: one note, then a legato pair.
+  {
+    af::Voice101Parameters q = p;
+    q.glideSeconds = 0.05;
+    Run a(q), b(q);
+    a.v.noteOn(45); a.take(4800); a.v.noteOn(57); a.take(4800); a.v.noteOff(45); a.take(2400); a.v.noteOff(57);
+    b.v.noteOn(45); b.take(4800); b.v.noteOn(57); b.take(4800); b.v.noteOff(45); b.take(2400); b.v.noteOff(57);
+    check(same(a.take(9600), b.take(9600)), "note handling is deterministic", 0.0);
+  }
+
+  // CC 123: everything held is released through the release stage.
+  {
+    Run r(p);
+    r.v.noteOn(45); r.v.noteOn(52); r.v.noteOn(57);
+    r.take(4800);
+    r.v.allNotesOff();
+    const auto tail = r.take(4800);
+    check(rms(std::vector<double>(tail.begin(), tail.begin() + 240)) > 0.05, "all notes off releases rather than cuts",
+          rms(tail));
+    r.take(9600);  // a 50 ms release reaches the idle threshold after ~125 ms
+    check(!r.v.isActive() && r.v.heldNoteCount() == 0, "all notes off: nothing held, the voice idle", r.v.heldNoteCount());
+    r.v.noteOff(52);  // a late note-off for a forgotten note must not misbehave
+    check(!r.v.isActive(), "a stale note-off after all notes off is harmless", 0.0);
+  }
+
+  // CC 120: silence on the next sample.
+  {
+    af::Voice101Parameters q = p;
+    q.release = 2.0;
+    Run r(q);
+    r.v.noteOn(45);
+    r.take(4800);
+    r.v.allSoundOff();
+    const auto next = r.take(480);
+    check(peak(next) == 0.0 && !r.v.isActive(), "all sound off is immediate, with no release", peak(next));
+  }
+
+  // More held notes than the stack keeps: the oldest is forgotten, nothing breaks.
+  {
+    Run r(p);
+    for (int n = 40; n < 40 + af::Voice101::kMaxHeldNotes + 4; ++n) r.v.noteOn(n);
+    check(r.v.heldNoteCount() == af::Voice101::kMaxHeldNotes, "the held-note stack is bounded", r.v.heldNoteCount());
+    for (int n = 40 + af::Voice101::kMaxHeldNotes + 3; n >= 40; --n) r.v.noteOff(n);
+    r.take(9600);
+    check(!r.v.isActive() && r.v.heldNoteCount() == 0, "releasing them all leaves the voice idle", r.v.heldNoteCount());
+  }
+
+  // A repeated note (pressed again while held) does not leave a stuck copy.
+  {
+    Run r(p);
+    r.v.noteOn(45);
+    r.v.noteOn(45);
+    r.v.noteOff(45);
+    r.take(9600);
+    check(!r.v.isActive(), "a repeated note releases with one note-off", 0.0);
+  }
+}
+
 int main() {
-  std::printf("AnalogFoundry 101 - model tests (M5, M6, M8, M10, unison, expression)\n\n");
+  std::printf("AnalogFoundry 101 - model tests (M5, M6, M8, M10, unison, expression, note memory)\n\n");
   calibrationTests();
   nonlinearityTests();
   variationTests();
   effectTests();
   unisonTests();
   expressionTests();
+  noteMemoryTests();
   std::printf("\n%d checks, %d failures\n", gChecks, gFailures);
   return gFailures == 0 ? 0 : 1;
 }

@@ -41,7 +41,7 @@ class AnalogFoundry101 : public Plugin {
   const char* getMaker() const override { return "AnalogFoundry"; }
   const char* getHomePage() const override { return DISTRHO_PLUGIN_URI; }
   const char* getLicense() const override { return "ISC"; }
-  uint32_t getVersion() const override { return d_version(0, 3, 0); }  // 0.3: expression
+  uint32_t getVersion() const override { return d_version(0, 3, 1); }  // 0.3.1: note memory, MIDI panic
 
   /// Stable across releases: changing it makes hosts lose existing projects.
   int64_t getUniqueId() const override { return d_cconst('A', 'F', '1', '1'); }
@@ -182,6 +182,11 @@ class AnalogFoundry101 : public Plugin {
       voice_.noteOn(note, velocity / 127.0);
     } else if (status == 0x80 || (status == 0x90 && velocity == 0)) {
       voice_.noteOff(note);
+    } else if (status == 0xB0) {
+      // Channel mode messages: a host's panic must always silence the synth.
+      // (Here `note` is the controller number.)
+      if (note == 123) voice_.allNotesOff();
+      else if (note == 120) voice_.allSoundOff();
     }
   }
 

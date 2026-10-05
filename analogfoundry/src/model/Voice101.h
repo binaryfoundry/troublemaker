@@ -167,6 +167,7 @@ class Voice101 {
     velocitySmoother_.snapTo(1.0);
     vibratoTime_ = 0.0;
     currentNote_ = -1;
+    heldCount_ = 0;
     gliding_ = false;
     held_ = false;
     currentFrequency_ = 0.0;
@@ -174,11 +175,49 @@ class Voice101 {
     cutoffSmoother_.snapTo(params_.cutoffHz);
   }
 
-  /// Monophonic note-on with last-note priority.
+  /// Monophonic note-on with last-note priority. Held notes are remembered, so
+  /// releasing the newest returns to the one still held (see noteOff).
   void noteOn(int midiNote, double velocity = 1.0) noexcept {
+    const double clamped = velocity < 0.0 ? 0.0 : (velocity > 1.0 ? 1.0 : velocity);
+    pushHeld(midiNote, clamped);
+    startNote(midiNote, clamped, held_);
+  }
+
+  /// Release a note. Releasing an older note that is no longer sounding only
+  /// forgets it. Releasing the sounding note returns, legato, to the newest note
+  /// still held - the key a player is still pressing - or releases the voice.
+  void noteOff(int midiNote) noexcept {
+    if (!removeHeld(midiNote)) return;
+    if (midiNote != currentNote_) return;  // an older note: nothing sounds differently
+    if (heldCount_ > 0) {
+      startNote(heldNotes_[heldCount_ - 1], heldVelocities_[heldCount_ - 1], true);
+      return;
+    }
+    held_ = false;
+    amplitudeEnvelope_.noteOff();
+    filterEnvelope_.noteOff();
+  }
+
+  /// MIDI CC 123: every held note released, through the release stage.
+  void allNotesOff() noexcept {
+    heldCount_ = 0;
+    if (!held_) return;
+    held_ = false;
+    amplitudeEnvelope_.noteOff();
+    filterEnvelope_.noteOff();
+  }
+
+  /// MIDI CC 120: silence now, without a release - what a host's panic expects.
+  void allSoundOff() noexcept { reset(); }
+
+  bool isActive() const noexcept { return amplitudeEnvelope_.isActive(); }
+  int heldNoteCount() const noexcept { return heldCount_; }
+
+ private:
+  /// Sound a note: pitch, glide and, unless it is legato, the envelopes.
+  void startNote(int midiNote, double velocity, bool overlapping) noexcept {
     const double target = noteToHz(midiNote);
-    const bool overlapping = held_;
-    velocity_ = velocity < 0.0 ? 0.0 : (velocity > 1.0 ? 1.0 : velocity);
+    velocity_ = velocity;
     targetFrequency_ = target;
     if (currentFrequency_ <= 0.0) {
       currentFrequency_ = target;  // first note of a phrase never glides
@@ -200,14 +239,37 @@ class Voice101 {
     held_ = true;
   }
 
-  void noteOff(int midiNote) noexcept {
-    if (midiNote != currentNote_) return;  // a released older note is ignored
-    held_ = false;
-    amplitudeEnvelope_.noteOff();
-    filterEnvelope_.noteOff();
+  /// The held-note stack, newest last. A repeated note moves to the top; when
+  /// it is full the oldest is forgotten. Fixed size: no allocation on the
+  /// audio thread.
+  void pushHeld(int midiNote, double velocity) noexcept {
+    removeHeld(midiNote);
+    if (heldCount_ == kMaxHeldNotes) {
+      for (int i = 1; i < kMaxHeldNotes; ++i) {
+        heldNotes_[i - 1] = heldNotes_[i];
+        heldVelocities_[i - 1] = heldVelocities_[i];
+      }
+      --heldCount_;
+    }
+    heldNotes_[heldCount_] = midiNote;
+    heldVelocities_[heldCount_] = velocity;
+    ++heldCount_;
   }
 
-  bool isActive() const noexcept { return amplitudeEnvelope_.isActive(); }
+  bool removeHeld(int midiNote) noexcept {
+    for (int i = 0; i < heldCount_; ++i) {
+      if (heldNotes_[i] != midiNote) continue;
+      for (int j = i + 1; j < heldCount_; ++j) {
+        heldNotes_[j - 1] = heldNotes_[j];
+        heldVelocities_[j - 1] = heldVelocities_[j];
+      }
+      --heldCount_;
+      return true;
+    }
+    return false;
+  }
+
+ public:
 
   /// Produce one sample. Realtime-safe.
   double process() noexcept {
@@ -325,6 +387,8 @@ class Voice101 {
   /// Voices beyond the centre oscillator. An even count has no centre voice
   /// in the stack, so up to 6 extra oscillators cover every count up to 7.
   static constexpr int kMaxUnisonExtra = 6;
+  /// Notes remembered for last-note priority with return.
+  static constexpr int kMaxHeldNotes = 16;
 
   /// How many oscillators the saw/pulse stack is using now (1 = unison off).
   int unisonVoiceCount() const noexcept { return unisonExtra_ + (unisonUsesCentre_ ? 1 : 0); }
@@ -381,6 +445,9 @@ class Voice101 {
   double currentFrequency_ = 0.0;
   double targetFrequency_ = 0.0;
   int currentNote_ = -1;
+  int heldNotes_[kMaxHeldNotes]{};
+  double heldVelocities_[kMaxHeldNotes]{};
+  int heldCount_ = 0;
   bool gliding_ = false;
   bool held_ = false;
 };
