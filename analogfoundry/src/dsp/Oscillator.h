@@ -100,6 +100,14 @@ class Oscillator {
 
   /// Naive (aliasing) saw. Exists only so the tests can measure what
   /// band-limiting buys; never use it in the signal path.
+  /// Triangle. Naive: its harmonics fall at 12 dB/octave, so what aliases is
+  /// already 40 dB down by the 10th harmonic.
+  double triangle() const noexcept {
+    return phase_ < 0.5 ? 4.0 * phase_ - 1.0 : 3.0 - 4.0 * phase_;
+  }
+
+  double sine() const noexcept { return std::sin(2.0 * kPi * phase_); }
+
   double naiveSawForTesting() const noexcept { return 2.0 * phase_ - 1.0; }
 
   static constexpr double kMinPulseWidth = 0.02;

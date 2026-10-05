@@ -115,6 +115,38 @@ int main() {
            std::chrono::duration<double>(end - start).count());
   }
 
+  // 0.4 at its heaviest: three oscillators through 7-voice unison, both LFOs,
+  // and all eight matrix slots active (21 oscillators into one filter).
+  {
+    af::Voice101Parameters full = p;
+    full.unisonVoices = 7.0;
+    full.unisonDetuneCents = 25.0;
+    full.osc2Level = 0.7;
+    full.osc2Wave = 1.0;
+    full.osc2Octave = 1.0;
+    full.osc3Level = 0.5;
+    full.osc3Wave = 2.0;
+    full.osc3Octave = -1.0;
+    for (int i = 0; i < 8; ++i) {
+      full.*(af::kModSlots[i].source) = 1 + (i % 9);
+      full.*(af::kModSlots[i].dest) = 1 + (i * 2) % 16;
+      full.*(af::kModSlots[i].amount) = 0.1;
+    }
+    af::Voice101 voice;
+    voice.setSampleRate(sr);
+    voice.setParameters(full);
+    voice.setQuality(af::Quality::High);
+    voice.reset();
+    voice.noteOn(45);
+    const auto start = std::chrono::steady_clock::now();
+    double sink = 0.0;
+    for (int i = 0; i < samples; ++i) sink += voice.process();
+    const auto end = std::chrono::steady_clock::now();
+    gSink = sink;
+    report("voice, 4x + 3 osc x unison 7 + matrix", audioSeconds,
+           std::chrono::duration<double>(end - start).count());
+  }
+
   // The effect build.
   {
     af::Effect101 fx;

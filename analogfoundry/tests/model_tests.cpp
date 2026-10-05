@@ -1100,8 +1100,256 @@ void noteMemoryTests() {
   }
 }
 
+// 0.4: oscillators 2 and 3, LFO 2 and waveforms, pitch bend and controllers,
+// and the modulation matrix. Off by default, off is the 0.3.1 path bit for bit,
+// and each part measured when on.
+namespace {
+af::Voice101Parameters bareSine2() {
+  // Oscillator 1 silent, oscillator 2 a sine: clean zero crossings to measure pitch.
+  af::Voice101Parameters p = openSaw();
+  p.sawLevel = 0.0;
+  p.osc2Level = 1.0;
+  p.osc2Wave = 3.0;
+  return p;
+}
+double freqOf(const std::vector<double>& x) { return meanFrequency(upCrossings(x, 48000.0), 0.0, 100.0); }
+std::vector<double> held(const af::Voice101Parameters& p, int note, int samples, double velocity = 1.0) {
+  return renderVelocity(p, note, velocity, samples);
+}
+}  // namespace
+
+void oscillatorMatrixTests() {
+  std::printf("oscillators 2-3, LFO 2, controllers, matrix (0.4)\n");
+  const af::Voice101Parameters d;
+  check(d.osc2Level == 0.0 && d.osc3Level == 0.0 && d.mod1Source == 0.0 && d.mod8Amount == 0.0 &&
+            d.lfo1Wave == 0.0 && d.pitchBendRange == 2.0,
+        "0.4 is off by default", 0.0);
+
+  // Off is the old path: settings that only matter when switched on change nothing.
+  {
+    af::Voice101Parameters patch = openSaw();
+    patch.pulseLevel = 0.4;
+    patch.cutoffHz = 1200.0;
+    patch.envToCutoff = 0.4;
+    patch.sustain = 0.7;
+    patch.unisonVoices = 5.0;
+    patch.unisonDetuneCents = 15.0;
+    const auto base = renderHeld(patch, 57, 48000);
+    af::Voice101Parameters q = patch;
+    q.osc2Wave = 2.0; q.osc2Octave = 1.0; q.osc2Semi = 7.0; q.osc3Fine = 30.0;  // levels still 0
+    q.lfo2RateHz = 7.0; q.lfo2Wave = 4.0; q.pitchBendRange = 12.0;
+    q.mod1Source = 3.0; q.mod1Dest = 1.0;                // amount 0
+    q.mod2Dest = 2.0; q.mod2Amount = 0.5;                // source none
+    q.mod3Source = 5.0; q.mod3Amount = 0.5;              // destination none
+    check(same(base, renderHeld(q, 57, 48000)), "inactive 0.4 settings are the 0.3.1 path, bit for bit", 0.0);
+  }
+
+  // Each wave of oscillator 2 at full level sits at oscillator 1's saw level.
+  {
+    const double sawDb = 20.0 * std::log10(rms(held(openSaw(), 57, 48000)));
+    const char* names[] = {"saw", "pulse", "triangle", "sine"};
+    for (int w = 0; w < 4; ++w) {
+      af::Voice101Parameters q = openSaw();
+      q.sawLevel = 0.0;
+      q.osc2Level = 1.0;
+      q.osc2Wave = w;
+      const double db = 20.0 * std::log10(rms(held(q, 57, 48000))) - sawDb;
+      check(std::fabs(db) < 0.5, std::string("osc 2 ") + names[w] + " is level-calibrated to the saw", db);
+    }
+  }
+
+  // Tuning: octave, semitone and fine move oscillator 2 as stated; oscillator 3 alike.
+  {
+    af::Voice101Parameters q = bareSine2();
+    q.osc2Octave = 1.0;
+    check(std::fabs(freqOf(held(q, 57, 48000)) - 440.0) < 1.0, "osc 2 octave +1 doubles the pitch", freqOf(held(q, 57, 48000)));
+    q.osc2Octave = 0.0;
+    q.osc2Semi = 7.0;
+    q.osc2Fine = 50.0;
+    const double want = 220.0 * std::pow(2.0, 7.5 / 12.0);
+    check(std::fabs(freqOf(held(q, 57, 48000)) - want) < 0.5, "osc 2 semitone and fine tune", freqOf(held(q, 57, 48000)));
+    af::Voice101Parameters r = openSaw();
+    r.sawLevel = 0.0;
+    r.osc3Level = 1.0;
+    r.osc3Wave = 3.0;
+    r.osc3Octave = -1.0;
+    check(std::fabs(freqOf(held(r, 57, 48000)) - 110.0) < 0.5, "osc 3 octave -1 halves the pitch", freqOf(held(r, 57, 48000)));
+  }
+
+  // Oscillator 2 shares the unison stack: detuned, it beats.
+  {
+    af::Voice101Parameters q = openSaw();
+    q.sawLevel = 0.0;
+    q.osc2Level = 1.0;
+    const double steady = wobble(held(q, 57, 144000));
+    q.unisonVoices = 7.0;
+    q.unisonDetuneCents = 25.0;
+    const double stacked = wobble(held(q, 57, 144000));
+    check(stacked > steady * 5.0, "osc 2 uses the unison stack", stacked / std::fmax(steady, 1e-12));
+  }
+
+  // Pitch bend: full bend at a 7-semitone range raises the pitch 7 semitones.
+  {
+    af::Voice101Parameters q = bareSine2();
+    q.pitchBendRange = 7.0;
+    af::Voice101 v;
+    v.setSampleRate(48000.0);
+    v.setParameters(q);
+    v.reset();
+    v.noteOn(57);
+    v.setPitchBend(1.0);
+    for (int i = 0; i < 4800; ++i) v.process();
+    std::vector<double> x;
+    for (int i = 0; i < 48000; ++i) x.push_back(v.process());
+    check(std::fabs(freqOf(x) - 220.0 * std::pow(2.0, 7.0 / 12.0)) < 0.5, "pitch bend follows its range", freqOf(x));
+  }
+
+  // Matrix: velocity -> amp. Velocity 0.5 at amount 1 is gain x1.5 (+3.5 dB) over velocity 0.
+  {
+    af::Voice101Parameters q = openSaw();
+    q.mod1Source = af::kSrcVelocity;
+    q.mod1Dest = af::kDstAmp;
+    q.mod1Amount = 1.0;
+    const double db = 20.0 * std::log10(rms(held(q, 57, 24000, 0.5)) / rms(held(q, 57, 24000, 0.0)));
+    check(std::fabs(db - 3.52) < 0.2, "matrix: velocity to amp, x(1 + amount * source)", db);
+  }
+
+  // Matrix: the filter envelope bends the pitch down from +12 to the note (a pitch drop).
+  {
+    af::Voice101Parameters q = bareSine2();
+    q.filterEnvSeparate = 1.0;
+    q.filterAttack = 0.0;
+    q.filterDecay = 0.2;
+    q.filterSustain = 0.0;
+    q.mod1Source = af::kSrcFilterEnv;
+    q.mod1Dest = af::kDstPitch;
+    q.mod1Amount = 0.5;  // 12 semitones at the envelope's peak
+    const auto x = renderVelocity(q, 57, 1.0, 48000, 0);
+    const auto t = upCrossings(x, 48000.0);
+    const double early = meanFrequency(t, 0.0, 0.01), late = meanFrequency(t, 0.5, 1.0);
+    check(early > 380.0 && std::fabs(late - 220.0) < 1.0, "matrix: envelope to pitch drops an octave to the note", early);
+  }
+
+  // Matrix: key -> cutoff tracks; mod wheel -> fine; LFO 2 square -> pitch alternates.
+  {
+    af::Voice101Parameters q = openSaw();
+    q.cutoffHz = 600.0;
+    q.mod1Source = af::kSrcKey;
+    q.mod1Dest = af::kDstCutoff;
+    q.mod1Amount = 1.0;
+    const double low = brightness(held(q, 45, 24000), 0, 24000), high = brightness(held(q, 81, 24000), 0, 24000);
+    check(high > low * 2.0, "matrix: key to cutoff opens the filter for higher notes", high / low);
+
+    af::Voice101Parameters w = bareSine2();
+    w.mod1Source = af::kSrcModWheel;
+    w.mod1Dest = af::kDstFine;
+    w.mod1Amount = 1.0;  // 100 cents at full wheel
+    af::Voice101 v;
+    v.setSampleRate(48000.0);
+    v.setParameters(w);
+    v.reset();
+    v.noteOn(57);
+    v.setModWheel(1.0);
+    for (int i = 0; i < 4800; ++i) v.process();
+    std::vector<double> x;
+    for (int i = 0; i < 48000; ++i) x.push_back(v.process());
+    check(std::fabs(freqOf(x) - 220.0 * std::pow(2.0, 1.0 / 12.0)) < 0.5, "matrix: mod wheel to fine, 100 cents at full", freqOf(x));
+
+    af::Voice101Parameters l = bareSine2();
+    l.lfo2RateHz = 2.0;
+    l.lfo2Wave = 3.0;  // square
+    l.mod1Source = af::kSrcLfo2;
+    l.mod1Dest = af::kDstPitch;
+    l.mod1Amount = 1.0 / 24.0;                // +/-1 semitone
+    const auto y = renderVelocity(l, 57, 1.0, 48000, 0);
+    const auto ty = upCrossings(y, 48000.0);
+    const double up = meanFrequency(ty, 0.02, 0.23), down = meanFrequency(ty, 0.27, 0.48);
+    check(std::fabs(up / down - std::pow(2.0, 2.0 / 12.0)) < 0.01, "LFO 2 square to pitch: two semitones apart", up / down);
+  }
+
+  // LFO waves: sample-and-hold steps once a cycle; retrigger restarts the phase per note.
+  {
+    af::Voice101Parameters q = bareSine2();
+    q.lfoRateHz = 4.0;
+    q.lfo1Wave = 4.0;
+    q.mod1Source = af::kSrcLfo1;
+    q.mod1Dest = af::kDstFine;
+    q.mod1Amount = 0.5;
+    const auto x = renderVelocity(q, 57, 1.0, 48000, 0);
+    const auto t = upCrossings(x, 48000.0);
+    double lo = 1e9, hi = -1e9;
+    for (double s0 = 0.01; s0 < 0.95; s0 += 0.25) {
+      const double f = meanFrequency(t, s0, s0 + 0.2);
+      lo = std::fmin(lo, f);
+      hi = std::fmax(hi, f);
+    }
+    check(hi / lo > 1.005, "LFO sample-and-hold steps between cycles", 1200.0 * std::log2(hi / lo));
+    check(same(x, renderVelocity(q, 57, 1.0, 48000, 0)), "sample-and-hold is deterministic", 0.0);
+  }
+
+  // Note random: a different value per note, the same sequence every run.
+  {
+    af::Voice101Parameters q = bareSine2();
+    q.mod1Source = af::kSrcNoteRandom;
+    q.mod1Dest = af::kDstFine;
+    q.mod1Amount = 0.5;
+    auto two = [&]() {
+      af::Voice101 v;
+      v.setSampleRate(48000.0);
+      v.setParameters(q);
+      v.reset();
+      std::vector<double> f;
+      for (int n = 0; n < 2; ++n) {
+        v.noteOn(57);
+        std::vector<double> x;
+        for (int i = 0; i < 24000; ++i) x.push_back(v.process());
+        v.noteOff(57);
+        for (int i = 0; i < 9600; ++i) v.process();
+        f.push_back(freqOf(std::vector<double>(x.begin() + 2400, x.end())));
+      }
+      return f;
+    };
+    const auto a = two(), b = two();
+    check(std::fabs(a[0] - a[1]) > 0.05, "note random differs between notes", a[0] - a[1]);
+    check(a[0] == b[0] && a[1] == b[1], "and repeats run to run", a[0] - b[0]);
+  }
+
+  // Everything at once, at the extremes, stays finite.
+  {
+    af::Voice101Parameters q = openSaw();
+    q.resonance = 1.0;
+    q.osc2Level = 1.0; q.osc2Wave = 1.0; q.osc2Octave = 3.0;
+    q.osc3Level = 1.0; q.osc3Wave = 2.0; q.osc3Octave = -3.0;
+    q.unisonVoices = 7.0; q.unisonDetuneCents = 50.0;
+    for (int i = 0; i < 8; ++i) {
+      q.*(af::kModSlots[i].source) = 1 + (i % 9);
+      q.*(af::kModSlots[i].dest) = 1 + (i * 2) % 16;
+      q.*(af::kModSlots[i].amount) = i % 2 ? -1.0 : 1.0;
+    }
+    const auto x = held(q, 100, 48000);
+    check(finiteAll(x) && peak(x) < 8.0, "every 0.4 feature at its extreme stays finite", peak(x));
+  }
+
+  // Presets: every 0.4 field round-trips; an old preset loads with them off.
+  {
+    af::Voice101Parameters q;
+    q.osc2Level = 0.5; q.osc2Wave = 2; q.osc2Octave = 1; q.osc2Semi = -5; q.osc2Fine = 12;
+    q.osc3Level = 0.25; q.osc3Wave = 3; q.osc3Octave = -2;
+    q.lfo1Wave = 4; q.lfo1Retrigger = 1; q.lfo2RateHz = 0.7; q.lfo2Wave = 1; q.lfo2Retrigger = 1;
+    q.pitchBendRange = 12;
+    q.mod8Source = 9; q.mod8Dest = 16; q.mod8Amount = -0.25;
+    const auto back = af::loadPreset(af::savePreset(q));
+    check(back.osc2Semi == -5 && back.osc3Octave == -2 && back.lfo2RateHz == 0.7 && back.mod8Dest == 16 &&
+              back.mod8Amount == -0.25 && back.lfo1Retrigger == 1,
+          "0.4 fields round-trip through a preset", back.mod8Amount);
+    const auto old = af::loadPreset("analogfoundry101 1\nsaw 1\nvel_cutoff 0.3\n");
+    check(old.osc2Level == 0.0 && old.mod1Source == 0.0 && old.lfo2RateHz == 2.0, "an older preset loads with 0.4 off",
+          old.osc2Level);
+  }
+}
+
 int main() {
-  std::printf("AnalogFoundry 101 - model tests (M5, M6, M8, M10, unison, expression, note memory)\n\n");
+  std::printf("AnalogFoundry 101 - model tests (M5, M6, M8, M10, unison, expression, note memory, 0.4)\n\n");
   calibrationTests();
   nonlinearityTests();
   variationTests();
@@ -1109,6 +1357,7 @@ int main() {
   unisonTests();
   expressionTests();
   noteMemoryTests();
+  oscillatorMatrixTests();
   std::printf("\n%d checks, %d failures\n", gChecks, gFailures);
   return gFailures == 0 ? 0 : 1;
 }

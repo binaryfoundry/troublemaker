@@ -17,12 +17,14 @@
 #include <string>
 #include <vector>
 
+#include "../src/model/Preset.h"
 #include "../src/model/Voice101.h"
 
 namespace {
 
 struct Args {
   int note = 45;
+  double velocity = 1.0;  ///< 0..1
   double seconds = 2.0;
   double noteSeconds = -1.0;  ///< defaults to 60 % of `seconds`
   double sampleRate = 48000.0;
@@ -98,6 +100,8 @@ void usage() {
       "  --track A         keyboard tracking 0..1\n"
       "  --attack S --decay S --sustain L --release S\n"
       "  --glide S         portamento time\n"
+      "  --preset FILE     load an AF101 preset first; later flags override it\n"
+      "  --velocity V      note velocity 0..1 (default 1)\n"
       "  --unison N        unison voices 1..7 (off by default)\n"
       "  --detune CENTS    unison detune: the outermost voices sit at +/- this\n"
       "  --level L         output level\n");
@@ -119,6 +123,18 @@ int main(int argc, char** argv) {
     if (matches(k, "--help") || matches(k, "-h")) { usage(); return 0; }
     else if (matches(k, "--out")) { if (i + 1 >= argc) { usage(); return 2; } a.out = argv[++i]; }
     else if (matches(k, "--note")) a.note = static_cast<int>(value());
+    else if (matches(k, "--velocity")) a.velocity = value();
+    else if (matches(k, "--preset")) {
+      if (i + 1 >= argc) { usage(); return 2; }
+      std::FILE* f = std::fopen(argv[++i], "rb");
+      if (!f) { std::fprintf(stderr, "cannot read preset %s\n", argv[i]); return 2; }
+      std::string text;
+      char buf[4096];
+      size_t n;
+      while ((n = std::fread(buf, 1, sizeof buf, f)) > 0) text.append(buf, n);
+      std::fclose(f);
+      a.p = af::loadPreset(text);  // later flags still override
+    }
     else if (matches(k, "--seconds")) a.seconds = value();
     else if (matches(k, "--gate")) a.noteSeconds = value();
     else if (matches(k, "--rate")) a.sampleRate = value();
@@ -157,7 +173,7 @@ int main(int argc, char** argv) {
   voice.setSampleRate(a.sampleRate);
   voice.setParameters(a.p);
   voice.reset();
-  voice.noteOn(a.note);
+  voice.noteOn(a.note, a.velocity);
 
   const long total = static_cast<long>(a.seconds * a.sampleRate);
   const long gate = static_cast<long>(a.noteSeconds * a.sampleRate);
@@ -182,8 +198,14 @@ int main(int argc, char** argv) {
     std::fprintf(stderr, "ERROR: could not write %s\n", a.out.c_str());
     return 1;
   }
+  // The path goes into JSON: escape backslashes (Windows paths) and quotes.
+  std::string outJson;
+  for (char ch : a.out) {
+    if (ch == '\\' || ch == '"') outJson += '\\';
+    outJson += ch;
+  }
   std::printf("{\"out\":\"%s\",\"frames\":%ld,\"sample_rate\":%g,\"peak_dbfs\":%.2f}\n",
-              a.out.c_str(), static_cast<long>(out.size()), a.sampleRate,
+              outJson.c_str(), static_cast<long>(out.size()), a.sampleRate,
               20.0 * std::log10(peak > 1e-12 ? peak : 1e-12));
   return 0;
 }

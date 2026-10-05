@@ -38,6 +38,11 @@ struct OscillatorCalibration {
   static constexpr double pulseGain() { return kSawRms / kPulseRms; }
   static constexpr double subGain() { return kSawRms / kSubRms; }
   static constexpr double noiseGain() { return kSawRms / kNoiseRms; }
+  /// A unit triangle has the saw's RMS, 1/sqrt(3); a unit sine 1/sqrt(2).
+  static constexpr double kTriangleRms = 0.5773502691896258;
+  static constexpr double kSineRms = 0.7071067811865476;
+  static constexpr double triangleGain() { return kSawRms / kTriangleRms; }
+  static constexpr double sineGain() { return kSawRms / kSineRms; }
 };
 
 /// Subtle per-instance imperfection. Everything defaults to off.

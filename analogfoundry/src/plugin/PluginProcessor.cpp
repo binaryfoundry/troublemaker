@@ -11,6 +11,7 @@
 // drift apart.
 
 #include <cstring>
+#include <string>
 
 #include "DistrhoPlugin.hpp"
 
@@ -41,7 +42,7 @@ class AnalogFoundry101 : public Plugin {
   const char* getMaker() const override { return "AnalogFoundry"; }
   const char* getHomePage() const override { return DISTRHO_PLUGIN_URI; }
   const char* getLicense() const override { return "ISC"; }
-  uint32_t getVersion() const override { return d_version(0, 3, 1); }  // 0.3.1: note memory, MIDI panic
+  uint32_t getVersion() const override { return d_version(0, 4, 0); }  // 0.4: oscillators 2-3, LFO 2, matrix, bend
 
   /// Stable across releases: changing it makes hosts lose existing projects.
   int64_t getUniqueId() const override { return d_cconst('A', 'F', '1', '1'); }
@@ -56,8 +57,28 @@ class AnalogFoundry101 : public Plugin {
     // A voice count is a whole number: the host should step it, not sweep it.
     if (std::strcmp(d.id, "unison") == 0) parameter.hints |= kParameterIsInteger;
     // On/off switches: a host should show and automate them as toggles.
-    if (std::strcmp(d.id, "fenv_separate") == 0 || std::strcmp(d.id, "legato_glide") == 0)
+    if (std::strcmp(d.id, "fenv_separate") == 0 || std::strcmp(d.id, "legato_glide") == 0 ||
+        std::strcmp(d.id, "lfo1_retrig") == 0 || std::strcmp(d.id, "lfo2_retrig") == 0)
       parameter.hints |= kParameterIsBoolean;
+    // Choices show their names, so an automation lane reads "Saw", not "0".
+    static const char* const kOscWaves[] = {"Saw", "Pulse", "Triangle", "Sine"};
+    static const char* const kLfoWaves[] = {"Sine", "Triangle", "Saw", "Square", "S&H"};
+    static const char* const kSources[] = {"None", "Amp Env", "Filter Env", "LFO 1", "LFO 2",
+                                           "Velocity", "Key", "Mod Wheel", "Aftertouch", "Note Random"};
+    static const char* const kDests[] = {"None", "Cutoff", "Pitch", "Osc 1 Pitch", "Osc 2 Pitch",
+                                         "Osc 3 Pitch", "Pulse Width", "Resonance", "Amp", "Osc 1 Level",
+                                         "Osc 2 Level", "Osc 3 Level", "Noise Level", "Sub Level",
+                                         "LFO 1 Rate", "LFO 2 Rate", "Fine"};
+    const std::string id = d.id;
+    const auto ends = [&](const char* tail) {
+      const size_t n = std::strlen(tail);
+      return id.size() >= n && id.compare(id.size() - n, n, tail) == 0;
+    };
+    if (ends("_oct") || ends("_semi")) parameter.hints |= kParameterIsInteger;
+    if (id == "osc2_wave" || id == "osc3_wave") setChoices(parameter, kOscWaves, 4);
+    else if (id == "lfo1_wave" || id == "lfo2_wave") setChoices(parameter, kLfoWaves, 5);
+    else if (ends("_src")) setChoices(parameter, kSources, 10);
+    else if (ends("_dst")) setChoices(parameter, kDests, 17);
     parameter.name = d.name;
     parameter.symbol = d.id;
     parameter.unit = d.unit;
@@ -173,7 +194,23 @@ class AnalogFoundry101 : public Plugin {
  private:
   static constexpr uint32_t kProgramCount = 4;
 
+  static void setChoices(Parameter& parameter, const char* const* labels, uint8_t count) {
+    parameter.hints |= kParameterIsInteger;
+    parameter.enumValues.count = count;
+    parameter.enumValues.restrictedMode = true;
+    auto* values = new ParameterEnumerationValue[count];
+    for (uint8_t i = 0; i < count; ++i) {
+      values[i].label = labels[i];
+      values[i].value = static_cast<float>(i);
+    }
+    parameter.enumValues.values = values;
+  }
+
   void handleMidi(const MidiEvent& event) {
+    if (event.size == 2) {  // channel pressure is the one two-byte message we read
+      handlePressure(event);
+      return;
+    }
     if (event.size < 3) return;
     const uint8_t status = event.data[0] & 0xF0;
     const uint8_t note = event.data[1] & 0x7F;
@@ -183,11 +220,18 @@ class AnalogFoundry101 : public Plugin {
     } else if (status == 0x80 || (status == 0x90 && velocity == 0)) {
       voice_.noteOff(note);
     } else if (status == 0xB0) {
-      // Channel mode messages: a host's panic must always silence the synth.
-      // (Here `note` is the controller number.)
-      if (note == 123) voice_.allNotesOff();
+      // Here `note` is the controller number and `velocity` its value.
+      if (note == 123) voice_.allNotesOff();       // a host's panic must always silence the synth
       else if (note == 120) voice_.allSoundOff();
+      else if (note == 1) voice_.setModWheel(velocity / 127.0);
+    } else if (status == 0xE0) {
+      const int value14 = (static_cast<int>(event.data[2] & 0x7F) << 7) | (event.data[1] & 0x7F);
+      voice_.setPitchBend((value14 - 8192) / 8192.0);
     }
+  }
+
+  void handlePressure(const MidiEvent& event) {
+    if (event.size >= 2 && (event.data[0] & 0xF0) == 0xD0) voice_.setAftertouch((event.data[1] & 0x7F) / 127.0);
   }
 
   af::Voice101 voice_;

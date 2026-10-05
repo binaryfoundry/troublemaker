@@ -44,6 +44,7 @@ compiler without a developer prompt. DPF is optional — without
 | — | Unison (beyond the 101) | 1-7 detuned copies of saw and pulse into the same filter; sub stays on the centre VCO. **Off by default and bit-identical when off** (reference renders unchanged, byte for byte); level held **within 0.7 dB** from 1 to 7 voices; level wobble 2.9 % -> 19-29 % at 25 cents: it really choruses |
 | — | Expression (beyond the 101, 0.3) | Velocity to amp and cutoff, a **separate filter ADSR**, a vibrato that **fades in** after each note, slow **pitch drift**, and **glide on slurs only**. All off by default and **bit-identical when off** (full velocity is too). Measured: velocity 0.5 at full amp depth **-6.0 dB**; a soft note darker; the separate envelope closes the tone while the note sustains (brightness 1.35x early vs late, 1.00 shared); vibrato under 15 % of full depth in the first 200 ms, full after the fade; drift of 15 cents wanders 8-32 cents peak to peak; a detached note under legato glide starts on pitch, a slurred one slides. Why: the CamelPhat leads route velocity to cutoff (16 of 18), an envelope to cutoff, slow LFO to fine tune (8) and vibrato on a macro, none of which the 101's one envelope could do |
 | — | Note memory and MIDI panic (0.3.1) | Last-note priority as before, but up to 16 held notes are remembered: releasing the newest returns, legato, to the newest note still held (it used to release the voice). Releasing an older note changes nothing that sounds. **CC 123** (all notes off) releases everything through the release stage; **CC 120** (all sound off) silences on the next sample. Reference renders byte-identical to 0.3.0; 13 checks |
+| — | Oscillators and modulation (0.4) | **Oscillators 2 and 3**: saw, pulse, triangle or sine, each with level, octave, semitone and fine tune, through the shared unison stack. **LFO 2**, waveforms for both LFOs (sine, triangle, saw, square, sample-and-hold) and retrigger. **Pitch bend** (range 0-24 st), **mod wheel**, **aftertouch**. An **8-slot modulation matrix**: 9 sources (both envelopes, both LFOs, velocity, key, wheel, pressure, per-note random) to 16 destinations (cutoff, pitch, each oscillator's pitch and level, pulse width, resonance, amp, noise, sub, LFO rates, fine). Off by default, and reference renders are **byte-identical** to 0.3.1. Measured: each osc-2 wave within 0.5 dB of the saw's level; octave, semitone and fine tune to 0.5 Hz; bend to its range; velocity -> amp x1.5 = +3.5 dB; envelope -> pitch drops an octave to the note; LFO-2 square -> pitch exactly two semitones apart; sample-and-hold steps and repeats; note random differs per note and repeats per run; every feature at its extreme stays finite. 23 checks. Worst case (3 oscillators x 7-voice unison, all 8 slots) **22.7x realtime** |
 
 ## CPU
 
@@ -56,6 +57,7 @@ compiler without a developer prompt. DPF is optional — without
 | **4x (default)** | **27x** |
 | 4x + all nonlinearity and variation | 22x |
 | 4x + unison, 7 voices | 25x (26x with 0.3) |
+| 4x + 3 oscillators x unison 7 + 8 matrix slots (0.4) | 22.7x |
 | Effect, 4x | 26x |
 
 ## Two things that are not finished
@@ -136,6 +138,23 @@ tools/        render_note, bench, analyse.py
 The DSP core has no plugin, GUI or host dependency, which is what lets the
 same engine serve the renderer, the tests and the VST3.
 
+## Converting Serum and Diva presets
+
+`npm run convert-preset -- <.SerumPreset | .h2p | folder>... [--out DIR]` (from the
+repo root) writes, for each preset, an AF101 patch (`.txt`), the Live devices to put
+after it (`.chain.json`) and a report (`.md`) of what was mapped, approximated and
+dropped, with every unit assumption by code (S1-S9, D1-D9). The code is
+`agent/src/presets/`, and the tests are `bridge/tests/presets.test.ts`. The default
+output, `presets/converted/`, is **git-ignored**: patches derived from a licensed
+pack stay on this machine.
+
+Each patch's level is calibrated with `render_note` so that its loudest peak over
+three notes sits at -3 dBFS, like the hand-made patches. Rendering all 120 converted
+pack patches back through AF101: peaks -8.0 to -3.0 dBFS, released notes take 0.96x
+the stated release (median), and 49 of the 53 filter-envelope patches darken over
+the note. That checks AF101 plays what the conversion says. It does **not** check the
+sound against Serum or Diva, which are not installed here: the timbre is unverified.
+
 ## Using it without the plugin
 
 ```bash
@@ -145,7 +164,8 @@ analogfoundry/build/Release/render_note.exe --note 45 --seconds 2.2 \
   --attack 0.002 --decay 0.30 --sustain 0.27 --release 0.12
 ```
 
-`--unison N --detune CENTS` stack up to 7 detuned voices (the outermost at
+`--preset FILE` loads a patch first (later flags override it) and `--velocity V`
+sets the note's velocity. `--unison N --detune CENTS` stack up to 7 detuned voices (the outermost at
 +/- the detune). Unison is mono for now: the voices sum into one filter and
 both outputs carry it, so widen it after the synth (Chorus-Ensemble).
 
