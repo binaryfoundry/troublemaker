@@ -243,7 +243,7 @@ export function convertDiva(d: DivaPreset, name: string): Conversion {
       if (wet > 0) chain.push({ device: 'Chorus-Ensemble', settings: { Mode: 'Chorus', Rate: +(0.1 + n(P.Rate, 50) / 100 * 2).toFixed(2), Amount: +n(P.Depth, 50).toFixed(0), 'Dry/Wet': +wet.toFixed(0) }, from });
     } else if (kind === 'Plate') {
       const wet = n(P.Wet), dry = n(P.Dry, 100);
-      if (wet > 0) chain.push({ device: 'Reverb', settings: { 'Decay Time': +(0.5 + n(P.Decay, 50) / 100 * 5).toFixed(2), Predelay: +n(P.Pre).toFixed(1), 'Dry/Wet': +((wet / (wet + dry)) * 100).toFixed(0) }, from });
+      if (wet > 0) chain.push({ device: 'Reverb', settings: { 'Decay Time': Math.round((0.5 + n(P.Decay, 50) / 100 * 5) * 1000), Predelay: +n(P.Pre).toFixed(1), 'Dry/Wet': +((wet / (wet + dry)) * 100).toFixed(0) }, from });
     } else if (kind === 'Delay') {
       const wet = n(P.SVol) + n(P.CVol), dry = n(P.Dry, 100);
       if (wet > 0) chain.push({ device: 'Delay', settings: { 'L Sync': 'On', 'L 16th': 3, Feedback: +n(P.FeedB, 25).toFixed(0), 'Dry/Wet': +((wet / (wet + dry)) * 100).toFixed(0) }, from });

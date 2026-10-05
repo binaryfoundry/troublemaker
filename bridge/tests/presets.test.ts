@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { AF101_PARAMS, DST, SRC, placeMatrix, toPresetText } from '../../agent/src/presets/af101.js';
+import { AF101_PARAMS, DST, SRC, packModSlot, placeMatrix, toPresetText, unpackModSlot } from '../../agent/src/presets/af101.js';
 import { convertDiva, parseDiva } from '../../agent/src/presets/diva.js';
 import { convertSerum, decodeSerum } from '../../agent/src/presets/serum.js';
 
@@ -11,7 +11,7 @@ describe('AF101 parameter catalogue', () => {
     const rows = [...header.matchAll(/\{"([a-z0-9_]+)", "[^"]+", "[^"]*", (-?[\d.]+), (-?[\d.]+), (-?[\d.]+)/g)].map((m) => ({
       id: m[1], min: +m[2]!, max: +m[3]!, def: +m[4]!,
     }));
-    expect(rows.length).toBe(74);
+    expect(rows.length).toBe(58); // Live lists a plugin's parameters only up to 64
     expect(AF101_PARAMS).toEqual(rows);
   });
 
@@ -27,7 +27,17 @@ describe('AF101 parameter catalogue', () => {
     expect(placed).toHaveLength(8);
     expect(placed[0]?.why).toBe('s9');
     expect(overflow.map((s) => s.why)).toEqual(['s1', 's0']);
-    expect(patch.mod1_amt).toBeCloseTo(0.5);
+    expect(unpackModSlot(patch.mod1 ?? 0)).toEqual({ src: SRC.lfo1, dst: DST.fine, amt: 0.5 });
+  });
+
+  it('packs a matrix slot into one value and back', () => {
+    for (const [s, d, a] of [[0, 0, 0], [9, 16, -1], [5, 1, 0.7138], [3, 16, -0.0083]] as const) {
+      const back = unpackModSlot(packModSlot(s, d, a));
+      expect(back.src).toBe(s);
+      expect(back.dst).toBe(d);
+      expect(back.amt).toBeCloseTo(a, 4);
+    }
+    expect(packModSlot(0, 0, 0)).toBe(10000);
   });
 });
 
@@ -132,8 +142,9 @@ describe('Diva -> AF101', () => {
   });
 
   it('routes velocity to cutoff and LFO 1 to pitch through the matrix', () => {
-    expect(c.matrix).toContainEqual(expect.objectContaining({ src: SRC.velocity, dst: DST.cutoff, amt: 24 / 12 / 5 }));
-    expect(c.matrix).toContainEqual(expect.objectContaining({ src: SRC.lfo1, dst: DST.pitch, amt: 0.5 / 24 }));
+    // amounts are packed to 1/10000 (packModSlot)
+    expect(c.matrix.find((s) => s.src === SRC.velocity && s.dst === DST.cutoff)?.amt).toBeCloseTo(24 / 12 / 5, 4);
+    expect(c.matrix.find((s) => s.src === SRC.lfo1 && s.dst === DST.pitch)?.amt).toBeCloseTo(0.5 / 24, 4);
     expect(c.polyphonic).toBe(false);
   });
 
@@ -179,7 +190,7 @@ describe('Serum -> AF101', () => {
     expect(c.patch.cutoff).toBeCloseTo(8 * Math.pow(22050 / 8, 0.5) * Math.pow(2, 0.4 * 0.5 * OCT), 3);
     expect(c.patch.env_cutoff).toBeCloseTo((0.21 * OCT) / 6, 6);
     expect(c.matrix).toContainEqual(expect.objectContaining({ src: SRC.velocity, dst: DST.cutoff }));
-    expect(c.matrix.find((s) => s.src === SRC.velocity)?.amt).toBeCloseTo((0.31 * OCT) / 5, 6);
+    expect(c.matrix.find((s) => s.src === SRC.velocity)?.amt).toBeCloseTo((0.31 * OCT) / 5, 4);
   });
 
   it('drops an unconfirmed source rather than guessing a route', () => {

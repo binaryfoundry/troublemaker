@@ -128,9 +128,7 @@ int main() {
     full.osc3Wave = 2.0;
     full.osc3Octave = -1.0;
     for (int i = 0; i < 8; ++i) {
-      full.*(af::kModSlots[i].source) = 1 + (i % 9);
-      full.*(af::kModSlots[i].dest) = 1 + (i * 2) % 16;
-      full.*(af::kModSlots[i].amount) = 0.1;
+      af::setModSlot(full, i, 1 + (i % 9), 1 + (i * 2) % 16, 0.1);
     }
     af::Voice101 voice;
     voice.setSampleRate(sr);

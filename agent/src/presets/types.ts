@@ -5,7 +5,11 @@
  */
 import type { Af101Patch, MatrixSlot } from './af101.js';
 
-/** One Live device after AF101, with settings as *display* values in Live 12's own parameter names. */
+/**
+ * One Live device after AF101, with settings as *display* values in Live 12's own
+ * parameter names. A time Live displays in seconds is written in milliseconds
+ * (Reverb 'Decay Time': 3340 = 3.34 s): the bridge's display search reads them so.
+ */
 export interface ChainDevice {
   device: 'Chorus-Ensemble' | 'Delay' | 'Reverb' | 'Saturator' | 'Utility' | 'EQ Eight' | 'Auto Pan-Tremolo';
   settings: Record<string, number | string>;

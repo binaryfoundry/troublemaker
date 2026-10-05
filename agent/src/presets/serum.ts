@@ -404,7 +404,7 @@ export function convertSerum(body: any, name: string): Conversion {
       const from = `Serum ${kind.slice(2)} (${rack})`;
       if (kind === 'FXChorus') chain.push({ device: 'Chorus-Ensemble', settings: { Mode: 'Chorus', 'Dry/Wet': +w.toFixed(0), Feedback: +num(p.kParamFeedback, 0).toFixed(0) }, from });
       else if (kind === 'FXDelay') chain.push({ device: 'Delay', settings: { 'L Sync': 'On', 'L 16th': 3, Feedback: +num(p.kParamFeedback, 40).toFixed(0), 'Filter Freq': +num(p.kParamFreq, 2000).toFixed(0), 'Dry/Wet': +w.toFixed(0) }, from });
-      else if (kind === 'FXReverb') chain.push({ device: 'Reverb', settings: { 'Decay Time': +(0.5 + num(p.kParamSize, 50) / 100 * 6).toFixed(2), Predelay: +num(p.kParamDelay, 10).toFixed(1), 'Dry/Wet': +w.toFixed(0) }, from });
+      else if (kind === 'FXReverb') chain.push({ device: 'Reverb', settings: { 'Decay Time': Math.round((0.5 + num(p.kParamSize, 50) / 100 * 6) * 1000), Predelay: +num(p.kParamDelay, 10).toFixed(1), 'Dry/Wet': +w.toFixed(0) }, from });
       else if (kind === 'FXDistortion') chain.push({ device: 'Saturator', settings: { Drive: +(num(p.kParamDrive, 25) * 0.24).toFixed(1), 'Dry/Wet': +w.toFixed(0) }, from });
       else if (kind === 'FXUtils') chain.push({ device: 'Utility', settings: { Width: 100 + num(p.kParamWidth, 0) }, from });
       else {

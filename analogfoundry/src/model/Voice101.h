@@ -111,35 +111,44 @@ struct Voice101Parameters {
 
   double pitchBendRange = 2.0;  ///< semitones at full bend
 
-  // Modulation matrix (0.4): 8 slots of source -> destination * amount (-1..1).
-  // Codes are stable (saved in presets and projects); see ModSource / ModDest.
-  // Named fields, not arrays: the parameter table addresses members.
-  double mod1Source = 0, mod1Dest = 0, mod1Amount = 0;
-  double mod2Source = 0, mod2Dest = 0, mod2Amount = 0;
-  double mod3Source = 0, mod3Dest = 0, mod3Amount = 0;
-  double mod4Source = 0, mod4Dest = 0, mod4Amount = 0;
-  double mod5Source = 0, mod5Dest = 0, mod5Amount = 0;
-  double mod6Source = 0, mod6Dest = 0, mod6Amount = 0;
-  double mod7Source = 0, mod7Dest = 0, mod7Amount = 0;
-  double mod8Source = 0, mod8Dest = 0, mod8Amount = 0;
+  // Modulation matrix (0.4): 8 slots, each ONE parameter packing source,
+  // destination and amount (see packModSlot) - Live lists a plugin's parameters
+  // only up to 64, and 24 separate matrix parameters took AF101 past it.
+  // 10000 is an empty slot (no source, amount 0).
+  double mod1 = 10000, mod2 = 10000, mod3 = 10000, mod4 = 10000;
+  double mod5 = 10000, mod6 = 10000, mod7 = 10000, mod8 = 10000;
 };
 
-/// The matrix slots as member pointers, in order, for code that iterates them.
-struct ModSlotFields {
-  double Voice101Parameters::*source;
-  double Voice101Parameters::*dest;
-  double Voice101Parameters::*amount;
+/// The matrix slots as member pointers, in order.
+inline double Voice101Parameters::* const kModSlots[8] = {
+    &Voice101Parameters::mod1, &Voice101Parameters::mod2, &Voice101Parameters::mod3, &Voice101Parameters::mod4,
+    &Voice101Parameters::mod5, &Voice101Parameters::mod6, &Voice101Parameters::mod7, &Voice101Parameters::mod8,
 };
-inline const ModSlotFields kModSlots[8] = {
-    {&Voice101Parameters::mod1Source, &Voice101Parameters::mod1Dest, &Voice101Parameters::mod1Amount},
-    {&Voice101Parameters::mod2Source, &Voice101Parameters::mod2Dest, &Voice101Parameters::mod2Amount},
-    {&Voice101Parameters::mod3Source, &Voice101Parameters::mod3Dest, &Voice101Parameters::mod3Amount},
-    {&Voice101Parameters::mod4Source, &Voice101Parameters::mod4Dest, &Voice101Parameters::mod4Amount},
-    {&Voice101Parameters::mod5Source, &Voice101Parameters::mod5Dest, &Voice101Parameters::mod5Amount},
-    {&Voice101Parameters::mod6Source, &Voice101Parameters::mod6Dest, &Voice101Parameters::mod6Amount},
-    {&Voice101Parameters::mod7Source, &Voice101Parameters::mod7Dest, &Voice101Parameters::mod7Amount},
-    {&Voice101Parameters::mod8Source, &Voice101Parameters::mod8Dest, &Voice101Parameters::mod8Amount},
+
+/// One matrix slot as a single parameter value:
+///   (source * 17 + destination) * 20001 + round((amount + 1) * 10000)
+/// Amount resolution is 1/10000; the largest value, 3,400,169, survives a host's
+/// 32-bit normalised parameter (it rounds back to the same integer).
+struct ModSlot {
+  int source;
+  int dest;
+  double amount;
 };
+constexpr double kModSlotEmpty = 10000.0;
+constexpr double kModSlotMax = 3400169.0;
+inline double packModSlot(int source, int dest, double amount) noexcept {
+  const double a = amount < -1.0 ? -1.0 : (amount > 1.0 ? 1.0 : amount);
+  return (source * 17.0 + dest) * 20001.0 + std::round((a + 1.0) * 10000.0);
+}
+inline ModSlot unpackModSlot(double value) noexcept {
+  const long v = std::lround(value < 0.0 ? 0.0 : (value > kModSlotMax ? kModSlotMax : value));
+  const long route = v / 20001;
+  return {static_cast<int>(route / 17), static_cast<int>(route % 17), (v % 20001) / 10000.0 - 1.0};
+}
+inline void setModSlot(Voice101Parameters& p, int slot, int source, int dest, double amount) noexcept {
+  p.*(kModSlots[slot]) = packModSlot(source, dest, amount);
+}
+inline ModSlot getModSlot(const Voice101Parameters& p, int slot) noexcept { return unpackModSlot(p.*(kModSlots[slot])); }
 
 /// Modulation sources. Envelopes, velocity, wheel and pressure are 0..1; LFOs,
 /// key and the per-note random value are -1..1.
@@ -627,9 +636,9 @@ class Voice101 {
     resonanceModulated_ = false;
     lfo2Used_ = false;
     for (int i = 0; i < 8; ++i) {
-      const long src = std::lround(params_.*(kModSlots[i].source));
-      const long dst = std::lround(params_.*(kModSlots[i].dest));
-      const double amount = params_.*(kModSlots[i].amount);
+      const ModSlot slot = getModSlot(params_, i);
+      const long src = slot.source, dst = slot.dest;
+      const double amount = slot.amount;
       if (src <= kSrcNone || src >= kSrcCount || dst <= kDstNone || dst >= kDstCount) continue;
       if (amount == 0.0) continue;
       slotSource_[matrixSlots_] = static_cast<int>(src);

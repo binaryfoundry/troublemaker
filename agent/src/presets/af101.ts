@@ -29,7 +29,8 @@ export const AF101_PARAMS: Af101Param[] = [
   P('osc3_level', 0, 1, 0), P('osc3_wave', 0, 3, 0), P('osc3_oct', -3, 3, 0), P('osc3_semi', -12, 12, 0), P('osc3_fine', -100, 100, 0),
   P('lfo1_wave', 0, 4, 0), P('lfo1_retrig', 0, 1, 0), P('lfo2_rate', 0.01, 50, 2), P('lfo2_wave', 0, 4, 0),
   P('lfo2_retrig', 0, 1, 0), P('bend_range', 0, 24, 2),
-  ...[1, 2, 3, 4, 5, 6, 7, 8].flatMap((n) => [P(`mod${n}_src`, 0, 9, 0), P(`mod${n}_dst`, 0, 16, 0), P(`mod${n}_amt`, -1, 1, 0)]),
+  // One parameter per matrix slot (packModSlot): Live lists only 64 plugin parameters.
+  ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => P(`mod${n}`, 0, 3400169, 10000)),
 ];
 
 /** Oscillator waves (osc2_wave, osc3_wave). */
@@ -70,15 +71,23 @@ export function clampParam(id: string, value: number): number {
   return Math.min(p.max, Math.max(p.min, value));
 }
 
+/** One matrix slot as one parameter value, exactly as Voice101.h packModSlot does. */
+export function packModSlot(src: number, dst: number, amt: number): number {
+  const a = Math.max(-1, Math.min(1, amt));
+  return (src * 17 + dst) * 20001 + Math.round((a + 1) * 10000);
+}
+export function unpackModSlot(v: number): { src: number; dst: number; amt: number } {
+  const x = Math.round(Math.max(0, Math.min(3400169, v)));
+  const route = Math.floor(x / 20001);
+  return { src: Math.floor(route / 17), dst: route % 17, amt: (x % 20001) / 10000 - 1 };
+}
+
 /** Fill the 8 matrix slots, strongest first. Returns what was placed and what did not fit. */
 export function placeMatrix(patch: Af101Patch, slots: MatrixSlot[]): { placed: MatrixSlot[]; overflow: MatrixSlot[] } {
   const kept = slots.filter((s) => s.amt !== 0).sort((a, b) => Math.abs(b.amt) - Math.abs(a.amt));
   const placed = kept.slice(0, 8).map((s, i) => {
-    const amt = clampParam(`mod${i + 1}_amt`, s.amt);
-    patch[`mod${i + 1}_src`] = s.src;
-    patch[`mod${i + 1}_dst`] = s.dst;
-    patch[`mod${i + 1}_amt`] = amt;
-    return { ...s, amt };
+    patch[`mod${i + 1}`] = packModSlot(s.src, s.dst, s.amt);
+    return { ...s, amt: unpackModSlot(patch[`mod${i + 1}`] ?? 0).amt };
   });
   return { placed, overflow: kept.slice(8) };
 }

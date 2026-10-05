@@ -1121,7 +1121,7 @@ std::vector<double> held(const af::Voice101Parameters& p, int note, int samples,
 void oscillatorMatrixTests() {
   std::printf("oscillators 2-3, LFO 2, controllers, matrix (0.4)\n");
   const af::Voice101Parameters d;
-  check(d.osc2Level == 0.0 && d.osc3Level == 0.0 && d.mod1Source == 0.0 && d.mod8Amount == 0.0 &&
+  check(d.osc2Level == 0.0 && d.osc3Level == 0.0 && d.mod1 == af::kModSlotEmpty && d.mod8 == af::kModSlotEmpty &&
             d.lfo1Wave == 0.0 && d.pitchBendRange == 2.0,
         "0.4 is off by default", 0.0);
 
@@ -1138,9 +1138,9 @@ void oscillatorMatrixTests() {
     af::Voice101Parameters q = patch;
     q.osc2Wave = 2.0; q.osc2Octave = 1.0; q.osc2Semi = 7.0; q.osc3Fine = 30.0;  // levels still 0
     q.lfo2RateHz = 7.0; q.lfo2Wave = 4.0; q.pitchBendRange = 12.0;
-    q.mod1Source = 3.0; q.mod1Dest = 1.0;                // amount 0
-    q.mod2Dest = 2.0; q.mod2Amount = 0.5;                // source none
-    q.mod3Source = 5.0; q.mod3Amount = 0.5;              // destination none
+    af::setModSlot(q, 0, 3, 1, 0.0);                     // amount 0
+    af::setModSlot(q, 1, 0, 2, 0.5);                     // source none
+    af::setModSlot(q, 2, 5, 0, 0.5);                     // destination none
     check(same(base, renderHeld(q, 57, 48000)), "inactive 0.4 settings are the 0.3.1 path, bit for bit", 0.0);
   }
 
@@ -1207,9 +1207,7 @@ void oscillatorMatrixTests() {
   // Matrix: velocity -> amp. Velocity 0.5 at amount 1 is gain x1.5 (+3.5 dB) over velocity 0.
   {
     af::Voice101Parameters q = openSaw();
-    q.mod1Source = af::kSrcVelocity;
-    q.mod1Dest = af::kDstAmp;
-    q.mod1Amount = 1.0;
+    af::setModSlot(q, 0, af::kSrcVelocity, af::kDstAmp, 1.0);
     const double db = 20.0 * std::log10(rms(held(q, 57, 24000, 0.5)) / rms(held(q, 57, 24000, 0.0)));
     check(std::fabs(db - 3.52) < 0.2, "matrix: velocity to amp, x(1 + amount * source)", db);
   }
@@ -1221,9 +1219,7 @@ void oscillatorMatrixTests() {
     q.filterAttack = 0.0;
     q.filterDecay = 0.2;
     q.filterSustain = 0.0;
-    q.mod1Source = af::kSrcFilterEnv;
-    q.mod1Dest = af::kDstPitch;
-    q.mod1Amount = 0.5;  // 12 semitones at the envelope's peak
+    af::setModSlot(q, 0, af::kSrcFilterEnv, af::kDstPitch, 0.5);  // 12 semitones at the envelope's peak
     const auto x = renderVelocity(q, 57, 1.0, 48000, 0);
     const auto t = upCrossings(x, 48000.0);
     const double early = meanFrequency(t, 0.0, 0.01), late = meanFrequency(t, 0.5, 1.0);
@@ -1234,16 +1230,12 @@ void oscillatorMatrixTests() {
   {
     af::Voice101Parameters q = openSaw();
     q.cutoffHz = 600.0;
-    q.mod1Source = af::kSrcKey;
-    q.mod1Dest = af::kDstCutoff;
-    q.mod1Amount = 1.0;
+    af::setModSlot(q, 0, af::kSrcKey, af::kDstCutoff, 1.0);
     const double low = brightness(held(q, 45, 24000), 0, 24000), high = brightness(held(q, 81, 24000), 0, 24000);
     check(high > low * 2.0, "matrix: key to cutoff opens the filter for higher notes", high / low);
 
     af::Voice101Parameters w = bareSine2();
-    w.mod1Source = af::kSrcModWheel;
-    w.mod1Dest = af::kDstFine;
-    w.mod1Amount = 1.0;  // 100 cents at full wheel
+    af::setModSlot(w, 0, af::kSrcModWheel, af::kDstFine, 1.0);  // 100 cents at full wheel
     af::Voice101 v;
     v.setSampleRate(48000.0);
     v.setParameters(w);
@@ -1258,9 +1250,7 @@ void oscillatorMatrixTests() {
     af::Voice101Parameters l = bareSine2();
     l.lfo2RateHz = 2.0;
     l.lfo2Wave = 3.0;  // square
-    l.mod1Source = af::kSrcLfo2;
-    l.mod1Dest = af::kDstPitch;
-    l.mod1Amount = 1.0 / 24.0;                // +/-1 semitone
+    af::setModSlot(l, 0, af::kSrcLfo2, af::kDstPitch, 1.0 / 24.0);                // +/-1 semitone
     const auto y = renderVelocity(l, 57, 1.0, 48000, 0);
     const auto ty = upCrossings(y, 48000.0);
     const double up = meanFrequency(ty, 0.02, 0.23), down = meanFrequency(ty, 0.27, 0.48);
@@ -1272,9 +1262,7 @@ void oscillatorMatrixTests() {
     af::Voice101Parameters q = bareSine2();
     q.lfoRateHz = 4.0;
     q.lfo1Wave = 4.0;
-    q.mod1Source = af::kSrcLfo1;
-    q.mod1Dest = af::kDstFine;
-    q.mod1Amount = 0.5;
+    af::setModSlot(q, 0, af::kSrcLfo1, af::kDstFine, 0.5);
     const auto x = renderVelocity(q, 57, 1.0, 48000, 0);
     const auto t = upCrossings(x, 48000.0);
     double lo = 1e9, hi = -1e9;
@@ -1290,9 +1278,7 @@ void oscillatorMatrixTests() {
   // Note random: a different value per note, the same sequence every run.
   {
     af::Voice101Parameters q = bareSine2();
-    q.mod1Source = af::kSrcNoteRandom;
-    q.mod1Dest = af::kDstFine;
-    q.mod1Amount = 0.5;
+    af::setModSlot(q, 0, af::kSrcNoteRandom, af::kDstFine, 0.5);
     auto two = [&]() {
       af::Voice101 v;
       v.setSampleRate(48000.0);
@@ -1314,6 +1300,23 @@ void oscillatorMatrixTests() {
     check(a[0] == b[0] && a[1] == b[1], "and repeats run to run", a[0] - b[0]);
   }
 
+  // The packed slot: every source x destination and amounts to 1/10000 survive a
+  // host's 32-bit normalised value (what Live stores) and come back exact.
+  {
+    bool ok = true;
+    double worst = 0.0;
+    for (int src = 0; src < af::kSrcCount; ++src)
+      for (int dst = 0; dst < af::kDstCount; ++dst)
+        for (double amt : {-1.0, -0.4999, -0.0083, 0.0, 0.0001, 0.3333, 1.0}) {
+          const float normalised = static_cast<float>(af::packModSlot(src, dst, amt) / af::kModSlotMax);
+          const af::ModSlot back = af::unpackModSlot(static_cast<double>(normalised) * af::kModSlotMax);
+          const double err = std::fabs(back.amount - amt);
+          worst = std::fmax(worst, err);
+          if (back.source != src || back.dest != dst || err > 0.00005) ok = false;
+        }
+    check(ok, "a packed matrix slot survives a 32-bit normalised host value", worst);
+  }
+
   // Everything at once, at the extremes, stays finite.
   {
     af::Voice101Parameters q = openSaw();
@@ -1322,9 +1325,7 @@ void oscillatorMatrixTests() {
     q.osc3Level = 1.0; q.osc3Wave = 2.0; q.osc3Octave = -3.0;
     q.unisonVoices = 7.0; q.unisonDetuneCents = 50.0;
     for (int i = 0; i < 8; ++i) {
-      q.*(af::kModSlots[i].source) = 1 + (i % 9);
-      q.*(af::kModSlots[i].dest) = 1 + (i * 2) % 16;
-      q.*(af::kModSlots[i].amount) = i % 2 ? -1.0 : 1.0;
+      af::setModSlot(q, i, 1 + (i % 9), 1 + (i * 2) % 16, i % 2 ? -1.0 : 1.0);
     }
     const auto x = held(q, 100, 48000);
     check(finiteAll(x) && peak(x) < 8.0, "every 0.4 feature at its extreme stays finite", peak(x));
@@ -1337,13 +1338,14 @@ void oscillatorMatrixTests() {
     q.osc3Level = 0.25; q.osc3Wave = 3; q.osc3Octave = -2;
     q.lfo1Wave = 4; q.lfo1Retrigger = 1; q.lfo2RateHz = 0.7; q.lfo2Wave = 1; q.lfo2Retrigger = 1;
     q.pitchBendRange = 12;
-    q.mod8Source = 9; q.mod8Dest = 16; q.mod8Amount = -0.25;
+    af::setModSlot(q, 7, 9, 16, -0.25);
     const auto back = af::loadPreset(af::savePreset(q));
-    check(back.osc2Semi == -5 && back.osc3Octave == -2 && back.lfo2RateHz == 0.7 && back.mod8Dest == 16 &&
-              back.mod8Amount == -0.25 && back.lfo1Retrigger == 1,
-          "0.4 fields round-trip through a preset", back.mod8Amount);
+    const af::ModSlot m8 = af::getModSlot(back, 7);
+    check(back.osc2Semi == -5 && back.osc3Octave == -2 && back.lfo2RateHz == 0.7 && m8.source == 9 && m8.dest == 16 &&
+              m8.amount == -0.25 && back.lfo1Retrigger == 1,
+          "0.4 fields round-trip through a preset", m8.amount);
     const auto old = af::loadPreset("analogfoundry101 1\nsaw 1\nvel_cutoff 0.3\n");
-    check(old.osc2Level == 0.0 && old.mod1Source == 0.0 && old.lfo2RateHz == 2.0, "an older preset loads with 0.4 off",
+    check(old.osc2Level == 0.0 && af::getModSlot(old, 0).source == 0 && old.lfo2RateHz == 2.0, "an older preset loads with 0.4 off",
           old.osc2Level);
   }
 }

@@ -75,6 +75,8 @@ class AnalogFoundry101 : public Plugin {
       return id.size() >= n && id.compare(id.size() - n, n, tail) == 0;
     };
     if (ends("_oct") || ends("_semi")) parameter.hints |= kParameterIsInteger;
+    // A packed matrix slot (Voice101.h packModSlot) is an integer code.
+    if (id.size() == 4 && id.compare(0, 3, "mod") == 0) parameter.hints |= kParameterIsInteger;
     if (id == "osc2_wave" || id == "osc3_wave") setChoices(parameter, kOscWaves, 4);
     else if (id == "lfo1_wave" || id == "lfo2_wave") setChoices(parameter, kLfoWaves, 5);
     else if (ends("_src")) setChoices(parameter, kSources, 10);
