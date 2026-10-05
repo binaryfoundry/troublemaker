@@ -116,6 +116,12 @@ const SUMMARIES: Record<CommandName, { summary: string; mutates?: boolean; bridg
     summary: "Set a parameter to a named state, e.g. Limiter Mode 'True Peak' or Saturator Type 'Analog Clip'.",
     mutates: true,
   },
+  'live.delete_device': {
+    summary:
+      "Delete one device from a track's chain. Destructive. Used to replace a plugin, since " +
+      'loading the same plugin onto its own track does nothing.',
+    mutates: true,
+  },
   'live.insert_device': {
     summary: 'Insert a native device (Live 12.3+ only; UNSUPPORTED on earlier versions).',
     mutates: true,

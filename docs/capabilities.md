@@ -49,6 +49,7 @@ reports a success it did not achieve.
 | Kick-keyed sidechain   | A device's sidechain input is chosen in Live's UI only; the codex offers a volume-shaping approximation. |
 | Audio clip editing     | Out of scope for version 1.                               |
 | Warping                | Out of scope for version 1.                               |
+| Device deletion | `live.delete_device` (`Track.delete_device`). Needed to replace a plugin: loading the same plugin onto a track that already has it does nothing, and a restored instance keeps its saved parameter list. |
 | Device insertion by name | Live 11 has none; load from the browser instead (`live.load_browser_item`). **Live 12.3+**: native devices via `live.insert_device` / `master build`, detected automatically. |
 | Export / render        | No API in any Live version. `master.capture` records the Master output through a Resampling track instead (real time); a final delivery export is still manual. |
 | Live loudness metering | Live exposes display meters only. Loudness comes from QC on the export. |

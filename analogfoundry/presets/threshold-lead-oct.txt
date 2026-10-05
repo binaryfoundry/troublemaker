@@ -1,6 +1,6 @@
-# Threshold lead, octave layer - the second oscillator an octave up, as the
-# CamelPhat leads stack it. Tune +12, saw only, brighter, fewer voices; sits
-# under the main lead on its own fader.
+# Threshold lead v3, octave layer - the second oscillator an octave up, as the
+# CamelPhat leads stack it. Tune +12, saw only, brighter, fewer voices, the same
+# expression as the main lead so the two move together. Plays only at the peak.
 analogfoundry101 1
 saw 1
 pulse 0.2
@@ -8,21 +8,31 @@ sub 0
 noise 0
 pw 0.5
 tune 12
-cutoff 2400
+cutoff 1800
 resonance 0.05
-env_cutoff 0.25
+env_cutoff 0.3
 lfo_cutoff 0
 track 0.4
 attack 0.006
 decay 0.6
-sustain 0.8
-release 0.3
-lfo_rate 5
-lfo_pitch 0
+sustain 0.85
+release 0.35
+lfo_rate 5.2
+lfo_pitch 0.2
 lfo_pw 0
-glide 0.02
+glide 0.07
 stage_drive 0.1
 input_drive 0.1
 level 0.8
 unison 3
 unison_detune 12
+vel_amp 0.3
+vel_cutoff 0.35
+fenv_separate 1
+fenv_attack 0.003
+fenv_decay 0.4
+fenv_sustain 0.15
+fenv_release 0.3
+vib_fade 0.5
+drift 7
+legato_glide 1

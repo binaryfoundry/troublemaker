@@ -219,6 +219,7 @@ export const schemas = {
       "Identify the parameter with 'parameter_id' or 'parameter_name'.",
     ),
   'live.set_device_active': deviceRef.extend({ enabled: z.boolean() }).strict(),
+  'live.delete_device': deviceRef.strict(),
 
   // -- automation -------------------------------------------------------
   'live.get_automation': clipRef

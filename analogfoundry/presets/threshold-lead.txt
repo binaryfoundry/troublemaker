@@ -1,31 +1,47 @@
-# Threshold lead - built to the CamelPhat Serum leads (medians of 18; docs/lessons.md):
-# a sustained, thick saw lead, not a pluck. Saw + some pulse + sub, five
-# unison voices at 18 cents, a little filter drive, amp sustain 0.8 with a
-# 0.3 s release, a short glide. Played in MIDI 55-65; "threshold-lead-oct"
-# doubles it an octave up on a second instance. Width comes after the synth
-# (Chorus-Ensemble): AF101's unison is mono.
+# Threshold lead v3 - built to the CamelPhat Serum leads, now with the
+# expression they all use (AF101 0.3):
+#   - saw + pulse + a little sub, five unison voices at 18 cents, a little drive;
+#     the sub came down from 0.45 (QC had low-mids +2.4 dB over the reference)
+#   - amp sustain 0.85, release 0.35: a lead, not a pluck
+#   - its own filter envelope snapping almost shut (16 of 18 Serum leads route an
+#     envelope to the cutoff; Diva's filter-env sustain is 0 in 28 of 29): each note
+#     blooms and darkens while it keeps sounding
+#   - velocity to cutoff and amp (16 of 18 Serum leads: velocity -> cutoff)
+#   - vibrato that fades in over half a second, so only held notes sing (4 leads
+#     have a VIBRATO macro), and a few cents of drift (8 leads: slow LFO -> fine tune)
+#   - glide on slurs only: a grace note overlapping its target slides into it
 analogfoundry101 1
 saw 1
 pulse 0.35
-sub 0.45
+sub 0.3
 noise 0
 pw 0.45
 tune 0
-cutoff 1400
+cutoff 900
 resonance 0.1
-env_cutoff 0.3
+env_cutoff 0.35
 lfo_cutoff 0
 track 0.4
 attack 0.006
 decay 0.6
-sustain 0.8
-release 0.3
-lfo_rate 5
-lfo_pitch 0
+sustain 0.85
+release 0.35
+lfo_rate 5.2
+lfo_pitch 0.2
 lfo_pw 0.2
-glide 0.02
+glide 0.07
 stage_drive 0.2
 input_drive 0.15
 level 0.8
 unison 5
 unison_detune 18
+vel_amp 0.3
+vel_cutoff 0.35
+fenv_separate 1
+fenv_attack 0.003
+fenv_decay 0.4
+fenv_sustain 0.12
+fenv_release 0.3
+vib_fade 0.5
+drift 5
+legato_glide 1

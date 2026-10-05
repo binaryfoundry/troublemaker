@@ -10,6 +10,11 @@
 // Optional unison (not on the 101, off by default): up to 7 detuned copies of
 // the saw and pulse feed the same filter. The sub stays on the centre VCO.
 //
+// Optional expression (not on the 101, all off by default): velocity to the
+// VCA and the cutoff, a filter envelope with its own ADSR, a vibrato that
+// fades in after each note starts, slow pitch drift, and glide on overlapping
+// notes only. Each is the untouched 101 path when off.
+//
 // This header has no plugin, GUI or host dependency of any kind, which is the
 // requirement that keeps the same engine usable from the offline renderer,
 // the test harness and a future VST3 wrapper.
@@ -75,6 +80,19 @@ struct Voice101Parameters {
   // addresses doubles; the voice count is rounded.
   double unisonVoices = 1.0;       ///< 1..7
   double unisonDetuneCents = 0.0;  ///< outermost voices sit at +/- this
+
+  // Expression: extensions beyond the 101, all off by default. Switches are
+  // doubles (>= 0.5 is on) because the parameter table addresses doubles.
+  double velocityToAmp = 0.0;      ///< 0..1: at 1, velocity 0 is silent
+  double velocityToCutoff = 0.0;   ///< 0..1: at 1, velocity 0 sits kVelocityCutoffOctaves lower
+  double filterEnvSeparate = 0.0;  ///< on: the filter envelope uses the filter* times below
+  double filterAttack = 0.002;
+  double filterDecay = 0.3;
+  double filterSustain = 0.0;
+  double filterRelease = 0.1;
+  double vibratoFadeIn = 0.0;  ///< seconds for LFO-to-pitch to reach full depth after a note starts
+  double driftCents = 0.0;     ///< slow pitch wander, peak cents
+  double legatoGlide = 0.0;    ///< on: glide only between overlapping notes
 };
 
 class Voice101 {
@@ -88,6 +106,7 @@ class Voice101 {
     filterEnvelope_.setSampleRate(sampleRate_);
     vca_.setSampleRate(sampleRate_);
     cutoffSmoother_.configure(sampleRate_, 0.005);
+    velocitySmoother_.configure(sampleRate_, 0.003);
     variationEngine_.configure(variation_, sampleRate_);
     filter_.setStageSpread(variationEngine_.stageSpread());
     reset();
@@ -119,10 +138,13 @@ class Voice101 {
     // The filter envelope follows the amplitude envelope's shape. The 101
     // shares one envelope between filter and VCA; keeping two objects lets a
     // later model split them without changing this interface.
-    filterEnvelope_.setAttack(p.attack);
-    filterEnvelope_.setDecay(p.decay);
-    filterEnvelope_.setSustain(p.sustain);
-    filterEnvelope_.setRelease(p.release);
+    // A separate filter envelope (not on the 101) lets the tone close while
+    // the note sustains - the CamelPhat lead: amp sustain high, filter sustain 0.
+    const bool own = p.filterEnvSeparate >= 0.5;
+    filterEnvelope_.setAttack(own ? p.filterAttack : p.attack);
+    filterEnvelope_.setDecay(own ? p.filterDecay : p.decay);
+    filterEnvelope_.setSustain(own ? p.filterSustain : p.sustain);
+    filterEnvelope_.setRelease(own ? p.filterRelease : p.release);
   }
 
   const Voice101Parameters& parameters() const noexcept { return params_; }
@@ -139,6 +161,11 @@ class Voice101 {
     vca_.reset();
     noise_.reset();
     lfoPhase_ = 0.0;
+    driftPhaseA_ = 0.0;
+    driftPhaseB_ = 0.37;
+    velocity_ = 1.0;
+    velocitySmoother_.snapTo(1.0);
+    vibratoTime_ = 0.0;
     currentNote_ = -1;
     gliding_ = false;
     held_ = false;
@@ -148,23 +175,26 @@ class Voice101 {
   }
 
   /// Monophonic note-on with last-note priority.
-  void noteOn(int midiNote, double /*velocity*/ = 1.0) noexcept {
+  void noteOn(int midiNote, double velocity = 1.0) noexcept {
     const double target = noteToHz(midiNote);
     const bool overlapping = held_;
+    velocity_ = velocity < 0.0 ? 0.0 : (velocity > 1.0 ? 1.0 : velocity);
     targetFrequency_ = target;
     if (currentFrequency_ <= 0.0) {
       currentFrequency_ = target;  // first note of a phrase never glides
     }
-    const bool shouldGlide =
-        params_.glideSeconds > 0.0 && (!params_.legatoGlideOnly || overlapping);
+    const bool legatoOnly = params_.legatoGlideOnly || params_.legatoGlide >= 0.5;
+    const bool shouldGlide = params_.glideSeconds > 0.0 && (!legatoOnly || overlapping);
     gliding_ = shouldGlide;
     if (!shouldGlide) currentFrequency_ = target;
 
     // Legato: an overlapping note does not retrigger the envelopes, which is
     // what makes a glide sound like one gesture rather than two notes.
+    // The vibrato fade-in restarts with the envelopes, so a slur keeps singing.
     if (!overlapping) {
       amplitudeEnvelope_.noteOn();
       filterEnvelope_.noteOn();
+      vibratoTime_ = 0.0;
     }
     currentNote_ = midiNote;
     held_ = true;
@@ -196,8 +226,21 @@ class Voice101 {
         gliding_ = false;
       }
     }
-    const double semitones = params_.tuneSemitones + params_.octave * 12.0 +
-                             lfo * params_.lfoToPitch;
+    double vibrato = lfo * params_.lfoToPitch;
+    if (params_.vibratoFadeIn > 0.0) {
+      // Squared ramp: nothing at first, then the vibrato blooms, as a singer's does.
+      const double t = vibratoTime_ / params_.vibratoFadeIn;
+      vibrato *= t >= 1.0 ? 1.0 : t * t;
+      vibratoTime_ += 1.0 / sampleRate_;
+    }
+    double semitones = params_.tuneSemitones + params_.octave * 12.0 + vibrato;
+    if (params_.driftCents > 0.0) {
+      // Two slow sines at an irrational-ish ratio: a wander that does not repeat.
+      driftPhaseA_ = wrap01(driftPhaseA_ + 0.31 / sampleRate_);
+      driftPhaseB_ = wrap01(driftPhaseB_ + 0.19 / sampleRate_);
+      semitones += params_.driftCents / 100.0 * 0.5 *
+                   (std::sin(2.0 * kPi * driftPhaseA_) + std::sin(2.0 * kPi * driftPhaseB_));
+    }
     // Drift multiplies the final frequency; it is exactly 1.0 when disabled,
     // which is what keeps the determinism test meaningful by default.
     const double frequency = currentFrequency_ * std::pow(2.0, semitones / 12.0) *
@@ -251,15 +294,20 @@ class Voice101 {
       cutoff *= std::pow(ratio, params_.keyboardTracking);
     }
     // Envelope and LFO act in octaves, which is how the control voltage behaves.
-    const double octaves = envelope * params_.envToCutoff * kEnvCutoffOctaves +
-                           lfo * params_.lfoToCutoff * kLfoCutoffOctaves;
+    double octaves = envelope * params_.envToCutoff * kEnvCutoffOctaves +
+                     lfo * params_.lfoToCutoff * kLfoCutoffOctaves;
+    // Full velocity leaves the cutoff where the patch puts it; softer is darker.
+    if (params_.velocityToCutoff > 0.0)
+      octaves += params_.velocityToCutoff * (velocity_ - 1.0) * kVelocityCutoffOctaves;
     cutoff *= std::pow(2.0, octaves);
     filter_.setCutoff(cutoffSmoother_.next(cutoff));
 
     const double filtered = filter_.process(mixed);
 
     // --- VCA
-    const double amplitude = amplitudeEnvelope_.tick();
+    double amplitude = amplitudeEnvelope_.tick();
+    if (params_.velocityToAmp > 0.0)
+      amplitude *= velocitySmoother_.next(1.0 - params_.velocityToAmp * (1.0 - velocity_));
     return vca_.process(filtered, amplitude) * params_.outputLevel;
   }
 
@@ -270,6 +318,8 @@ class Voice101 {
   /// How far a full envelope opens the filter, in octaves.
   static constexpr double kEnvCutoffOctaves = 6.0;
   static constexpr double kLfoCutoffOctaves = 2.0;
+  /// How far velocity 0 lowers the cutoff at full velocity-to-cutoff, in octaves.
+  static constexpr double kVelocityCutoffOctaves = 4.0;
 
   static constexpr int kMaxUnison = 7;
   /// Voices beyond the centre oscillator. An even count has no centre voice
@@ -320,9 +370,14 @@ class Voice101 {
   Envelope filterEnvelope_{};
   Vca vca_{};
   ParameterSmoother cutoffSmoother_{};
+  ParameterSmoother velocitySmoother_{};
   AnalogVariation variation_{};
   VariationEngine variationEngine_{};
   double lfoPhase_ = 0.0;
+  double driftPhaseA_ = 0.0;
+  double driftPhaseB_ = 0.37;
+  double velocity_ = 1.0;
+  double vibratoTime_ = 0.0;
   double currentFrequency_ = 0.0;
   double targetFrequency_ = 0.0;
   int currentNote_ = -1;

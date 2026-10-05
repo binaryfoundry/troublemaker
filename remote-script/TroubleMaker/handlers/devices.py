@@ -123,6 +123,39 @@ def set_device_active(ctx, args):
     }
 
 
+def delete_device(ctx, args):
+    """Remove one device from a track's chain.
+
+    Needed to replace a plugin: Live keeps a restored plugin's saved parameter
+    list, so a newer build's parameters only appear on a fresh instance, and
+    loading the same plugin from the browser onto a track that already has it
+    does nothing. Delete, then load.
+    """
+    track, device = lom.resolve_device(
+        ctx, req_int(args, "track_id"), req_int(args, "device_id")
+    )
+    if not hasattr(track, "delete_device"):
+        raise errors.Unsupported("This Live version cannot delete devices through its API.")
+    devices = list(track.devices)
+    index = lom.index_of(devices, device)
+    if index < 0:
+        raise errors.LiveError("Device '%s' is not in the track's own chain." % (device.name,))
+    name = device.name
+    try:
+        track.delete_device(index)
+    except Exception as exc:
+        raise errors.LiveError("Live refused to delete '%s': %s" % (name, exc))
+    after = list(track.devices)
+    if len(after) != len(devices) - 1:
+        raise errors.LiveError("Live reported success but '%s' is still there." % (name,))
+    return {
+        "track_id": ctx.registry.handle_for(track),
+        "deleted": name,
+        "index": index,
+        "devices": [lom.serialize_device(ctx, d) for d in after],
+    }
+
+
 def _display(param, value):
     try:
         return str(param.str_for_value(value))
@@ -136,4 +169,5 @@ COMMANDS = {
     "live.get_device_parameters": get_device_parameters,
     "live.set_device_parameter": set_device_parameter,
     "live.set_device_active": set_device_active,
+    "live.delete_device": delete_device,
 }

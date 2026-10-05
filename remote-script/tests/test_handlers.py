@@ -445,6 +445,19 @@ class TestDevices(HandlerTestCase):
         self.assertEqual(error["code"], "INVALID_ARGUMENT")
         self.assertEqual(error["max"], 19999.0)
 
+    def test_deletes_a_device_and_returns_the_chain(self):
+        before = self.call("live.get_devices", track_id=self.bass)["devices"]
+        result = self.call("live.delete_device", track_id=self.bass,
+                           device_id=before[0]["device_id"])
+        self.assertEqual(result["deleted"], before[0]["name"])
+        self.assertEqual(result["index"], 0)
+        self.assertEqual([d["device_id"] for d in result["devices"]],
+                         [d["device_id"] for d in before[1:]])
+
+    def test_deleting_an_unknown_device_lists_the_real_ones(self):
+        error = self.fail_call("live.delete_device", track_id=self.bass, device_id=99999)
+        self.assertEqual(error["code"], "DEVICE_NOT_FOUND")
+
     def test_unknown_device_lists_the_real_ones(self):
         error = self.fail_call("live.get_device", track_id=self.bass, device_id=99999)
         self.assertEqual(error["code"], "DEVICE_NOT_FOUND")

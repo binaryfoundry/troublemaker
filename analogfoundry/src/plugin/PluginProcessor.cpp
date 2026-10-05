@@ -41,7 +41,7 @@ class AnalogFoundry101 : public Plugin {
   const char* getMaker() const override { return "AnalogFoundry"; }
   const char* getHomePage() const override { return DISTRHO_PLUGIN_URI; }
   const char* getLicense() const override { return "ISC"; }
-  uint32_t getVersion() const override { return d_version(0, 2, 0); }  // 0.2: unison
+  uint32_t getVersion() const override { return d_version(0, 3, 0); }  // 0.3: expression
 
   /// Stable across releases: changing it makes hosts lose existing projects.
   int64_t getUniqueId() const override { return d_cconst('A', 'F', '1', '1'); }
@@ -55,6 +55,9 @@ class AnalogFoundry101 : public Plugin {
     parameter.hints = kParameterIsAutomatable;
     // A voice count is a whole number: the host should step it, not sweep it.
     if (std::strcmp(d.id, "unison") == 0) parameter.hints |= kParameterIsInteger;
+    // On/off switches: a host should show and automate them as toggles.
+    if (std::strcmp(d.id, "fenv_separate") == 0 || std::strcmp(d.id, "legato_glide") == 0)
+      parameter.hints |= kParameterIsBoolean;
     parameter.name = d.name;
     parameter.symbol = d.id;
     parameter.unit = d.unit;

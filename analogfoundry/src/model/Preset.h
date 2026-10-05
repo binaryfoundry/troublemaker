@@ -68,6 +68,19 @@ inline const std::vector<ParameterDescriptor>& parameterTable() {
       {"unison", "Unison Voices", "", 1.0, 7.0, 1.0, &Voice101Parameters::unisonVoices},
       {"unison_detune", "Unison Detune", "ct", 0.0, 50.0, 0.0,
        &Voice101Parameters::unisonDetuneCents},
+      // 0.3: expression. Each default is the 101 path, so older presets and
+      // projects sound exactly as they did.
+      {"vel_amp", "Velocity > Amp", "", 0.0, 1.0, 0.0, &Voice101Parameters::velocityToAmp},
+      {"vel_cutoff", "Velocity > Cutoff", "", 0.0, 1.0, 0.0, &Voice101Parameters::velocityToCutoff},
+      {"fenv_separate", "Filter Env Separate", "", 0.0, 1.0, 0.0,
+       &Voice101Parameters::filterEnvSeparate},
+      {"fenv_attack", "Filter Attack", "s", 0.0, 10.0, 0.002, &Voice101Parameters::filterAttack},
+      {"fenv_decay", "Filter Decay", "s", 0.0, 10.0, 0.3, &Voice101Parameters::filterDecay},
+      {"fenv_sustain", "Filter Sustain", "", 0.0, 1.0, 0.0, &Voice101Parameters::filterSustain},
+      {"fenv_release", "Filter Release", "s", 0.0, 10.0, 0.1, &Voice101Parameters::filterRelease},
+      {"vib_fade", "Vibrato Fade-In", "s", 0.0, 5.0, 0.0, &Voice101Parameters::vibratoFadeIn},
+      {"drift", "Pitch Drift", "ct", 0.0, 30.0, 0.0, &Voice101Parameters::driftCents},
+      {"legato_glide", "Legato Glide Only", "", 0.0, 1.0, 0.0, &Voice101Parameters::legatoGlide},
   };
   return table;
 }

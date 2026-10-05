@@ -19,6 +19,19 @@ describe('command surface', () => {
   });
 });
 
+describe('device deletion', () => {
+  it('needs a track and a device, and nothing else', () => {
+    expect(validateArgs('live.delete_device', { track_id: 3, device_id: 7 })).toEqual({
+      track_id: 3,
+      device_id: 7,
+    });
+    expect(() => validateArgs('live.delete_device', { track_id: 3 })).toThrow(ValidationError);
+    expect(() => validateArgs('live.delete_device', { track_id: 3, device_id: 7, index: 0 })).toThrow(
+      ValidationError,
+    );
+  });
+});
+
 describe('tempo validation', () => {
   it('accepts a sane tempo', () => {
     expect(validateArgs('live.set_tempo', { bpm: 124 })).toEqual({ bpm: 124 });

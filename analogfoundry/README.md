@@ -42,6 +42,7 @@ compiler without a developer prompt. DPF is optional — without
 | 9 | Hardening | Preset round trip bit-identical, out-of-range clamped, NaN replaced, level spread 44.1–96 kHz **0.01 dB**, survives per-sample automation and random note storms |
 | 10 | Effect variant | `Effect101` reuses the same filter — proven by measuring it against `Filter101` directly, within 1 dB |
 | — | Unison (beyond the 101) | 1-7 detuned copies of saw and pulse into the same filter; sub stays on the centre VCO. **Off by default and bit-identical when off** (reference renders unchanged, byte for byte); level held **within 0.7 dB** from 1 to 7 voices; level wobble 2.9 % -> 19-29 % at 25 cents: it really choruses |
+| — | Expression (beyond the 101, 0.3) | Velocity to amp and cutoff, a **separate filter ADSR**, a vibrato that **fades in** after each note, slow **pitch drift**, and **glide on slurs only**. All off by default and **bit-identical when off** (full velocity is too). Measured: velocity 0.5 at full amp depth **-6.0 dB**; a soft note darker; the separate envelope closes the tone while the note sustains (brightness 1.35x early vs late, 1.00 shared); vibrato under 15 % of full depth in the first 200 ms, full after the fade; drift of 15 cents wanders 8-32 cents peak to peak; a detached note under legato glide starts on pitch, a slurred one slides. Why: the CamelPhat leads route velocity to cutoff (16 of 18), an envelope to cutoff, slow LFO to fine tune (8) and vibrato on a macro, none of which the 101's one envelope could do |
 
 ## CPU
 
@@ -53,7 +54,7 @@ compiler without a developer prompt. DPF is optional — without
 | 2x | 68x |
 | **4x (default)** | **27x** |
 | 4x + all nonlinearity and variation | 22x |
-| 4x + unison, 7 voices | 25x |
+| 4x + unison, 7 voices | 25x (26x with 0.3) |
 | Effect, 4x | 26x |
 
 ## Two things that are not finished

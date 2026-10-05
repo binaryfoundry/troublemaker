@@ -434,6 +434,12 @@ class Track(LiveObject):
         self.color_index = 1
         self.view = TrackView(self)
 
+    def delete_device(self, index):
+        self._check()
+        if index < 0 or index >= len(self.devices):
+            raise IndexError("device index out of range")
+        del self.devices[index]
+
     @property
     def name(self):
         self._check()

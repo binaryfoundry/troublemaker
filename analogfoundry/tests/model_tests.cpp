@@ -754,13 +754,245 @@ void unisonTests() {
   }
 }
 
+// Expression: velocity, a separate filter envelope, vibrato fade-in, drift and
+// legato-only glide. Extensions beyond the 101 - off by default, off is the
+// old path bit for bit, and each one measured when on.
+std::vector<double> renderVelocity(af::Voice101Parameters p, int note, double velocity, int samples,
+                                   int skip = 4800) {
+  af::Voice101 v;
+  v.setSampleRate(48000.0);
+  v.setParameters(p);
+  v.reset();
+  v.noteOn(note, velocity);
+  for (int i = 0; i < skip; ++i) v.process();
+  std::vector<double> out;
+  out.reserve(static_cast<size_t>(samples));
+  for (int i = 0; i < samples; ++i) out.push_back(v.process());
+  return out;
+}
+
+/// Brightness: RMS of the first difference over RMS. Rises with high-frequency content.
+double brightness(const std::vector<double>& xs, size_t from, size_t to) {
+  double d = 0.0, a = 0.0;
+  for (size_t i = from + 1; i < to && i < xs.size(); ++i) {
+    d += (xs[i] - xs[i - 1]) * (xs[i] - xs[i - 1]);
+    a += xs[i] * xs[i];
+  }
+  return a > 0.0 ? std::sqrt(d / a) : 0.0;
+}
+
+/// Times (seconds) of upward zero crossings, linearly interpolated. Armed only
+/// after the signal has gone well below zero, so ripple near zero is not a cycle.
+std::vector<double> upCrossings(const std::vector<double>& xs, double sr) {
+  std::vector<double> t;
+  bool armed = false;
+  for (size_t i = 1; i < xs.size(); ++i) {
+    if (xs[i] < -0.2) armed = true;
+    if (armed && xs[i - 1] < 0.0 && xs[i] >= 0.0) {
+      armed = false;
+      const double f = xs[i - 1] / (xs[i - 1] - xs[i]);
+      t.push_back((static_cast<double>(i - 1) + f) / sr);
+    }
+  }
+  return t;
+}
+
+/// Spread of the period, in cents, between crossing times in [from, to) seconds.
+double pitchSpreadCents(const std::vector<double>& t, double from, double to) {
+  double lo = 1e9, hi = -1e9;
+  for (size_t i = 1; i < t.size(); ++i) {
+    if (t[i - 1] < from || t[i] >= to) continue;
+    const double cents = 1200.0 * std::log2(1.0 / (t[i] - t[i - 1]));
+    lo = std::fmin(lo, cents);
+    hi = std::fmax(hi, cents);
+  }
+  return hi > lo ? hi - lo : 0.0;
+}
+
+double meanFrequency(const std::vector<double>& t, double from, double to) {
+  double first = -1.0, last = -1.0;
+  int n = 0;
+  for (double x : t) {
+    if (x < from || x >= to) continue;
+    if (first < 0.0) first = x;
+    last = x;
+    ++n;
+  }
+  return n > 1 ? (n - 1) / (last - first) : 0.0;
+}
+
+void expressionTests() {
+  std::printf("expression\n");
+  const af::Voice101Parameters defaults;
+  check(defaults.velocityToAmp == 0.0 && defaults.velocityToCutoff == 0.0 &&
+            defaults.filterEnvSeparate == 0.0 && defaults.vibratoFadeIn == 0.0 &&
+            defaults.driftCents == 0.0 && defaults.legatoGlide == 0.0,
+        "expression is off by default", 0.0);
+
+  af::Voice101Parameters patch;
+  patch.sawLevel = 1.0;
+  patch.pulseLevel = 0.4;
+  patch.subLevel = 0.3;
+  patch.cutoffHz = 900.0;
+  patch.resonance = 0.3;
+  patch.envToCutoff = 0.5;
+  patch.lfoToPitch = 0.2;
+  patch.lfoToPulseWidth = 0.3;
+  patch.sustain = 0.7;
+  patch.glideSeconds = 0.03;
+  patch.unisonVoices = 5.0;
+  patch.unisonDetuneCents = 18.0;
+  const auto base = renderHeld(patch, 57, 48000);
+
+  // Off is the old path: filter times are ignored while the envelope is shared,
+  // and full velocity changes nothing even with both velocity amounts up.
+  {
+    af::Voice101Parameters q = patch;
+    q.filterAttack = 0.5;
+    q.filterDecay = 2.0;
+    q.filterSustain = 0.1;
+    q.filterRelease = 3.0;
+    check(same(base, renderHeld(q, 57, 48000)), "filter times do nothing while the envelope is shared", 0.0);
+    q = patch;
+    q.velocityToAmp = 1.0;
+    q.velocityToCutoff = 1.0;
+    check(same(base, renderHeld(q, 57, 48000)), "full velocity is the old path, bit for bit", 0.0);
+  }
+
+  // Velocity to amp: at 1, half velocity is half amplitude (-6 dB).
+  {
+    af::Voice101Parameters q = openSaw();
+    q.velocityToAmp = 1.0;
+    const double db = 20.0 * std::log10(rms(renderVelocity(q, 57, 0.5, 48000)) /
+                                        rms(renderVelocity(q, 57, 1.0, 48000)));
+    check(std::fabs(db + 6.02) < 0.3, "velocity to amp: half velocity is -6 dB", db);
+    q.velocityToAmp = 0.0;
+    const double flat = 20.0 * std::log10(rms(renderVelocity(q, 57, 0.5, 48000)) /
+                                          rms(renderVelocity(q, 57, 1.0, 48000)));
+    check(std::fabs(flat) < 0.01, "velocity does nothing to level when off", flat);
+  }
+
+  // Velocity to cutoff: softer notes are darker; level is left alone.
+  {
+    af::Voice101Parameters q = openSaw();
+    q.cutoffHz = 3000.0;
+    q.velocityToCutoff = 0.6;
+    const auto soft = renderVelocity(q, 57, 0.3, 24000), hard = renderVelocity(q, 57, 1.0, 24000);
+    const double ratio = brightness(soft, 0, soft.size()) / brightness(hard, 0, hard.size());
+    check(ratio < 0.7, "velocity to cutoff: a soft note is darker", ratio);
+  }
+
+  // A separate filter envelope closes the tone while the note sustains at full level.
+  {
+    af::Voice101Parameters q = openSaw();
+    q.cutoffHz = 250.0;
+    q.envToCutoff = 0.6;
+    q.filterEnvSeparate = 1.0;
+    q.filterAttack = 0.001;
+    q.filterDecay = 0.15;
+    q.filterSustain = 0.0;
+    const auto x = renderVelocity(q, 57, 1.0, 48000, 0);
+    const double early = brightness(x, 480, 2400), late = brightness(x, 24000, 48000);
+    // A 220 Hz saw under a 250 Hz cutoff is nearly a sine late on; early the envelope
+    // has it at ~0.9-3 kHz. The difference metric is dominated by the fundamental,
+    // so the honest ratio is modest: 1.35 measured, against 1.00 shared.
+    check(early > late * 1.25, "separate filter envelope: the tone closes over the note", early / late);
+    const double lateDb = 20.0 * std::log10(rms(std::vector<double>(x.begin() + 24000, x.end())));
+    q.filterEnvSeparate = 0.0;  // shared: sustain 1 keeps the filter open
+    const auto y = renderVelocity(q, 57, 1.0, 48000, 0);
+    const double flat = brightness(y, 480, 2400) / brightness(y, 24000, 48000);
+    check(std::fabs(flat - 1.0) < 0.1, "shared envelope at sustain 1: the tone holds", flat);
+    check(lateDb > -40.0, "the note still sounds after the filter closes", lateDb);
+  }
+
+  // Vibrato fade-in: no vibrato at the start, full depth after the fade.
+  {
+    af::Voice101Parameters q = openSaw();
+    q.lfoRateHz = 5.0;
+    q.lfoToPitch = 0.3;  // +/-30 cents
+    q.vibratoFadeIn = 1.0;
+    const auto x = renderVelocity(q, 57, 1.0, 96000, 0);
+    const auto t = upCrossings(x, 48000.0);
+    const double early = pitchSpreadCents(t, 0.05, 0.2), late = pitchSpreadCents(t, 1.2, 2.0);
+    check(late > 45.0, "vibrato reaches full depth after the fade", late);
+    check(early < late * 0.15, "vibrato fade-in: little vibrato in the first 200 ms", early);
+  }
+
+  // Drift: a slow wander of about the stated size; none when off.
+  {
+    af::Voice101Parameters q = openSaw();
+    q.driftCents = 15.0;
+    const auto x = renderVelocity(q, 57, 1.0, 48000 * 6, 0);
+    const auto t = upCrossings(x, 48000.0);
+    double lo = 1e9, hi = -1e9;
+    for (double s0 = 0.2; s0 < 5.9; s0 += 0.1) {
+      const double f = meanFrequency(t, s0, s0 + 0.1);
+      if (f > 0.0) {
+        lo = std::fmin(lo, f);
+        hi = std::fmax(hi, f);
+      }
+    }
+    const double cents = 1200.0 * std::log2(hi / lo);
+    check(cents > 8.0 && cents < 32.0, "drift wanders by about its stated cents (peak to peak)", cents);
+    q.driftCents = 0.0;
+    check(same(renderHeld(openSaw(), 57, 48000), renderHeld(q, 57, 48000)), "drift off is the old path", 0.0);
+  }
+
+  // Legato-only glide: a detached note jumps, an overlapping one slides.
+  {
+    af::Voice101Parameters q = openSaw();
+    q.glideSeconds = 0.2;
+    auto secondNote = [&](bool overlap) {
+      af::Voice101 v;
+      v.setSampleRate(48000.0);
+      v.setParameters(q);
+      v.reset();
+      v.noteOn(45);
+      for (int i = 0; i < 9600; ++i) v.process();
+      if (!overlap) {
+        v.noteOff(45);
+        for (int i = 0; i < 480; ++i) v.process();
+      }
+      v.noteOn(57);
+      std::vector<double> out;
+      for (int i = 0; i < 2400; ++i) out.push_back(v.process());
+      return meanFrequency(upCrossings(out, 48000.0), 0.0, 0.05);
+    };
+    q.legatoGlide = 1.0;
+    const double detached = secondNote(false), slurred = secondNote(true);
+    check(std::fabs(detached - 220.0) < 5.0, "legato glide: a detached note starts on pitch", detached);
+    check(slurred < 200.0, "legato glide: an overlapping note slides", slurred);
+    q.legatoGlide = 0.0;
+    check(secondNote(false) < 200.0, "without legato glide every note slides", secondNote(false));
+  }
+
+  // Presets: the new fields round-trip; an old preset loads with them off.
+  {
+    af::Voice101Parameters q = patch;
+    q.velocityToCutoff = 0.4;
+    q.filterEnvSeparate = 1.0;
+    q.filterDecay = 0.25;
+    q.vibratoFadeIn = 0.6;
+    q.driftCents = 6.0;
+    q.legatoGlide = 1.0;
+    const auto back = af::loadPreset(af::savePreset(q));
+    check(back.velocityToCutoff == 0.4 && back.filterEnvSeparate == 1.0 && back.filterDecay == 0.25 &&
+              back.vibratoFadeIn == 0.6 && back.driftCents == 6.0 && back.legatoGlide == 1.0,
+          "expression round-trips through a preset", back.filterDecay);
+    const auto old = af::loadPreset("analogfoundry101 1\nsaw 1\ncutoff 650\nunison 5\n");
+    check(old.velocityToAmp == 0.0 && old.filterEnvSeparate == 0.0 && old.driftCents == 0.0,
+          "an old preset loads with expression off", old.driftCents);
+  }
+}
+
 int main() {
-  std::printf("AnalogFoundry 101 - model tests (M5, M6, M8, M10, unison)\n\n");
+  std::printf("AnalogFoundry 101 - model tests (M5, M6, M8, M10, unison, expression)\n\n");
   calibrationTests();
   nonlinearityTests();
   variationTests();
   effectTests();
   unisonTests();
+  expressionTests();
   std::printf("\n%d checks, %d failures\n", gChecks, gFailures);
   return gFailures == 0 ? 0 : 1;
 }
