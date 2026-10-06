@@ -45,6 +45,14 @@ def _pointer_source():
 _pointers = _pointer_source()
 
 
+# Automation overrides, as measured on Live 12.4: writing a parameter that has
+# an envelope anywhere overrides its automation; Back to Arrangement leaves the
+# override in place; Re-Enable Automation (Song-wide, or one parameter) clears it.
+# Reset by every new Song.
+_AUTOMATED = set()   # _live_ptr of parameters with an envelope in some clip
+_OVERRIDDEN = set()  # _live_ptr of parameters whose automation is overridden
+
+
 class DeviceParameter(LiveObject):
     def __init__(self, name, value, minimum, maximum, parent=None, quantized=False, unit="",
                  display=None):
@@ -78,6 +86,19 @@ class DeviceParameter(LiveObject):
         if new_value < self.min or new_value > self.max:
             raise RuntimeError("value out of range")
         self._value = float(new_value)
+        if self._live_ptr in _AUTOMATED:
+            _OVERRIDDEN.add(self._live_ptr)
+
+    @property
+    def automation_state(self):
+        """0 none, 1 playing, 2 overridden - as Live reports it."""
+        if self._live_ptr in _OVERRIDDEN:
+            return 2
+        return 1 if self._live_ptr in _AUTOMATED else 0
+
+    def re_enable_automation(self):
+        self._check()
+        _OVERRIDDEN.discard(self._live_ptr)
 
     def str_for_value(self, value):
         if self._display is not None:
@@ -316,11 +337,29 @@ class Clip(LiveObject):
         self._check()
         envelope = AutomationEnvelope(parameter)
         self._envelopes[parameter._live_ptr] = envelope
+        _AUTOMATED.add(parameter._live_ptr)
         return envelope
 
     def clear_envelope(self, parameter):
         self._check()
         self._envelopes.pop(parameter._live_ptr, None)
+
+
+class ArrangementClip(Clip):
+    """A clip on the Arrangement timeline, as measured on Live 12.4.
+
+    Its envelopes play (they are kept in _envelopes), but the API cannot reach
+    them: automation_envelope() returns None even over a fade that is sounding,
+    and create_automation_envelope() raises.
+    """
+
+    def automation_envelope(self, parameter):
+        self._check()
+        return None
+
+    def create_automation_envelope(self, parameter):
+        self._check()
+        raise RuntimeError("Arrangement clips do not support automation envelopes")
 
 
 class AutomationEnvelope(object):
@@ -451,10 +490,27 @@ class Track(LiveObject):
         self._name = value
 
     def duplicate_clip_to_arrangement(self, clip, time):
+        """Measured on Live 12.4: the copy keeps the clip's notes and its
+        envelopes (a placed clip's fade played; one that seemed lost was an
+        automation override, not the copy)."""
         self._check()
-        placed = Clip(clip.length, self, name=clip.name, is_midi=clip.is_midi_clip)
+        placed = ArrangementClip(clip.length, self, name=clip.name, is_midi=clip.is_midi_clip)
         placed.start_time = float(time)
         placed.end_time = float(time) + clip.length
+        for note in clip._notes:
+            placed._notes.append(
+                MidiNote(
+                    placed._next_note_id,
+                    note.pitch,
+                    note.start_time,
+                    note.duration,
+                    note.velocity,
+                    note.mute,
+                    note.probability,
+                )
+            )
+            placed._next_note_id += 1
+        placed._envelopes = dict(clip._envelopes)
         self.arrangement_clips.append(placed)
 
     def delete_clip(self, clip):
@@ -489,6 +545,14 @@ class Scene(LiveObject):
         self.is_triggered = True
 
 
+def _song_re_enable_automation_enabled(self):
+    return bool(_OVERRIDDEN)
+
+
+def _song_re_enable_automation(self):
+    _OVERRIDDEN.clear()
+
+
 class SongView(object):
     def __init__(self, song):
         self.song = song
@@ -514,6 +578,8 @@ class Song(LiveObject):
         self.metronome = False
         self.loop = False
         self.back_to_arranger = False
+        _AUTOMATED.clear()
+        _OVERRIDDEN.clear()
         self.can_undo = True
         self.can_redo = False
 
@@ -775,3 +841,7 @@ def install_stubs():
     sys.modules["_Framework"] = framework
     sys.modules["_Framework.ControlSurface"] = control_surface_module
     return live
+
+
+Song.re_enable_automation_enabled = property(_song_re_enable_automation_enabled)
+Song.re_enable_automation = _song_re_enable_automation

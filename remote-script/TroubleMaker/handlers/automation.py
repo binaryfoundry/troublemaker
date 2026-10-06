@@ -2,9 +2,16 @@
 """Clip-envelope automation.
 
 Scope is deliberately narrow: envelopes inside Session clips, which is what
-the Live API exposes reliably. Arrangement-view automation is NOT attempted -
-set_automation reports a capability error there rather than silently writing
-something else or resorting to GUI automation.
+the Live API exposes reliably.
+
+Arrangement clips are refused, not guessed at. Measured on Live 12.4: an
+Arrangement clip's envelopes play, but Clip.automation_envelope() returns None
+for them and create_automation_envelope() raises, so a read would report "no
+envelope" over automation that is sounding. Placing a Session clip on the
+Arrangement does copy its envelopes, so edit the Session clip and place it.
+
+A write to an automated parameter overrides its automation until Re-Enable
+Automation (live.re_enable_automation); Back to Arrangement does not undo it.
 """
 
 from .. import errors
@@ -49,6 +56,17 @@ def _create_seeded(clip, param, value):
                 param.value = previous
             except Exception:
                 pass
+        # Parking the parameter is a write, and a write overrides the
+        # parameter's automation everywhere - the Arrangement included - until
+        # automation is re-enabled. live.back_to_arrangement does not undo it.
+        # Measured on Live 12.4: a clip placed straight after this played flat
+        # at the parked value. Re-enable just this parameter, so an override
+        # someone made on purpose elsewhere survives.
+        if hasattr(param, "re_enable_automation"):
+            try:
+                param.re_enable_automation()
+            except Exception:
+                pass
 
 
 class _MixerTarget(object):
@@ -81,9 +99,13 @@ def _mixer_parameter(track, target):
 
 
 def _resolve(ctx, args):
-    track, slot, clip = lom.resolve_clip(
-        ctx, req_int(args, "track_id"), req_int(args, "clip_slot")
-    )
+    if args.get("arrangement_index") is not None:
+        raise errors.Unsupported(
+            "Live's API cannot read or write envelopes on Arrangement clips: "
+            "it reports none even where they play. Automate the Session clip.",
+            alternatives=["clip_slot"],
+        )
+    track, clip, _ref = lom.resolve_clip_ref(ctx, args)
     mixer = opt_str(args, "mixer")
     if mixer:
         return track, clip, _MixerTarget("Mixer"), _mixer_parameter(track, mixer)

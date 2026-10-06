@@ -19,10 +19,10 @@ reports a success it did not achieve.
 | Scenes      | enumerate, read, create, rename, fire                              |
 | Clip slots  | enumerate, read                                                    |
 | Clips       | create MIDI, delete, rename, set loop region, fire, stop           |
-| MIDI notes  | read, add, replace, remove (by id or window), update in place      |
+| MIDI notes  | read, add, replace, remove (by id or window), update in place; read and update Arrangement clips in place (`arrangement_index`) |
 | Devices     | enumerate, read, read parameters with ranges and display values    |
 | Parameters  | write by id or name, native or normalized, validated against range |
-| Automation  | clip envelopes: read (sampled), write from breakpoints, clear      |
+| Automation  | clip envelopes: read (sampled), write from breakpoints, clear; re-enable overridden automation |
 | Selection   | read and set selected track, scene, clip slot and device           |
 | Undo        | Live undo/redo, plus bridge-side clip snapshots                    |
 | Batching    | transactions, optionally atomic with rollback                      |
@@ -43,7 +43,8 @@ reports a success it did not achieve.
 
 | Area                   | Why                                                      |
 | ---------------------- | -------------------------------------------------------- |
-| Arrangement editing    | Session clips can be laid onto the Arrangement (`live.place_clip_in_arrangement`); free-form editing of Arrangement clips is not offered. |
+| Arrangement editing    | Session clips can be laid onto the Arrangement (`live.place_clip_in_arrangement`), and an Arrangement clip's notes read and updated in place; moving, resizing or adding notes to Arrangement clips is not offered. |
+| Arrangement automation | Live's API returns no envelope for an Arrangement clip even where one plays, and cannot create one; `arrangement_index` on the automation commands returns `UNSUPPORTED`. Placing a Session clip carries its envelopes; edit them in the Session clip and place it again. |
 | Tape stop              | No varispeed device in Live; plugins can't be inserted via the API. |
 | Reverse reverb/cymbal  | Needs rendering and reversing audio; not available through the API. |
 | Kick-keyed sidechain   | A device's sidechain input is chosen in Live's UI only; the codex offers a volume-shaping approximation. |

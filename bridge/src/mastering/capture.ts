@@ -112,6 +112,15 @@ export class MasterCapture {
 
     await this.transport.send('live.set_track_arm', { track_id: trackId, enabled: true });
     try {
+      // A capture records the track as written. Any write to an automated
+      // parameter (a probe, or set_automation's seeding) overrides its
+      // automation until Re-Enable Automation; Back to Arrangement does not
+      // undo it. Measured on Live 12.4: an overridden fade captured flat.
+      try {
+        await this.transport.send('live.re_enable_automation');
+      } catch (error) {
+        if (!(error instanceof BridgeError) || error.code !== 'UNKNOWN_COMMAND') throw error;
+      }
       let started = false;
       if (options.scene_id !== undefined) {
         // From a stopped transport a scene starts at once while a recording

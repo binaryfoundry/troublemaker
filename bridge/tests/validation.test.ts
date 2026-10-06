@@ -233,4 +233,96 @@ describe('automation validation', () => {
       }),
     ).not.toThrow();
   });
+
+  // Placing a Session clip on the Arrangement copies its notes but drops its
+  // envelopes, so an Arrangement clip is edited in place. Automation accepts
+  // the address so the Remote Script can refuse it with UNSUPPORTED and say why.
+  it('accepts arrangement_index in place of clip_slot', () => {
+    expect(() =>
+      validateArgs('live.set_automation', {
+        track_id: 1,
+        arrangement_index: 3,
+        device_id: 2,
+        parameter_name: 'Frequency',
+        points: [
+          { beat: 0, normalized: 0.2 },
+          { beat: 64, normalized: 0.8 },
+        ],
+      }),
+    ).not.toThrow();
+    expect(() =>
+      validateArgs('live.get_automation', {
+        track_id: 1,
+        arrangement_index: 0,
+        device_id: 2,
+        parameter_name: 'Frequency',
+      }),
+    ).not.toThrow();
+    expect(() =>
+      validateArgs('live.clear_automation', {
+        track_id: 1,
+        arrangement_index: 0,
+        device_id: 2,
+        parameter_name: 'Frequency',
+      }),
+    ).not.toThrow();
+  });
+
+  it('rejects both clip_slot and arrangement_index, and neither', () => {
+    for (const target of [
+      { clip_slot: 0, arrangement_index: 0 },
+      {},
+    ]) {
+      expect(() =>
+        validateArgs('live.get_automation', {
+          track_id: 1,
+          ...target,
+          device_id: 2,
+          parameter_name: 'Frequency',
+        }),
+      ).toThrow(ValidationError);
+    }
+  });
+
+  it('rejects a negative or non-integer arrangement_index', () => {
+    for (const arrangement_index of [-1, 1.5]) {
+      expect(() =>
+        validateArgs('live.get_automation', {
+          track_id: 1,
+          arrangement_index,
+          device_id: 2,
+          parameter_name: 'Frequency',
+        }),
+      ).toThrow(ValidationError);
+    }
+  });
+
+  it('lets notes be read and updated on an Arrangement clip', () => {
+    expect(() =>
+      validateArgs('live.get_notes', { track_id: 1, arrangement_index: 2 }),
+    ).not.toThrow();
+    expect(() =>
+      validateArgs('live.update_notes', {
+        track_id: 1,
+        arrangement_index: 2,
+        updates: [{ note_id: 7, pitch: 76 }],
+      }),
+    ).not.toThrow();
+    expect(() =>
+      validateArgs('live.update_notes', {
+        track_id: 1,
+        clip_slot: 0,
+        arrangement_index: 2,
+        updates: [{ note_id: 7, pitch: 76 }],
+      }),
+    ).toThrow(ValidationError);
+  });
+
+  it('keeps destructive note commands Session-only', () => {
+    for (const command of ['live.replace_notes', 'live.add_notes'] as const) {
+      expect(() =>
+        validateArgs(command, { track_id: 1, arrangement_index: 0, notes: [] }),
+      ).toThrow(ValidationError);
+    }
+  });
 });

@@ -63,7 +63,9 @@ const SUMMARIES: Record<CommandName, { summary: string; mutates?: boolean; bridg
   'live.stop_clip': { summary: 'Stop the playing clip on a track.', mutates: true },
 
   'live.get_notes': {
-    summary: 'Read MIDI notes from a clip. Call this before changing an existing pattern.',
+    summary:
+      'Read MIDI notes from a Session clip (clip_slot) or an Arrangement clip (arrangement_index). ' +
+      'Call this before changing an existing pattern.',
   },
   'live.add_notes': { summary: 'Add notes, leaving existing notes alone.', mutates: true },
   'live.replace_notes': {
@@ -73,8 +75,9 @@ const SUMMARIES: Record<CommandName, { summary: string; mutates?: boolean; bridg
   'live.remove_notes': { summary: 'Remove notes by id or by time/pitch window.', mutates: true },
   'live.update_notes': {
     summary:
-      'Change existing notes in place by note_id. The right tool for edits that must ' +
-      'preserve the musical identity of a part.',
+      'Change existing notes in place by note_id, in a Session clip or an Arrangement clip ' +
+      '(arrangement_index). The right tool for edits that must preserve the musical identity ' +
+      'of a part; in the Arrangement it keeps edits that re-placing would overwrite.',
     mutates: true,
   },
 
@@ -95,7 +98,11 @@ const SUMMARIES: Record<CommandName, { summary: string; mutates?: boolean; bridg
   },
   'live.set_device_active': { summary: 'Enable or bypass a device.', mutates: true },
 
-  'live.get_automation': { summary: 'Sample a clip automation envelope on a beat grid.' },
+  'live.get_automation': {
+    summary:
+      'Sample a Session clip automation envelope on a beat grid. Arrangement clips are ' +
+      'UNSUPPORTED: Live reports no envelope there even where one plays.',
+  },
   'live.set_automation': { summary: 'Write a clip automation ramp from breakpoints.', mutates: true },
   'live.clear_automation': { summary: 'Clear a clip automation envelope.', mutates: true },
 
@@ -144,6 +151,12 @@ const SUMMARIES: Record<CommandName, { summary: string; mutates?: boolean; bridg
     mutates: true,
   },
   'live.get_performance': { summary: "Live's CPU meter, average and peak - dropouts start near 100%." },
+  'live.re_enable_automation': {
+    summary:
+      'Re-Enable Automation: discard parameter overrides so every envelope plays again. ' +
+      'Needed after any write to an automated parameter; live.back_to_arrangement does not undo one.',
+    mutates: true,
+  },
   'live.back_to_arrangement': {
     summary: "Press Back to Arrangement, so tracks that played Session clips follow the Arrangement again.",
     mutates: true,

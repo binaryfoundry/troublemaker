@@ -183,6 +183,55 @@ def resolve_clip(ctx, track_id, clip_slot):
     return track, slot, slot.clip
 
 
+def resolve_arrangement_clip(ctx, track_id, index):
+    """The index-th clip on the track's Arrangement timeline, in the order
+    live.get_arrangement_clips reports.
+
+    Editing an Arrangement clip in place keeps any edit made only there, which
+    clearing and re-placing from the Session clip would overwrite.
+    """
+    track = resolve_track(ctx, track_id)
+    clips = safe(lambda: list(track.arrangement_clips), None)
+    if clips is None:
+        raise errors.Unsupported("This Live version does not expose Arrangement clips.")
+    if isinstance(index, bool) or not isinstance(index, int):
+        raise errors.InvalidArgument("'arrangement_index' must be an integer.")
+    if index < 0 or index >= len(clips):
+        raise errors.ClipNotFound(
+            "Track '%s' has %d Arrangement clips; index %d is out of range."
+            % (track.name, len(clips), index),
+            clip_count=len(clips),
+        )
+    return track, clips[index]
+
+
+def resolve_clip_ref(ctx, args, midi=False):
+    """A clip named by 'clip_slot' (Session) or 'arrangement_index'
+    (Arrangement) - exactly one. Returns (track, clip, ref) where ref echoes
+    the address for the response."""
+    track_id = args.get("track_id")
+    has_slot = args.get("clip_slot") is not None
+    has_arr = args.get("arrangement_index") is not None
+    if has_slot == has_arr:
+        raise errors.InvalidArgument(
+            "Give 'clip_slot' (Session) or 'arrangement_index' (Arrangement), not both."
+        )
+    if has_arr:
+        track, clip = resolve_arrangement_clip(ctx, track_id, args["arrangement_index"])
+        ref = {"arrangement_index": args["arrangement_index"]}
+        where = "Arrangement clip %d" % (args["arrangement_index"],)
+    else:
+        track, _slot, clip = resolve_clip(ctx, track_id, args["clip_slot"])
+        ref = {"clip_slot": args["clip_slot"]}
+        where = "clip slot %d" % (args["clip_slot"],)
+    if midi and not clip.is_midi_clip:
+        raise errors.NotAMidiClip(
+            "Track '%s' %s holds an audio clip; note editing needs a MIDI clip."
+            % (track.name, where)
+        )
+    return track, clip, ref
+
+
 def resolve_midi_clip(ctx, track_id, clip_slot):
     track, slot, clip = resolve_clip(ctx, track_id, clip_slot)
     if not clip.is_midi_clip:
@@ -273,7 +322,13 @@ def serialize_parameter(ctx, param):
         "display_value": safe(lambda: str(param.str_for_value(param.value)), None),
         "display_min": safe(lambda: str(param.str_for_value(param.min)), None),
         "display_max": safe(lambda: str(param.str_for_value(param.max)), None),
+        # 'overridden' means a write switched this parameter's automation off
+        # until live.re_enable_automation; Back to Arrangement does not undo it.
+        "automation_state": _AUTOMATION_STATES.get(safe(lambda: int(param.automation_state), None)),
     }
+
+
+_AUTOMATION_STATES = {0: "none", 1: "playing", 2: "overridden"}
 
 
 def serialize_device(ctx, device, with_parameters=False):

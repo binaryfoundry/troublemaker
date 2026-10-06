@@ -804,6 +804,90 @@ class TestArrangementAndReturns(HandlerTestCase):
         track = self.call("live.create_return_track", name="DUB ECHO")
         self.assertEqual((track["name"], track["type"]), ("DUB ECHO", "return"))
 
+    # Placing copies notes and envelopes (measured, Live 12.4), but the API
+    # cannot read an Arrangement clip's envelopes, so reads are refused.
+
+    def test_placing_copies_notes_and_envelopes_but_refuses_envelope_reads(self):
+        device = self.call("live.get_devices", track_id=self.bass)["devices"][0]
+        self.call("live.set_automation", track_id=self.bass, clip_slot=0,
+                  device_id=device["device_id"], parameter_name="Frequency",
+                  points=[{"beat": 0, "normalized": 0.2}, {"beat": 4, "normalized": 0.9}])
+        self.call("live.place_clip_in_arrangement", track_id=self.bass, clip_slot=0, beat=64)
+        notes = self.call("live.get_notes", track_id=self.bass, arrangement_index=0)
+        self.assertEqual(notes["note_count"], 8)
+        self.assertEqual(notes["arrangement_index"], 0)
+        placed = self.song.tracks[1].arrangement_clips[0]
+        self.assertEqual(len(placed._envelopes), 1)
+        error = self.fail_call("live.get_automation", track_id=self.bass, arrangement_index=0,
+                               device_id=device["device_id"], parameter_name="Frequency")
+        self.assertEqual(error["code"], "UNSUPPORTED")
+
+    def test_edits_an_arrangement_clip_in_place(self):
+        self.call("live.place_clip_in_arrangement", track_id=self.bass, clip_slot=0, beat=64)
+        notes = self.call("live.get_notes", track_id=self.bass, arrangement_index=0)["notes"]
+        result = self.call("live.update_notes", track_id=self.bass, arrangement_index=0,
+                           updates=[{"note_id": n["note_id"], "pitch": n["pitch"] + 12} for n in notes])
+        self.assertEqual(result["notes_updated"], 8)
+        after = self.call("live.get_notes", track_id=self.bass, arrangement_index=0)["notes"]
+        self.assertEqual({n["pitch"] for n in after}, {53})
+        # the Session clip it came from is untouched
+        session = self.call("live.get_notes", track_id=self.bass, clip_slot=0)["notes"]
+        self.assertEqual({n["pitch"] for n in session}, {41})
+        clips = self.call("live.get_arrangement_clips", track_id=self.bass)["clips"]
+        self.assertEqual([(c["start"], c["end"]) for c in clips], [(64.0, 68.0)])
+
+    # A write to an automated parameter overrides its automation, and Back to
+    # Arrangement does not undo it (measured, Live 12.4: a fade captured flat).
+
+    def test_rewriting_an_envelope_leaves_its_parameter_automated(self):
+        # The rewrite parks an already-automated parameter while seeding.
+        device = self.call("live.get_devices", track_id=self.bass)["devices"][0]
+        for start in (0.2, 0.4):
+            self.call("live.set_automation", track_id=self.bass, clip_slot=0,
+                      device_id=device["device_id"], parameter_name="Frequency",
+                      points=[{"beat": 0, "normalized": start}, {"beat": 4, "normalized": 0.9}])
+        param = [p for p in self.song.tracks[1].devices[0].parameters if p.name == "Frequency"][0]
+        self.assertEqual(param.automation_state, 1)
+        self.assertFalse(self.song.re_enable_automation_enabled)
+
+    def test_a_parameter_write_overrides_until_automation_is_re_enabled(self):
+        device = self.call("live.get_devices", track_id=self.bass)["devices"][0]
+        self.call("live.set_automation", track_id=self.bass, clip_slot=0,
+                  device_id=device["device_id"], parameter_name="Frequency",
+                  points=[{"beat": 0, "normalized": 0.2}, {"beat": 4, "normalized": 0.9}])
+        self.call("live.set_device_parameter", track_id=self.bass, device_id=device["device_id"],
+                  parameter_name="Frequency", normalized=0.5)
+        self.assertTrue(self.song.re_enable_automation_enabled)
+        params = self.call("live.get_device_parameters", track_id=self.bass,
+                           device_id=device["device_id"])["parameters"]
+        self.assertEqual([q["automation_state"] for q in params if q["name"] == "Frequency"], ["overridden"])
+        self.call("live.back_to_arrangement")
+        self.assertTrue(self.song.re_enable_automation_enabled)
+        self.assertEqual(self.call("live.re_enable_automation"), {"was_overridden": True})
+        self.assertFalse(self.song.re_enable_automation_enabled)
+
+    def test_re_enabling_with_nothing_overridden_reports_so(self):
+        self.assertEqual(self.call("live.re_enable_automation"), {"was_overridden": False})
+
+    def test_refuses_to_write_an_envelope_on_an_arrangement_clip(self):
+        device = self.call("live.get_devices", track_id=self.bass)["devices"][0]
+        self.call("live.place_clip_in_arrangement", track_id=self.bass, clip_slot=0, beat=0)
+        error = self.fail_call("live.set_automation", track_id=self.bass, arrangement_index=0,
+                               device_id=device["device_id"], parameter_name="Frequency",
+                               points=[{"beat": 0, "normalized": 0.5}])
+        self.assertEqual(error["code"], "UNSUPPORTED")
+
+    def test_rejects_an_arrangement_index_out_of_range(self):
+        error = self.fail_call("live.get_notes", track_id=self.bass, arrangement_index=3)
+        self.assertEqual(error["code"], "CLIP_NOT_FOUND")
+        self.assertEqual(error["clip_count"], 0)
+
+    def test_rejects_both_or_neither_clip_address(self):
+        self.call("live.place_clip_in_arrangement", track_id=self.bass, clip_slot=0, beat=0)
+        for target in ({"clip_slot": 0, "arrangement_index": 0}, {}):
+            error = self.fail_call("live.get_notes", track_id=self.bass, **target)
+            self.assertEqual(error["code"], "INVALID_ARGUMENT")
+
 
 class TestSyncedRates(HandlerTestCase):
     def setUp(self):

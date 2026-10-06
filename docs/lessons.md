@@ -38,8 +38,14 @@ wrong or worked, and what to do next time. Read it before producing or mixing a 
 
 **Clips and notes**
 
-- **Arrangement clips are copies.** After editing a Session clip (notes or clip envelopes),
-  re-place it in the Arrangement, or the old version keeps playing.
+- **Arrangement clips are copies.** After editing a Session clip, re-place it in the
+  Arrangement, or edit the Arrangement clip in place with `arrangement_index` (which keeps
+  Arrangement-only edits). Placing copies the envelopes too (measured, Cathedral 2026-10-05).
+- **A write to an automated parameter turns its automation off until Re-Enable Automation.**
+  Back to Arrangement does not do it. On Black Glass this read as "re-placing lost seven
+  tracks' automation"; it was 42 parameters overridden by envelope rewrites, and every
+  later capture measured the track with its automation off. `live.re_enable_automation`
+  fixes it; `master.capture` now calls it.
 - **Note ids change on removal.** In one pass, apply `update_notes` *before* `remove_notes`.
   Stale ids are refused with `NOTE_NOT_FOUND`, never applied to the wrong notes.
 - **Tile with phrase-length clips, not loop-length ones.** A 3-beat and a 1.25-beat loop were
@@ -315,7 +321,9 @@ Retry both a few times before failing.
 - **Arrangement captures from `start_beat` began two bars late** on the
   outro capture (silence arrived two bars early in the file). Locate a
   capture by a known event - the end of the song, a drop - before reading
-  bar numbers off it.
+  bar numbers off it. Still true after the fix: on Black Glass (2026-10-05) a
+  Drop B capture began 1.0 beat late by cross-correlation with the render; a
+  capture from beat 0 lined up exactly.
 - Pedal notes: moving every note of a chain to one pitch merges any that
   overlapped at the old glides (96 -> 94 notes). Harmless, but expect it.
 
@@ -335,3 +343,53 @@ Retry both a few times before failing.
 - **Key is set by emphasis, not the scale.** Am-F-C-G with a lead on C-E-G,
   phrase endings off the tonic and a G-major cadence reads as C major. A in the
   Am voicing, the phrase landing on A and an E-major (V) cadence read as A minor.
+
+## Auditing with automation missing (Black Glass)
+
+- **A measurement taken with a part's automation off judges the wrong track.**
+  With the arp's filter sweeps overridden, it sat wide open in the breakdown, so it
+  measured +4.5 dB over the strings and "fused" with them. An octave lift was
+  approved on that number. With the automation restored the arp is a filtered
+  texture 3.4 dB under the rest, as its TRACK.md says, and the lift put it above
+  its own closed filter: the breakdown lost 2.3 dB and its top end, and nothing in
+  Rupture or Release moved more than 0.6 dB. Reverted.
+- **Check a capture against the last render on a section nobody touched** before
+  trusting any before/after. The untouched intro matched `blackglass.flac` to
+  0.1 dB, which made every other difference attributable.
+- **A Simpler filter set above where the sample has energy does nothing.** At 3 kHz
+  the arp measured identical to its open-filter self. At 1.1 kHz with +26 st of
+  envelope its brightness falls 9 % over a note's first 60 ms (it rose 24 % before);
+  velocity barely reached brightness (x0.93 -> x0.97) because the track's Auto
+  Filter dominates. Measure a patch change on the part alone, not only in the mix.
+
+## Swapping a baked AF101 sample for the live synth (Black Glass)
+
+- **Rebuild a lost patch by measurement, statically first.** Match harmonics 2-12 at
+  20 ms and the amp envelope over 0-300 ms with `render_note` and a grid search, then
+  add expression and re-check that the average brightness has not moved. Measure the
+  sample's real length too: the arp's 1.19 s file was silent after ~300 ms.
+- **AF101 unison combs a static match.** Two voices start at offset phases, so their
+  harmonics partly cancel (2nd harmonic -11 dB instead of -3; 5.9 dB average error).
+  Copy a sample's width some other way, or not at all.
+- **AF101's velocity to amp is gentler than Simpler's.** At full it gives 3.8 dB
+  between velocities 112 and 68 (Simpler at 45 % gave ~8 dB in context). Keep an
+  accent pattern's contrast by rewriting its velocities in place.
+- **An asymmetric pulse carries DC** (width 0.4: -21 dB re RMS). A normalised render
+  hid it; live, QC flagged it. Turn on the track Utility's DC Filter.
+- **Display targets for times are in ms.** `live.set_device_parameter_display` takes
+  0.16 s as `target: 160`, because `parse_display` normalises seconds to ms; 0.16
+  wrote 0.16 ms. Read every parameter back, with a tolerance tighter than the values.
+
+## Finding why automation did not play (Cathedral)
+
+- **Test the tool on a scratch track before writing a rule.** An empty, muted track and
+  a 16-beat ramp settled in six 4-bar captures what a day of inference had got wrong:
+  placing keeps envelopes; a parameter write overrides them; Back to Arrangement leaves
+  the override; Re-Enable Automation clears it.
+- **Confirm a bypass by reading it back.** `live.set_device_active` takes `enabled`; a call
+  with `active` failed validation silently (output discarded), so Black Glass's "master
+  dynamics bypassed" captures ran through the master chain. Comparisons were like for
+  like, so their conclusions held, but the claim was wrong.
+- **Back to Arrangement lands a tick later**: straight after the call
+  `session_overrides_arrangement` can still read true.
+

@@ -134,6 +134,16 @@ describe('master.capture', () => {
     expect(order.indexOf('live.fire_scene')).toBeLessThan(order.indexOf('live.record_clip'));
   });
 
+  // An override from any parameter write survives Back to Arrangement and would
+  // capture an automated part flat (measured, Live 12.4).
+  it('re-enables automation before it records', async () => {
+    live.handlers.set('live.re_enable_automation', () => ({ was_overridden: true }));
+    await bridge.execute('master.capture', { bars: 1 });
+    const order = live.received.map((r) => r.command);
+    expect(order).toContain('live.re_enable_automation');
+    expect(order.indexOf('live.re_enable_automation')).toBeLessThan(order.indexOf('live.record_clip'));
+  });
+
   it('records from start_beat only once Live is playing there', async () => {
     // Live starts from the top first, as when the launch beats continue_playing.
     let position = 0;

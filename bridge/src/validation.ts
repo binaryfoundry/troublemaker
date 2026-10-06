@@ -67,6 +67,30 @@ function hasAValue(v: { value?: number; normalized?: number }): boolean {
 
 const trackRef = z.object({ track_id: handle });
 const clipRef = z.object({ track_id: handle, clip_slot: z.number().int().min(0).max(511) });
+/**
+ * A clip by Session slot or by its position on the Arrangement timeline
+ * (the order live.get_arrangement_clips reports). An Arrangement clip's notes
+ * can be edited in place; its envelopes cannot be read or written through the
+ * API, so the Remote Script refuses them with UNSUPPORTED.
+ */
+const clipTarget = z.object({
+  track_id: handle,
+  clip_slot: z.number().int().min(0).max(511).optional(),
+  arrangement_index: z.number().int().min(0).max(4095).optional(),
+});
+const oneClipTarget = <T extends { clip_slot?: number; arrangement_index?: number }>(
+  value: T,
+  ctx: z.RefinementCtx,
+) => {
+  const slot = value.clip_slot !== undefined;
+  const arrangement = value.arrangement_index !== undefined;
+  if (slot === arrangement) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Give clip_slot (Session) or arrangement_index (Arrangement), not both.",
+    });
+  }
+};
 const deviceRef = z.object({ track_id: handle, device_id: handle });
 const parameterRef = z.object({
   track_id: handle,
@@ -174,14 +198,15 @@ export const schemas = {
   'live.stop_clip': trackRef.strict(),
 
   // -- notes ------------------------------------------------------------
-  'live.get_notes': clipRef
+  'live.get_notes': clipTarget
     .extend({
       from_time: beat.optional(),
       time_span: positiveBeats.optional(),
       from_pitch: pitch.optional(),
       pitch_span: z.number().int().min(1).max(128).optional(),
     })
-    .strict(),
+    .strict()
+    .superRefine(oneClipTarget),
   'live.add_notes': clipRef.extend({ notes: noteArray }).strict(),
   'live.replace_notes': clipRef.extend({ notes: noteArray }).strict(),
   'live.remove_notes': clipRef
@@ -193,9 +218,10 @@ export const schemas = {
       pitch_span: z.number().int().min(1).max(128).optional(),
     })
     .strict(),
-  'live.update_notes': clipRef
+  'live.update_notes': clipTarget
     .extend({ updates: z.array(noteUpdateSchema).max(MAX_NOTES_PER_CALL) })
-    .strict(),
+    .strict()
+    .superRefine(oneClipTarget),
 
   // -- scenes -----------------------------------------------------------
   'live.get_scenes': empty,
@@ -222,7 +248,7 @@ export const schemas = {
   'live.delete_device': deviceRef.strict(),
 
   // -- automation -------------------------------------------------------
-  'live.get_automation': clipRef
+  'live.get_automation': clipTarget
     .extend({
       device_id: handle.optional(),
       mixer: z.string().regex(/^(volume|pan|send:\d+)$/).optional(),
@@ -230,8 +256,9 @@ export const schemas = {
       parameter_name: z.string().min(1).optional(),
       resolution: positiveBeats.optional(),
     })
-    .strict(),
-  'live.set_automation': clipRef
+    .strict()
+    .superRefine(oneClipTarget),
+  'live.set_automation': clipTarget
     .extend({
       device_id: handle.optional(),
       /** Automate the track mixer instead of a device: volume, pan or send:N. */
@@ -242,8 +269,9 @@ export const schemas = {
       step: positiveBeats.optional(),
       clear_first: z.boolean().optional(),
     })
-    .strict(),
-  'live.clear_automation': clipRef
+    .strict()
+    .superRefine(oneClipTarget),
+  'live.clear_automation': clipTarget
     .extend({
       device_id: handle.optional(),
       mixer: z.string().regex(/^(volume|pan|send:\d+)$/).optional(),
@@ -252,7 +280,8 @@ export const schemas = {
       from_beat: beat.optional(),
       to_beat: beat.optional(),
     })
-    .strict(),
+    .strict()
+    .superRefine(oneClipTarget),
 
   // -- selection --------------------------------------------------------
   'live.get_selected_track': empty,
@@ -296,6 +325,7 @@ export const schemas = {
   'live.clear_arrangement': trackRef.strict(),
   'live.create_return_track': z.object({ name: nonEmptyName.optional() }).strict(),
   'live.set_song_time': z.object({ beat }).strict(),
+  'live.re_enable_automation': empty,
   'live.back_to_arrangement': empty,
   'live.get_performance': empty,
   'live.browse': z

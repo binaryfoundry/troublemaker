@@ -227,6 +227,26 @@ def back_to_arrangement(ctx, args):
     return {"was_overridden": before, "session_overrides_arrangement": bool(lom.safe(lambda: song.back_to_arranger, False))}
 
 
+def re_enable_automation(ctx, args):
+    """Press 'Re-Enable Automation': discard every parameter override.
+
+    Writing an automated parameter (live.set_device_parameter, or the seeding
+    in live.set_automation) overrides its automation, and live.back_to_arrangement
+    does not undo that - it only returns tracks taken over by Session clips.
+    Measured on Live 12.4: after one write, a clip envelope's ramp stayed flat at
+    the written value through Back to Arrangement. Call this before capturing.
+    The new state lands on Live's next tick, so only the old one is reported."""
+    song = ctx.song
+    if not hasattr(song, "re_enable_automation"):
+        raise errors.Unsupported("This Live version cannot re-enable automation via the API.")
+    before = bool(lom.safe(lambda: song.re_enable_automation_enabled, False))
+    try:
+        song.re_enable_automation()
+    except Exception as exc:
+        raise errors.LiveError("Live refused 'Re-Enable Automation': %s" % (exc,))
+    return {"was_overridden": before}
+
+
 def set_song_time(ctx, args):
     beat = req_float(args, "beat")
     if beat < 0:
@@ -277,6 +297,7 @@ COMMANDS = {
     "live.stop_all_clips": stop_all_clips,
     "live.set_song_time": set_song_time,
     "live.back_to_arrangement": back_to_arrangement,
+    "live.re_enable_automation": re_enable_automation,
     "live.get_performance": get_performance,
     "live.set_metronome": set_metronome,
     "live.undo": undo,

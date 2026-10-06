@@ -165,9 +165,7 @@ def _validate_batch(notes, require_full=True):
 
 
 def get_notes(ctx, args):
-    track, slot, clip = lom.resolve_midi_clip(
-        ctx, req_int(args, "track_id"), req_int(args, "clip_slot")
-    )
+    track, clip, ref = lom.resolve_clip_ref(ctx, args, midi=True)
     notes, _ = _read_all(clip)
 
     from_time = opt_float(args, "from_time")
@@ -184,9 +182,8 @@ def get_notes(ctx, args):
         notes = [n for n in notes if lo <= n["pitch"] < hi]
 
     notes.sort(key=lambda n: (n["start"], n["pitch"]))
-    return {
+    result = {
         "track_id": ctx.registry.handle_for(track),
-        "clip_slot": req_int(args, "clip_slot"),
         "clip_id": ctx.registry.handle_for(clip),
         "length_beats": float(clip.length),
         "loop_start": float(clip.loop_start),
@@ -195,6 +192,8 @@ def get_notes(ctx, args):
         "has_note_ids": _extended(clip),
         "notes": notes,
     }
+    result.update(ref)
+    return result
 
 
 def _add(clip, validated):
@@ -334,16 +333,12 @@ def update_notes(ctx, args):
     This is the command that keeps musical identity intact: pitches, ids and
     untouched notes survive the edit.
     """
-    track_id = req_int(args, "track_id")
-    slot_index = req_int(args, "clip_slot")
-    track, slot, clip = lom.resolve_midi_clip(ctx, track_id, slot_index)
+    track, clip, ref = lom.resolve_clip_ref(ctx, args, midi=True)
     updates = req_list(args, "updates")
     if not updates:
-        return {
-            "track_id": ctx.registry.handle_for(track),
-            "clip_slot": slot_index,
-            "notes_updated": 0,
-        }
+        result = {"track_id": ctx.registry.handle_for(track), "notes_updated": 0}
+        result.update(ref)
+        return result
 
     for index, update in enumerate(updates):
         if not isinstance(update, dict) or "note_id" not in update:
@@ -397,12 +392,13 @@ def update_notes(ctx, args):
         )
 
     after, _ = _read_all(clip)
-    return {
+    result = {
         "track_id": ctx.registry.handle_for(track),
-        "clip_slot": slot_index,
         "notes_updated": updated,
         "note_count": len(after),
     }
+    result.update(ref)
+    return result
 
 
 COMMANDS = {
