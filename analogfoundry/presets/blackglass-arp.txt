@@ -1,0 +1,44 @@
+# Black Glass arp - the hook, a short plucked 16th (the track's identity, kept as a
+# pluck by the user's choice; see its TRACK.md). Rebuilt on 0.5 by measurement from
+# the baked pre-0.3 render "AF101 arp pluck C4.wav", whose patch was never saved.
+# Static match first (no filter envelope): saw + pulse 0.5 at width 0.4, no sub (the
+# sample has none: -64 dB an octave down), decay 0.16, release 0.2, no sustain ->
+# harmonics 2-12 within 1.6 dB on average, amp envelope within 0.6 dB over 0-300 ms
+# (it is -23 dB at 100 ms and gone by ~300 ms, not the 1.2 s the file length says).
+# Then the expression the sample could not have (AGENTS *Leads*): a separate filter
+# envelope that closes within each note (brightness x0.73 by 60 ms) and velocity to
+# cutoff, so the accent cycle (112 / 84 / 68) is heard as brightness too (x1.17
+# between 112 and 68). Cutoff 10 kHz keeps the average brightness within 1 % of the
+# static match; with the envelope the harmonics are within 2.6 dB of the sample.
+# One voice and no unison: two unison voices start at offset phases and comb the
+# harmonics (5.9 dB error), so the sample's mild width (side -14.8 dB) is not copied.
+# In the Set (2026-10-05): velocity to amp at full is still gentler than the Simpler's
+# 45 % (112 vs 68 is 3.8 dB here), so the accent cycle was rewritten 112 / 65 / 41 to
+# keep its contrast (loud vs soft third 7.0 dB in context, Simpler 8.1). Level 0.48
+# matches the old arp's loudness. The pulse at width 0.4 carries DC (-21 dB re RMS):
+# the track's Utility has DC Filter on.
+analogfoundry101 1
+saw 1
+pulse 0.5
+pw 0.4
+sub 0
+noise 0
+cutoff 10000
+resonance 0
+env_cutoff 0.7
+track 0
+attack 0.001
+decay 0.16
+sustain 0
+release 0.2
+fenv_separate 1
+fenv_attack 0.001
+fenv_decay 0.15
+fenv_sustain 0
+fenv_release 0.1
+vel_cutoff 1
+vel_amp 1
+unison 1
+stereo 0
+voices 1
+level 0.48

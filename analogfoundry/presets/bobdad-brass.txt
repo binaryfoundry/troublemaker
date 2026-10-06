@@ -1,0 +1,40 @@
+# bobdad brass - the answer in the chant's gap, and the build-2 swell (B minor, 132 BPM).
+# Synth brass after the classic recipe: two saws a few cents apart, a filter envelope that
+# opens over ~60 ms ("blat") and settles, slow-ish amp attack, velocity to cutoff so the
+# final chorus's harder hits are brighter. Polyphonic: 4 voices, the most notes at once.
+# Stereo spread on a 2-voice unison for width around the centred chant.
+analogfoundry101 1
+saw 1
+pulse 0
+sub 0.15
+noise 0.01
+tune 0
+cutoff 700
+resonance 0.12
+env_cutoff 0.45
+track 0.5
+attack 0.025
+decay 0.6
+sustain 0.85
+release 0.25
+glide 0
+stage_drive 0.15
+input_drive 0.15
+level 0.75
+unison 2
+unison_detune 9
+vel_amp 0.5
+vel_cutoff 0.5
+fenv_separate 1
+fenv_attack 0.06
+fenv_decay 0.45
+fenv_sustain 0.35
+fenv_release 0.25
+vib_fade 0.8
+drift 4
+osc2_level 0.7
+osc2_wave 0
+osc2_oct 0
+osc2_fine 7
+stereo 0.4
+voices 4

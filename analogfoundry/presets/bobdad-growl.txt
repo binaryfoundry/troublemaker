@@ -1,0 +1,35 @@
+# bobdad growl - the hard electronic bass under rap and orchestra (B minor, 132 BPM).
+# From Threshold's growl (saw + pulse + sub, resonance 0.55, stage drive), which the
+# user liked as "that relentless bass". Rolling 16ths, short amp envelope, no glide.
+# The track high-passes it at 110 Hz; a Drift sine sub owns the fundamental.
+# Filter LFO synced to 1/16 and locked to the bar (lfo1_wave 30 = sine, div 1/16):
+# every 16th of the roll carries the same growl - the vocals are the groove layer,
+# so the bass stays straight (GROOVE 14).
+# Velocity reaches the filter so the swell across each beat's three 16ths opens it.
+analogfoundry101 1
+saw 1
+pulse 0.6
+sub 0.4
+noise 0.02
+pw 0.4
+tune 0
+cutoff 600
+resonance 0.55
+env_cutoff 0.4
+lfo_cutoff 0.35
+track 0.3
+attack 0.002
+decay 0.15
+sustain 0.6
+release 0.03
+lfo_rate 7
+lfo_pitch 0
+lfo_pw 0.15
+glide 0
+stage_drive 0.25
+input_drive 0.2
+level 0.8
+vel_amp 0.4
+vel_cutoff 0.35
+lfo1_wave 30
+voices 1

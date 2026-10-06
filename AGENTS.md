@@ -100,7 +100,7 @@ more than one client.
 ## Testing
 
 ```bash
-npm test                      # 459 tests, no Ableton needed
+npm test                      # 465 tests, no Ableton needed
 npm run typecheck
 npm run cli -- selftest       # round trip, needs Live running
 ```
@@ -322,9 +322,26 @@ have been wrong every time. Then sweep it on Live with `fx apply`.
   track that already has it does nothing. `live.delete_device` it, then load it
   (Live puts an instrument first in the chain), reapply the patch, read it back.
   A capture with master dynamics bypassed can clip: keep a probe track's fader down.
-- **Arrangement clips are copies.** Editing a Session clip's notes does not
-  change the Arrangement copies placed from it: clear the track's arrangement,
-  place the clips again, and read them back.
+- **Arrangement clips are copies.** Editing a Session clip does not change the
+  Arrangement copies placed from it. Placing copies notes **and** envelopes
+  (measured three ways on Cathedral, 2026-10-05), so clear and re-place works -
+  but it also overwrites any edit made only in the Arrangement. Prefer editing an
+  Arrangement clip in place: `live.get_notes` / `live.update_notes` take
+  `arrangement_index` (the order `live.get_arrangement_clips` reports). The API
+  cannot see an Arrangement clip's envelopes (`automation_envelope()` returns None
+  over a fade that is playing; `create_automation_envelope()` raises), so the
+  automation commands refuse `arrangement_index` with `UNSUPPORTED`.
+- **Writing an automated parameter overrides its automation, and Back to
+  Arrangement does not undo it** - only Re-Enable Automation does
+  (`live.re_enable_automation`). Measured: after one write, a placed fade played
+  flat at the written value with `session_overrides_arrangement` false; after
+  re-enabling it played again. Black Glass "lost" its automation this way - 42
+  parameters overridden by envelope rewrites, every later capture flat - and
+  reopening the Set brought it all back. `set_automation` now re-enables the one
+  parameter it parks while seeding, and `master.capture` re-enables automation
+  before recording. After probing a parameter yourself, call
+  `live.re_enable_automation`. Reading a parameter with the transport stopped
+  returns its resting value, not its automation: measure automation by capture.
 - **Check the Arrangement after a capture session.** Two-beat "ref" clips once
   appeared at beat 16.85 on nine tracks, putting pitched parts into the DJ
   intro; the cause is unknown (Arrangement record was off). Look for clips that
@@ -516,7 +533,9 @@ TRACK.md.
 
 1. **Arrangement hygiene.** `live.get_arrangement_clips` on every track: no clip
    that starts off the bar grid, no stray "ref" clips, and Arrangement copies
-   matching their Session clips (they are copies - re-place after editing).
+   matching their Session clips (compare with `live.get_notes` and
+   `arrangement_index`; fix differences in place - re-placing overwrites
+   Arrangement-only edits).
 2. **DJ intro and outro** (above): no pitched material in the first or last 16
    bars, changes on 8/16-bar lines, the sub in only after the intro's build,
    melodic layers out first, the last 8-16 bars drums only. Use `checkStylePlan`
@@ -545,7 +564,12 @@ TRACK.md.
    translation (12), and phase: kick, sub and bass captured together against the
    power sum of each alone (9). A combined level well under the power sum is
    cancellation; fix it before reaching for sidechain or EQ.
-8. **Automation.** Every clip envelope's `value_at_start` equals its first point.
+8. **Automation.** Check what plays, by capture: each automated entrance in 30 ms
+   windows (a seed blip shows as a full-level first window), after
+   `live.re_enable_automation`. Do not trust `value_at_start` or a beat-0 read
+   from `live.get_automation` alone: on Cathedral one read 0.000 for an envelope
+   that played from -0.8, and Black Glass's 42 "blips" read that way never showed
+   in its Arrangement.
 9. **Emotion** (EMOTION §53-56): three levers per emotional change, one surprise per
    section, the peak protected (highest note, widest, brightest kept for it), and
    something withheld.
@@ -580,8 +604,8 @@ existed have not been checked against it. **Re-audit them** (the order in
 Older Sets carry older plugin state. A restored AF101 instance keeps the parameter
 list it was saved with, so expression (0.3) and everything since - the matrix
 (0.4), sync, stereo, voices, env 3 and filter modes (0.5) - need a fresh instance
-(delete, load, reapply the patch, carry any clip envelopes over, re-place the
-Arrangement copies). Before 0.3, AF101 ignored velocity entirely: any accents
+(delete, load, reapply the patch, carry any clip envelopes over, and re-place or
+edit in place the Arrangement copies - *Live facts*). Before 0.3, AF101 ignored velocity entirely: any accents
 written into those tracks have never sounded. An instance saved with 0.4 is a
 special case (*Synthesis*: its ids shifted in 0.5): take its values from its
 preset file, not from reading it back. Threshold's instances are all 0.5 as of
@@ -591,10 +615,11 @@ preset file, not from reading it back. Threshold's instances are all 0.5 as of
 |---|---|---|---|---|---|
 | camelbone | `D:/ableton/tinman` | A minor (8A), 124 | never, against the rules below | leads plucked and arpeggiated (*Leads*); no hook audit (HOOKS); AF101 before 0.3 (velocity silent, filter tied to amp); bass before *Basslines*; GROOVE one-layer check; DJ intro/outro pitch rule; envelope `value_at_start`; LOW_END audit (sec. 19, measured) | due |
 | Cowboy | `D:/ableton/cowboy` | unknown - **no TRACK.md**, write one from the Set first | never | all of the above; LOW_END audit (sec. 19, measured) | due |
-| Black Glass | `D:/ableton/blackglass` | E minor (9A), 125 | never, against the rules below | lead plucked (*Leads*); no hook audit; AF101 before 0.3; DJ intro (its sub fades in from bar 17 - check against "sub after the build"); GROOVE one-layer; register of any lead against its strings; envelope `value_at_start`; LOW_END audit (sec. 19, measured) | due |
-| Cathedral | `D:/ableton/cathedral` | E minor (9A), 126 | never, against the rules below | lead plucked (*Leads*); no hook audit; AF101 before 0.3; orchestral builds vs hook hierarchy (HOOKS 9); GROOVE one-layer; register against the strings; envelope `value_at_start`; LOW_END audit (sec. 19, measured) | due |
+| Black Glass | `D:/ableton/blackglass` | E minor (9A), 125 | 2026-10-05, partial: hygiene clean; rubs 0 genuine (183 tails crossing chord changes); harmony agrees bar by bar; Arrangement envelopes have no seed blip; arp register against the strings measured and kept (an octave lift cost the breakdown 2.3 dB); arp now a live AF101 0.5 (patch rebuilt by measurement, `blackglass-arp.txt`; accents rewritten 112/65/41; Drop B within 0.6 dB of the render); stabs given a Simpler filter envelope and velocity to cutoff; GROOVE one-layer: six polymeters, kept as the user's brief; QC PASS | hook audit (HOOKS 42, /40); lead numbers (CAMELPHAT 6); LOW_END 19 against references; emotion; NEW_TRACK /100; DJ intro sub vs "after the build"; growl and stabs are still pre-0.3 AF101 renders in Simpler; listening tests open | partly done |
+| Cathedral | `D:/ableton/cathedral` | E minor (9A), 126 | 2026-10-05, partial: hygiene clean; rubs 0 genuine; DJ intro/outro pass; automation plays; HOOKS 23/40 (arp never removed, 3-8 dB under the mix in its bands, static sound); build 2 repeats build 1; peak's ceiling (E6) spent in the builds; four groove layers (brief); peak QC REVIEW (air -8, low-mid -3.3, -11.9 LUFS) | CAMELPHAT 6; LOW_END 19 against references; EMOTION in full; NEW_TRACK /100; timpani tuning; bars 65-96 darker than the render above 6 kHz; arp, bass, chords, shimmer are pre-0.3 renders; listening tests open | partly done |
 | Clockwork | `D:/ableton/clockwork` | D minor (7A), 121 | never | **no Set in the folder** - ask the user where it was saved; then everything above; LOW_END audit (sec. 19, measured) | due - blocked on the Set |
 | Threshold | `D:/ableton/threshold` | D minor (7A), 124 | 2026-10-05: HOOKS audit, 28/40; LOW_END audit (sub D2 -> D1; kick +1.5 dB with a post-saturation cut at 220 Hz; low bands now within 2.7 dB of three CamelPhat references, from 6.7); CAMELPHAT; QC PASS | listening tests (HOOKS 13, 14) open; HOOKS 30 four variants not written; return at bar 97 identical to 65; sound identity 2/5; GROOVE §26 not re-run since the lead became the groove layer; NEW_TRACK audit not done | partly done |
+| B.O.B. (Electric Revival Remix) | `D:/ableton/bobdad` | B minor (10A), 132 | 2026-10-06, first build, partial audit: hygiene, DJ, rubs (0), low-end phase, automation entrances PASS; final chorus QC REVIEW (air -3.5, -13.8 LUFS unmastered); rap + crowd-chant vocals from 11B at 154, not transposed | listening tests; HOOKS /40; EMOTION review; LOW_END 19 in full; mastering; NEW_TRACK /100; rap processing; Set unsaved (Temp Project) | in production |
 
 ## Starting a new track - ask for the key
 
