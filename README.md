@@ -477,7 +477,7 @@ Live's shared undo stack.
 ## Testing
 
 ```bash
-npm run test:all     # 550 TypeScript + 134 Python tests, no Ableton required
+npm run test:all     # 557 TypeScript + 134 Python tests, no Ableton required
 npm test             # TypeScript only
 npm run test:python  # Live-side handlers only
 npm run typecheck

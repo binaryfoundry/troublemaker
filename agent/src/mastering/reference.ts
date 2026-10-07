@@ -15,6 +15,11 @@ export interface ReferenceProfile {
   integratedLufs: number;
   sectionLufs: number;
   truePeakDbtp: number;
+  /**
+   * Median true peak of the lossless references only, or null if there are
+   * none: an MP3's decoded overs are artefacts of the codec, not the master.
+   */
+  losslessTruePeakDbtp: number | null;
   plrDb: number;
   /** Per band: median mid level relative to full band. */
   bandTilt: Record<string, number>;
@@ -34,6 +39,9 @@ export function median(values: number[]): number {
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
+/** Lossy codecs, whose decoded peaks are not the master's. */
+const LOSSY = /^(mp3|mp2|aac|vorbis|opus|wma)/i;
+
 export function buildReferenceProfile(references: Analysis[]): ReferenceProfile {
   if (references.length === 0) throw new RangeError('A reference profile needs at least one file.');
   const bandNames = references[0]!.section.bands.map((b) => b.name);
@@ -51,6 +59,10 @@ export function buildReferenceProfile(references: Analysis[]): ReferenceProfile 
     integratedLufs: r2(median(integrated)),
     sectionLufs: r2(median(references.map((r) => r.section.shortTermMeanLufs))),
     truePeakDbtp: r2(median(references.map((r) => r.loudness.truePeakDbtp))),
+    losslessTruePeakDbtp: (() => {
+      const lossless = references.filter((r) => !LOSSY.test(r.file.codec));
+      return lossless.length ? r2(median(lossless.map((r) => r.loudness.truePeakDbtp))) : null;
+    })(),
     plrDb: r2(median(references.map((r) => r.loudness.plrDb))),
     bandTilt,
     bandSideToMid,

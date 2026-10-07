@@ -105,6 +105,14 @@ const set = (role: string, value: number | string, extra: Record<string, unknown
   bridge.execute('master.set', { role, value, reason: 'test change', ...extra });
 
 describe('roles', () => {
+  it('has a club preset that ends in a -0.1 dB limiter after a clip stage (club references are the authority)', () => {
+    const club = Object.fromEntries(PRESETS.club!.map((s) => [s.role, s.value]));
+    expect(club.limiter_ceiling).toBe(-0.1);
+    expect(club.saturator_type).toBe('Analog Clip');
+    expect(club.saturator_drive).toBeGreaterThan(0);
+    expect(club.saturator_output).toBe(-(club.saturator_drive as number));
+  });
+
   it('gives every numeric role a sane, ordered safe range', () => {
     for (const role of ROLES) {
       if (role.kind === 'number') expect(role.range[0], role.role).toBeLessThan(role.range[1]);
@@ -113,7 +121,7 @@ describe('roles', () => {
   });
 
   it('keeps every preset value inside its role limits', () => {
-    for (const step of PRESETS.clean!) {
+    for (const step of Object.values(PRESETS).flat()) {
       const role = ROLES.find((r) => r.role === step.role)!;
       expect(role, step.role).toBeDefined();
       if (role.kind === 'number') {

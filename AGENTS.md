@@ -104,7 +104,7 @@ more than one client.
 ## Testing
 
 ```bash
-npm test                      # 550 tests, no Ableton needed
+npm test                      # 557 tests, no Ableton needed
 npm run typecheck
 npm run cli -- selftest       # round trip, needs Live running
 ```
@@ -148,6 +148,19 @@ only chooses the client: HTTP to a running bridge, or an in-process one.
 Rules from `MIXING.md` live in `agent/src/mastering/policy.ts` as pure checks
 over measurements; thresholds are in `profiles.ts`. Master-chain roles and
 their safe ranges are in `bridge/src/mastering/roles.ts`.
+
+**Real club tracks are the authority** (the user, 2026-10-07). Threshold,
+Cathedral and Black Glass were played in a club after Pryda's "Level 99" and
+lost badly: their loudest sections were 4.5-6.2 LU under the Prydz references,
+with 7-12 dB too much below 30 Hz and 4-12 dB too little above 4 kHz. QC had
+graded that REVIEW and "staying quieter is allowed"; it now FAILS. With
+references, QC judges the loudest section against theirs (more than 1.5 LU
+short fails), takes the true-peak ceiling from the lossless references, flags a
+master much less dense than theirs, and fails a 3 dB tonal gap or excess infra.
+The `club` preset ends in a soft-clip stage and a -0.1 dB limiter. Where
+MIXING.md's numbers disagree with measured club references, the references win;
+this is settled, not a question to ask. **Never report a track finished with a
+loudness or tone FAIL open**, and never master without references.
 
 **Write by display value, not native value.** Live stores many parameters
 normalised (0-1) and the scaling differs per device and per Live version.

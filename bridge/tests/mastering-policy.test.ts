@@ -90,19 +90,63 @@ describe('policy', () => {
     expect(result.findings.find((f) => f.id === 'true-peak')!.action).toMatch(/still overshoots.*0\.2 dB/);
   });
 
-  it('targets the reference median +/- 1 LU instead of the profile when references exist', () => {
+  // Club references are the authority (the user, 2026-10-07): the loudest
+  // section is judged against theirs, and falling short fails.
+  it('targets the references\' loudest section +/- 1 LU instead of the profile', () => {
+    // The helper puts the loudest section 0.8 LU above integrated.
     const reference = buildReferenceProfile([analysis({ lufs: -10 }), analysis({ lufs: -10 })]);
     const result = evaluate({ target: analysis({ lufs: -8 }), profile: techno, reference });
-    expect(result.working).toMatchObject({ source: 'references', lufsLow: -11, lufsHigh: -9 });
+    expect(result.working).toMatchObject({ source: 'references', lufsLow: -10.2, lufsHigh: -8.2 });
     expect(ids(result)).toContain('too-loud');
     expect(result.findings.find((f) => f.id === 'too-loud')!.action).toMatch(/Do NOT add limiter gain/);
   });
 
-  it('allows staying quieter than the references', () => {
+  it('fails a master whose loudest section is well below the club references', () => {
+    // Threshold against the Prydz set: -12.5 LUFS in its loudest 30 s against -6.3.
     const reference = buildReferenceProfile([analysis({ lufs: -7 })]);
-    const result = evaluate({ target: analysis({ lufs: -10 }), profile: techno, reference });
-    expect(result.findings.find((f) => f.id === 'quieter')!.severity).toBe('info');
+    const result = evaluate({ target: analysis({ lufs: -13 }), profile: techno, reference });
+    const quieter = result.findings.find((f) => f.id === 'quieter')!;
+    expect(quieter.severity).toBe('fail');
+    expect(quieter.message).toMatch(/6\.0 LU below the club references/);
+    expect(result.verdict).toBe('FAIL');
+  });
+
+  it('accepts a loudest section within 1.5 LU of the references, and reports integrated as information', () => {
+    const reference = buildReferenceProfile([analysis({ lufs: -7 })]);
+    const result = evaluate({ target: analysis({ lufs: -8 }), profile: techno, reference });
+    expect(ids(result)).toContain('loudness-ok');
+    expect(result.findings.find((f) => f.id === 'integrated')!.severity).toBe('info');
     expect(result.verdict).toBe('PASS');
+  });
+
+  it('takes the true-peak ceiling from lossless references, never from an MP3', () => {
+    const flac = (tp: number) => ({ ...analysis({ tp }), file: { ...analysis().file, codec: 'flac' } });
+    const mp3 = (tp: number) => ({ ...analysis({ tp }), file: { ...analysis().file, codec: 'mp3' } });
+    const fromFlac = buildReferenceProfile([flac(-0.2), flac(-0.4), mp3(1.6)]);
+    expect(fromFlac.losslessTruePeakDbtp).toBe(-0.3);
+    const result = evaluate({ target: analysis({ tp: -0.5 }), profile: techno, reference: fromFlac });
+    expect(result.working.truePeakCeilingDbtp).toBe(-0.3);
+    expect(ids(result)).not.toContain('true-peak');
+    // Only lossy references: the profile's ceiling stands.
+    const onlyMp3 = buildReferenceProfile([mp3(1.6)]);
+    expect(evaluate({ target: analysis(), profile: techno, reference: onlyMp3 }).working.truePeakCeilingDbtp).toBe(-1);
+  });
+
+  it('fails a master whose samples reach full scale', () => {
+    const result = evaluate({ target: analysis({ tp: 0.4, sp: 0 }), profile: techno });
+    expect(result.findings.find((f) => f.id === 'sample-peak')!.severity).toBe('fail');
+  });
+
+  it('flags a master much less dense than the references', () => {
+    // PLR is tp - lufs in the helper: 7.9 dB for the reference, 12.2 for the target.
+    const reference = buildReferenceProfile([analysis({ lufs: -9, tp: -1.1 })]);
+    const result = evaluate({ target: analysis({ lufs: -13.3, tp: -1.1 }), profile: techno, reference });
+    expect(result.findings.find((f) => f.id === 'under-limited')!.message).toMatch(/4\.3 dB above the references/);
+  });
+
+  it('warns that a 16-bit file is not a club master', () => {
+    expect(evaluate({ target: analysis({ bitDepth: 16 }), profile: techno }).findings.find((f) => f.id === 'bit-depth-club')!.severity).toBe('warn');
+    expect(ids(evaluate({ target: analysis({ bitDepth: 24 }), profile: techno }))).not.toContain('bit-depth-club');
   });
 
   it('sends large tonal differences back to the mix, as one finding', () => {
@@ -115,15 +159,15 @@ describe('policy', () => {
     });
     const tone = result.findings.filter((f) => f.area === 'tone');
     expect(tone).toHaveLength(1);
-    expect(tone[0]!.severity).toBe('review');
+    expect(tone[0]!.severity).toBe('fail');
     expect(tone[0]!.message).toMatch(/sub -4\.0.*presence \+5\.0.*air \+4\.0/);
     expect(tone[0]!.action).toMatch(/mix problem/);
   });
 
-  it('notes moderate tonal differences without blocking', () => {
+  it('warns about moderate tonal differences without blocking', () => {
     const reference = buildReferenceProfile([analysis()]);
     const result = evaluate({ target: analysis({ tilt: { mid: -8 } }), profile: techno, reference });
-    expect(result.findings.find((f) => f.id === 'tone-moderate')!.severity).toBe('info');
+    expect(result.findings.find((f) => f.id === 'tone-moderate')!.severity).toBe('warn');
     expect(result.verdict).toBe('PASS');
   });
 
@@ -169,6 +213,17 @@ describe('policy', () => {
     expect(at(2.5)).toBeUndefined();
     expect(at(3.5)).toBe('warn');
     expect(at(4.5)).toBe('review');
+  });
+
+  it('judges heavy limiter drive by density against the references, not by the number', () => {
+    const chain = { readings: [{ role: 'limiter_gain', value: 6, unit: 'dB', display: '6 dB' }], limiterTruePeak: 'off' as const };
+    const reference = buildReferenceProfile([analysis({ lufs: -7, tp: 0.5 })]);
+    // As dense as the references: information only.
+    const dense = evaluate({ target: analysis({ lufs: -7, tp: 0.5 }), profile: techno, reference, chain });
+    expect(dense.findings.find((f) => f.id === 'limiter-drive')!.severity).toBe('info');
+    // Squashed 3 dB past them: review.
+    const squashed = evaluate({ target: analysis({ lufs: -6, tp: -1.5 }), profile: techno, reference, chain });
+    expect(squashed.findings.find((f) => f.id === 'limiter-drive')!.severity).toBe('review');
   });
 
   it('reviews broad master EQ beyond 3 dB', () => {

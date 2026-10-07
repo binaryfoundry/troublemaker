@@ -77,19 +77,45 @@ provides them and enforces safe ranges:
 | `input_trim` | -12 to +6 dB | Operating margin, not loudness |
 | `eq_<n>_gain` | ±2 dB (±6 with `mix_repair`) | Larger means fix the mix |
 | `width` | 0–100 % (130 with `allow_widen`) | Above 100 needs a mono pass |
-| `saturator_drive` | 0–3 dB | Review above 2.5 |
-| `limiter_gain` | 0–6 dB | Warn above 3, review above 4 |
-| `limiter_ceiling` | -3 to -0.3 dB | -1.0 default; -0.5 only for club PCM |
-| `limiter_mode` | True Peak / Standard | True Peak for every master (Live 12) |
+| `saturator_drive` | 0–6 dB | The clip stage; judged by the result against the references |
+| `limiter_gain` | 0–10 dB | Judged by PLR against the references, not by the number |
+| `limiter_ceiling` | -3 to -0.1 dB | -0.1 for the club master (`club` preset); -1.0 for an encoded distribution copy |
+| `limiter_mode` | True Peak / Standard | Standard at -0.1 for the club master when the references peak above 0 dBTP; True Peak for the distribution copy |
 | `glue_auto_release` | Auto | The default release |
 
 A refusal (`OUT_OF_SAFE_RANGE`) is information: the move is too big for the
 master. Don't look for a way around it.
 
-## Loudness
+## Loudness - club references are the authority
 
-With references, the working window is their median ±1 LU, measured drop to
-drop. Without them, the genre profile gives a loose sanity envelope:
+The user played these masters in a club after Pryda's "Level 99" (2026-10-07):
+4.5-6 LU quieter in the drops, boomy below 30 Hz, 5-14 dB short above 4 kHz,
+rated 3-4/10. QC had called that REVIEW. It is now FAIL, and the rule is:
+**real club tracks are the authority; a guide's number never overrides them.**
+
+With references (always use them - `--refs house`, `--refs camelphat`, or the
+set the brief names; 3-5 tracks, lossless where possible):
+
+- **Loudness is the loudest section against theirs.** More than 1.5 LU short
+  FAILS. Integrated LUFS is information only: long DJ intros pull it down.
+- **The true-peak ceiling is theirs** (median of the lossless references,
+  within -1 to +1 dBTP). An MP3's decoded overs never set it. A club master's
+  limiter sits at -0.1 dB (`master preset club`); make a -1 dBTP copy for
+  encoded distribution from it.
+- **Density is theirs.** A peak-to-loudness ratio more than 2 dB above theirs
+  is a chain that is too gentle; more than 2 dB below is over-limited. Limiter
+  drive is judged by that result, not by its number.
+- **Tone is theirs.** A band 3 dB or more off FAILS, and so does infra over
+  theirs - fix both in the mix, at the source, before the master.
+- **24-bit PCM** for the club.
+
+Fix in this order: infra and sub excess at their sources, the top end at its
+sources (hats, ride, synth air, shimmer), then staged peak control - kick and
+drum peaks through the Saturator's Analog Clip, then the Limiter - raised by
+loudness-matched A/B until the loudest 30 s meets the references. Never call a
+track finished with a loudness or tone FAIL open.
+
+Without references, the genre profile gives a loose sanity envelope:
 
 | Profile | LUFS-I envelope | Ceiling |
 | ------- | --------------- | ------- |
@@ -100,9 +126,9 @@ drop. Without them, the genre profile gives a loose sanity envelope:
 | club-pcm | -9 to -6 | -0.5 dBTP |
 | distribution | -14 to -5.5 | -1.0 dBTP |
 
-These are QC bands, not targets. Staying quieter is allowed whenever more
-level audibly damages the track. If the limiter reacts mainly to sub rather
-than to audible attack, fix the low-end envelope before raising limiter input.
+These are sanity bands for when no reference exists, not targets - get
+references instead. If the limiter reacts mainly to sub rather than to audible
+attack, fix the low-end envelope before raising limiter input.
 
 ## Version-dependent behaviour
 
@@ -115,10 +141,12 @@ Call `live.get_capabilities` first.
   or demo), ask before appending a chain after it.
 - **`device_insertion: false` (Live 11).** Ask the user to drag Utility → EQ
   Eight → Glue Compressor (or Compressor) → Saturator → Limiter onto Master.
-- **True Peak.** On Live 12 set `limiter_mode` to `True Peak` (the clean preset
-  does). On Live 11 the Limiter has no such mode: `qc` measures true peak on the
-  export, and if it is over, lower `limiter_ceiling` by the overshoot plus
-  margin.
+- **True Peak.** The ceiling is the club references' (lossless) true peak; `qc`
+  reports it. For the club master the `club` preset limits sample peak at
+  -0.1 dB in Standard mode. For a distribution copy use the `clean` preset
+  (True Peak at -1 on Live 12). On Live 11 the Limiter has no True Peak mode:
+  `qc` measures true peak on the export, and if it is over, lower
+  `limiter_ceiling` by the overshoot plus margin.
 - **No export API, in any Live version.** Judge the mix from `master.capture`,
   which records the Master output through a Resampling track in real time.
   For the *delivery* file, ask the user to export (File → Export Audio/Video,

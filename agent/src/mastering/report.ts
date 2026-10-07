@@ -67,7 +67,8 @@ export function formatReport(
 
   lines.push(
     `Working window: ${evaluation.working.lufsLow} to ${evaluation.working.lufsHigh} LUFS ` +
-      `(from ${evaluation.working.source}), ceiling ${evaluation.working.truePeakCeilingDbtp} dBTP`,
+      `(${evaluation.working.source === 'references' ? 'loudest section, from the references' : 'integrated, from the profile'}), ` +
+      `ceiling ${evaluation.working.truePeakCeilingDbtp} dBTP`,
     '',
   );
 

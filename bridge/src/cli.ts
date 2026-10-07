@@ -175,9 +175,9 @@ Master chain (through the bridge):
   ableton-agent master reset [label]              Start a new job's decision log
   ableton-agent master checkpoint <label>         Save the whole chain
   ableton-agent master restore <checkpoint_id>    Restore it
-  ableton-agent master build [--preset clean | --no-preset]
+  ableton-agent master build [--preset clean | club | --no-preset]
                                                    Insert the chain and dial it in (Live 12.3+)
-  ableton-agent master preset <name>              Apply a starting preset (clean)
+  ableton-agent master preset <name>              Apply a starting preset (club for a club master, clean)
   ableton-agent master meters [seconds]           Live's display meters
   ableton-agent master capture [--bars n] [--scene id]
                                                    Record the Master output to a WAV (real time)

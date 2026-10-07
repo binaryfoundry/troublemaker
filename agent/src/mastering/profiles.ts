@@ -97,6 +97,10 @@ export const THRESHOLDS = {
   infraExcessDb: 4,
   lowMonoLossReviewDb: -1.5,
   plrBelowReferenceDb: 2,
+  /** More than this above the references' PLR: much less dense than they are. */
+  plrAboveReferenceDb: 2,
+  /** The loudest section this far below the references FAILS (club references are the authority). */
+  sectionShortfallFailLu: 1.5,
   dcWarn: 0.001,
   /** Reversing one control's direction this many times stops the loop. */
   reversalsBeforeStop: 2,

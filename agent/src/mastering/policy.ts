@@ -6,6 +6,14 @@
  * measured, why it matters and what to do - and many of the right answers are
  * "fix it in the mix", because the most common mastering failure is treating
  * a mix problem as a mastering problem.
+ *
+ * With references, real club tracks are the authority (the user, 2026-10-07,
+ * after masters judged on this policy lost badly to Pryda's "Level 99" in a
+ * club: ~6 LU quieter in the drops, boomy and dull). So, against references:
+ * loudness is the loudest section against theirs, and falling short FAILS;
+ * the true-peak ceiling is theirs (lossless files only); a master much less
+ * dense than theirs is flagged; and a tonal gap of 3 dB, or excess infra,
+ * FAILS. MIXING.md's own numbers apply only without references.
  */
 
 import type { Analysis } from '../../../qc/src/types.js';
@@ -69,6 +77,16 @@ export interface EvaluateInput {
   delivery?: { sampleRate?: number; bitDepth?: number };
 }
 
+/**
+ * The true-peak ceiling: the lossless references' median when there are any,
+ * kept within -1 to +1 dBTP (club tracks are the authority); else the profile's.
+ */
+export function truePeakCeiling(profile: MasteringProfile, reference?: ReferenceProfile): number {
+  return reference?.losslessTruePeakDbtp != null
+    ? Math.round(Math.min(1, Math.max(-1, reference.losslessTruePeakDbtp)) * 10) / 10
+    : profile.truePeakCeilingDbtp;
+}
+
 /** Below this a capture holds nothing: BS.1770 gating bottoms out at -70. */
 const SILENT_LUFS = -60;
 
@@ -96,6 +114,15 @@ export function evaluate(input: EvaluateInput): Evaluation {
       area: 'file',
       message: `Bit depth is ${file.bitDepth}; the delivery spec is ${input.delivery.bitDepth}.`,
       action: 'Re-export at the delivery bit depth, dithering once at the final reduction.',
+    });
+  }
+  if (!input.delivery?.bitDepth && file.bitDepth !== null && file.bitDepth < 24) {
+    add({
+      id: 'bit-depth-club',
+      severity: 'warn',
+      area: 'file',
+      message: `The master is ${file.bitDepth}-bit; a club master is 24-bit PCM.`,
+      action: 'Export 24-bit WAV or AIFF for the club, and make any 16-bit or lossy copy from it.',
     });
   }
   if (target.whole.integrity.silentChannel) {
@@ -141,17 +168,29 @@ export function evaluate(input: EvaluateInput): Evaluation {
   }
 
   // -- true peak ----------------------------------------------------------
+  // The references' ceiling when lossless references exist, kept within -1 to
+  // +1 dBTP; otherwise the profile's.
+  const ceiling = truePeakCeiling(profile, reference);
   const tp = target.loudness.truePeakDbtp;
-  if (tp > profile.truePeakCeilingDbtp + 0.05) {
+  if (tp > ceiling + 0.05) {
     add({
       id: 'true-peak',
       severity: 'fail',
       area: 'peak',
-      message: `True peak ${tp.toFixed(2)} dBTP exceeds the ${profile.truePeakCeilingDbtp} dBTP ceiling` +
-        (target.loudness.samplePeakDbfs <= profile.truePeakCeilingDbtp
+      message: `True peak ${tp.toFixed(2)} dBTP exceeds the ${ceiling} dBTP ceiling` +
+        (target.loudness.samplePeakDbfs <= ceiling
           ? ` although sample peak is only ${target.loudness.samplePeakDbfs.toFixed(2)} dBFS - inter-sample overs.`
           : '.'),
-      action: truePeakAction(input.chain?.limiterTruePeak, tp - profile.truePeakCeilingDbtp),
+      action: truePeakAction(input.chain?.limiterTruePeak, tp - ceiling),
+    });
+  }
+  if (target.loudness.samplePeakDbfs > -0.05) {
+    add({
+      id: 'sample-peak',
+      severity: 'fail',
+      area: 'peak',
+      message: `Sample peak ${target.loudness.samplePeakDbfs.toFixed(2)} dBFS reaches full scale.`,
+      action: 'Set the limiter ceiling to -0.1 dB or lower; a PCM master must never reach 0 dBFS.',
     });
   }
 
@@ -163,8 +202,10 @@ export function evaluate(input: EvaluateInput): Evaluation {
 
   if (reference) {
     source = 'references';
-    lufsLow = reference.integratedLufs - t.referenceWindowLu;
-    lufsHigh = reference.integratedLufs + t.referenceWindowLu;
+    // The loudest section, as in the club: extended mixes' long DJ intros make
+    // integrated loudness a poor guide to how loud the drop is.
+    lufsLow = reference.sectionLufs - t.referenceWindowLu;
+    lufsHigh = reference.sectionLufs + t.referenceWindowLu;
     comparison = compareToReference(target, reference);
 
     if (reference.spreadLu > t.referenceSpreadLu) {
@@ -179,7 +220,47 @@ export function evaluate(input: EvaluateInput): Evaluation {
   }
 
   const integrated = target.loudness.integratedLufs;
-  if (integrated > lufsHigh) {
+  if (reference && comparison) {
+    const section = target.section.shortTermMeanLufs;
+    const gap = comparison.sectionDeltaLu;
+    if (gap < -t.sectionShortfallFailLu) {
+      add({
+        id: 'quieter',
+        severity: 'fail',
+        area: 'loudness',
+        message:
+          `The loudest section is ${section.toFixed(1)} LUFS, ${Math.abs(gap).toFixed(1)} LU below the club references at ` +
+          `${reference.sectionLufs.toFixed(1)} LUFS. In a club the DJ gains it up to match, and every weakness comes up with it.`,
+        action:
+          'Fix the mix first - excess sub and infra eat the headroom, and a dull top end reads as quiet. Then stage the ' +
+          'peaks (kick and drum transients through a soft clip, then the limiter) until the loudest 30 s sits within ' +
+          '1 LU of the references, re-checking tone and peak-to-loudness against them after every step.',
+      });
+    } else if (gap > t.sectionShortfallFailLu) {
+      add({
+        id: 'too-loud',
+        severity: 'warn',
+        area: 'loudness',
+        message: `The loudest section is ${section.toFixed(1)} LUFS, ${gap.toFixed(1)} LU above the references at ${reference.sectionLufs.toFixed(1)} LUFS.`,
+        action: 'Do NOT add limiter gain. Consider backing it off and comparing at matched loudness.',
+      });
+    } else {
+      add({
+        id: 'loudness-ok',
+        severity: 'info',
+        area: 'loudness',
+        message: `The loudest section is ${section.toFixed(1)} LUFS, within ${t.sectionShortfallFailLu} LU of the references at ${reference.sectionLufs.toFixed(1)}.`,
+        action: 'Loudness matches the club references. Further gains must win a loudness-matched A/B.',
+      });
+    }
+    add({
+      id: 'integrated',
+      severity: 'info',
+      area: 'loudness',
+      message: `Integrated ${integrated.toFixed(1)} LUFS against the references at ${reference.integratedLufs.toFixed(1)} (long intros and outros pull it down; the loudest section decides).`,
+      action: 'No action on its own.',
+    });
+  } else if (integrated > lufsHigh) {
     add({
       id: 'too-loud',
       severity: 'warn',
@@ -217,6 +298,17 @@ export function evaluate(input: EvaluateInput): Evaluation {
       action: 'Likely over-limited. Back off limiter drive and compare at matched loudness; add references for a better floor.',
     });
   }
+  if (comparison && comparison.plrDeltaDb > t.plrAboveReferenceDb) {
+    add({
+      id: 'under-limited',
+      severity: 'warn',
+      area: 'dynamics',
+      message: `Peak-to-loudness ratio is ${comparison.plrDeltaDb.toFixed(1)} dB above the references: the master is much less dense than they are.`,
+      action:
+        'The chain is too gentle for this genre. Control the peaks in stages (drum bus, soft clip, limiter) rather than one ' +
+        'heavy stage, and compare at matched loudness.',
+    });
+  }
   if (comparison && comparison.plrDeltaDb < -t.plrBelowReferenceDb) {
     add({
       id: 'over-limited',
@@ -245,7 +337,7 @@ export function evaluate(input: EvaluateInput): Evaluation {
     if (large.length) {
       add({
         id: 'tone-large',
-        severity: 'review',
+        severity: 'fail',
         area: 'tone',
         message: `Tonal balance differs from the reference median by 3 dB or more: ${describe(large)} dB.`,
         action:
@@ -257,7 +349,7 @@ export function evaluate(input: EvaluateInput): Evaluation {
     if (moderate.length) {
       add({
         id: 'tone-moderate',
-        severity: 'info',
+        severity: 'warn',
         area: 'tone',
         message: `Moderate tonal differences: ${describe(moderate)} dB.`,
         action: 'Investigate; treat as observations, not automatic corrections.',
@@ -267,10 +359,12 @@ export function evaluate(input: EvaluateInput): Evaluation {
     if (infra !== undefined && infra > t.infraExcessDb) {
       add({
         id: 'infra',
-        severity: 'warn',
+        severity: 'fail',
         area: 'low-end',
         message: `Energy below 30 Hz is +${infra.toFixed(1)} dB over the references.`,
-        action: 'Find the source of the rumble. A high-pass is justified only if it solves this observed problem.',
+        action:
+          'Find the source of the rumble and cut it there: it costs headroom the club system cannot use. Measure each low ' +
+          'part alone below 30 Hz before high-passing.',
       });
     }
 
@@ -307,8 +401,19 @@ export function evaluate(input: EvaluateInput): Evaluation {
   }
 
   // -- chain state --------------------------------------------------------
+  // With references, limiter drive is judged by its result: over-limited means
+  // a peak-to-loudness ratio below theirs, not a drive number.
+  const densityOk = comparison !== null && comparison.plrDeltaDb >= -t.plrBelowReferenceDb;
   for (const reading of input.chain?.readings ?? []) {
-    if (reading.role === 'limiter_gain') {
+    if (reading.role === 'limiter_gain' && densityOk && reading.value > t.limiterGainWarnDb) {
+      add({
+        id: 'limiter-drive',
+        severity: 'info',
+        area: 'chain',
+        message: `Limiter is driven ${reading.value.toFixed(1)} dB; the peak-to-loudness ratio is still within ${t.plrBelowReferenceDb} dB of the references.`,
+        action: 'Fine while it holds. If PLR falls further below the references, move peak control to the clip stage.',
+      });
+    } else if (reading.role === 'limiter_gain') {
       if (reading.value > t.limiterGainReviewDb) {
         add({
           id: 'limiter-drive',
@@ -395,7 +500,7 @@ export function evaluate(input: EvaluateInput): Evaluation {
       source,
       lufsLow: Math.round(lufsLow * 10) / 10,
       lufsHigh: Math.round(lufsHigh * 10) / 10,
-      truePeakCeilingDbtp: profile.truePeakCeilingDbtp,
+      truePeakCeilingDbtp: ceiling,
     },
     comparison,
   };

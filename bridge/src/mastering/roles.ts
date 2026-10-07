@@ -219,8 +219,10 @@ export const ROLES: RoleSpec[] = [
     deviceClasses: SATURATOR,
     parameterNames: ['Drive'],
     unit: 'dB',
-    range: [0, 3],
-    description: 'Saturator drive for peak conditioning. Review above 2.5 dB.',
+    range: [0, 6],
+    description:
+      'Saturator drive: the soft-clip stage that shaves kick and drum peaks before the limiter. Club masters ' +
+      'stage their peak control; judge the drive by the result against the references, not by a fixed number.',
   },
   {
     kind: 'number',
@@ -253,8 +255,10 @@ export const ROLES: RoleSpec[] = [
     deviceClasses: LIMITER,
     parameterNames: ['Input Gain', 'Gain', 'Drive'],
     unit: 'dB',
-    range: [0, 6],
-    description: 'Limiter drive. Warn above 3 dB, review above 4 dB.',
+    range: [0, 10],
+    description:
+      'Limiter drive. Above 3 dB, check the result: over-limited means a peak-to-loudness ratio below the club ' +
+      "references', not a drive number.",
   },
   {
     kind: 'number',
@@ -262,8 +266,10 @@ export const ROLES: RoleSpec[] = [
     deviceClasses: LIMITER,
     parameterNames: ['Ceiling', 'Output Ceiling'],
     unit: 'dB',
-    range: [-3, -0.3],
-    description: '-1.0 dB by default; -0.5 only for a dedicated unencoded club PCM, with a reason.',
+    range: [-3, -0.1],
+    description:
+      'The club references decide: -0.1 dB for a club master (the "club" preset), -1.0 for a distribution copy ' +
+      'that will be encoded.',
   },
   {
     kind: 'number',
@@ -389,5 +395,30 @@ export const PRESETS: Record<string, Array<{ role: string; value: number | strin
     { role: 'limiter_lookahead', value: 3, why: '3 ms lookahead as the clean default' },
     { role: 'limiter_gain', value: 0, why: 'no limiter drive until loudness is reference-matched' },
     { role: 'limiter_ceiling', value: -1, why: '-1 dBTP for distribution safety' },
+  ],
+  /**
+   * A club master's start, set by the club references rather than MIXING.md's
+   * distribution numbers (the user, 2026-10-07: our masters were 4.5-6 LU
+   * quieter than Prydz in the drops). Staged peak control - a soft-clip stage,
+   * then the limiter at -0.1 dB - with the limiter drive and clip drive raised
+   * by loudness-matched A/B until the loudest section meets the references.
+   */
+  club: [
+    { role: 'input_trim', value: 0, why: 'trim starts neutral' },
+    { role: 'width', value: 100, why: 'no master widening' },
+    { role: 'bass_mono', value: 'Off', why: 'no low-end mono without measured evidence' },
+    { role: 'glue_ratio', value: 2, why: '2:1 bus cohesion' },
+    { role: 'glue_attack', value: 30, why: '30 ms keeps the kick transient' },
+    { role: 'glue_auto_release', value: 'Auto', why: 'release follows the material' },
+    { role: 'glue_range', value: 3, why: 'up to 3 dB of bus reduction' },
+    { role: 'glue_threshold', value: 0, why: 'no compression until the material asks for it' },
+    { role: 'glue_soft_clip', value: 'Off', why: 'clipping happens in the Saturator stage' },
+    { role: 'saturator_type', value: 'Analog Clip', why: 'a soft clip that shaves drum peaks first' },
+    { role: 'saturator_drive', value: 2, why: 'a first clip stage; raise it by A/B against the references' },
+    { role: 'saturator_output', value: -2, why: 'inverse of drive keeps the A/B level-matched' },
+    { role: 'limiter_mode', value: 'Standard', why: 'club references peak above 0 dBTP; sample peak is the limit' },
+    { role: 'limiter_lookahead', value: 3, why: '3 ms lookahead' },
+    { role: 'limiter_gain', value: 0, why: 'raise until the loudest section meets the references' },
+    { role: 'limiter_ceiling', value: -0.1, why: 'a club PCM master: sample peak at -0.1 dB' },
   ],
 };

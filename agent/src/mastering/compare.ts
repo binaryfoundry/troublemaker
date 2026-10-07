@@ -12,12 +12,15 @@
 
 import type { Analysis } from '../../../qc/src/types.js';
 import { THRESHOLDS, type MasteringProfile } from './profiles.js';
+import { truePeakCeiling } from './policy.js';
 import { compareToReference, type ReferenceProfile } from './reference.js';
 
 export type Version = 'A' | 'B';
 
 export interface VersionSummary {
   integratedLufs: number;
+  /** Mean short-term loudness of the loudest section: what the club hears. */
+  sectionLufs: number;
   truePeakDbtp: number;
   plrDb: number;
   lowMonoLossDb: number;
@@ -50,10 +53,9 @@ function summarise(
   reference?: ReferenceProfile,
 ): VersionSummary {
   const failures: string[] = [];
-  if (analysis.loudness.truePeakDbtp > profile.truePeakCeilingDbtp + 0.05) {
-    failures.push(
-      `true peak ${analysis.loudness.truePeakDbtp.toFixed(2)} dBTP over the ${profile.truePeakCeilingDbtp} dBTP ceiling`,
-    );
+  const ceiling = truePeakCeiling(profile, reference);
+  if (analysis.loudness.truePeakDbtp > ceiling + 0.05) {
+    failures.push(`true peak ${analysis.loudness.truePeakDbtp.toFixed(2)} dBTP over the ${ceiling} dBTP ceiling`);
   }
   if (analysis.whole.integrity.clippedRuns > 0) {
     failures.push(`${analysis.whole.integrity.clippedRuns} clipped runs`);
@@ -67,6 +69,7 @@ function summarise(
   }
   return {
     integratedLufs: analysis.loudness.integratedLufs,
+    sectionLufs: analysis.section.shortTermMeanLufs,
     truePeakDbtp: analysis.loudness.truePeakDbtp,
     plrDb: analysis.loudness.plrDb,
     lowMonoLossDb: analysis.section.stereo.lowMonoLossDb,
@@ -109,8 +112,9 @@ export function compareVersions(input: {
     if (other) tiltChangeDb[band.name] = r2(band.midRelativeDb - other.midRelativeDb);
   }
 
+  // With references the window is their loudest section, as in QC (club tracks are the authority).
   const windowLow = input.reference
-    ? input.reference.integratedLufs - t.referenceWindowLu
+    ? input.reference.sectionLufs - t.referenceWindowLu
     : input.profile.lufsRange[0];
 
   const result = (preferred: Version, confidence: Comparison['confidence'], reasons: string[]): Comparison => ({
@@ -185,7 +189,7 @@ export function compareVersions(input: {
   // 3. Loudness only counts while A is still below its working window.
   const louder = loudnessDeltaLu >= 0.5;
   const quieter = loudnessDeltaLu <= -0.5;
-  const aBelowWindow = a.integratedLufs < windowLow;
+  const aBelowWindow = (input.reference ? a.sectionLufs : a.integratedLufs) < windowLow;
   let loudnessCredit = false;
   // An absolute floor, so a run of trials cannot each spend "only" 3 dB.
   const plrFloor = input.reference

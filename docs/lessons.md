@@ -308,6 +308,24 @@ Retry both a few times before failing.
   headers; the CLI and the MCP HTTP client now use `postJson` (`bridge/src/http-post.ts`), which has
   no client-side timeout.
 
+## Mastering for the club (Threshold, Cathedral, Black Glass)
+
+- **The masters lost in a real club.** Played after Pryda's "Level 99", the user rated them 3-4/10.
+  Against five Eric Prydz / Pryda references the loudest 30 s were 4.5-6.2 LU short (-10.8 to -12.5
+  LUFS against -6.3), PLR 11.6-12.2 dB against 10.0 (8.5 for Level 99), infra +7 to +12 dB, and the
+  top end 4-12 dB short (presence, brilliance, air). In the club the DJ gains a quiet track up, and
+  the boom and the dullness come up with it.
+- **QC saw all of it and passed it as REVIEW.** Loudness under the window was `INFO` ("staying
+  quieter is allowed"), tone was `REVIEW`, and Cathedral's own audit logged its 4 LU gap and moved
+  on. A gap to the club references is a release blocker: QC now FAILS it, and the user's rule is
+  that real club tracks are the authority over any guide's number.
+- **Integrated loudness misleads on extended mixes.** The references' integrated median was -9.6
+  LUFS but their drops ran at -6.3: long DJ intros pull integrated down. Judge the loudest section.
+- **Exports were 16-bit FLAC.** A club master is 24-bit PCM; make lossy and 16-bit copies from it.
+- **The fix is mostly in the mix**, as the camelbone lesson above already said: the infra and sub
+  excess eat the headroom the limiter needs, and the top end is missing at its sources. Then
+  staged peak control (`master preset club`), measured against the references after each step.
+
 ## Outros and clip copies (camelbone)
 
 - **`live.duplicate_clip` copies notes, not clip envelopes**, and it is
