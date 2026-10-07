@@ -352,9 +352,63 @@ export function voicedChord(
   }
 }
 
+/** The terms of CHORDS.md 8.3's voice-leading cost, and the total. */
+export interface VoiceLeadingCost {
+  total: number;
+  motion: number;
+  /** Voices moving more than 7 semitones. */
+  leaps: number;
+  /** Paired voices that swap order. */
+  crossings: number;
+  /** Close intervals in the target voicing below the mud floor. */
+  lowClusters: number;
+  commonTones: number;
+  contraryMotion: boolean;
+}
+
+/**
+ * CHORDS.md 8.3: score an actual candidate note placement rather than
+ * naming an inversion. The document calls this a decision procedure, not
+ * sacred mathematics - the weights are its own:
+ *
+ *   motion + 4*leaps + 3*crossings + 3*lowClusters - 2*commonTones
+ *   - 1*contraryMotion
+ *
+ * Voices are paired by order, as `movement` pairs them. This project models
+ * a voicing as a sorted set of pitches, so `crossings` can only be non-zero
+ * when a caller supplies its own voice assignment unsorted.
+ */
+export function voiceLeadingCost(from: number[], to: number[], floor = CHORD_FLOOR): VoiceLeadingCost {
+  const pairs = Math.min(from.length, to.length);
+  let leaps = 0, crossings = 0, up = 0, down = 0;
+  for (let i = 0; i < pairs; i += 1) {
+    const delta = to[i]! - from[i]!;
+    if (Math.abs(delta) > 7) leaps += 1;
+    if (delta > 0) up += 1;
+    if (delta < 0) down += 1;
+    for (let j = i + 1; j < pairs; j += 1) {
+      if (from[i]! < from[j]! && to[i]! > to[j]!) crossings += 1;
+      if (from[i]! > from[j]! && to[i]! < to[j]!) crossings += 1;
+    }
+  }
+  let lowClusters = 0;
+  const sorted = [...to].sort((a, b) => a - b);
+  for (let i = 1; i < sorted.length; i += 1) {
+    if (sorted[i - 1]! < floor && sorted[i]! - sorted[i - 1]! <= 4) lowClusters += 1;
+  }
+  const commonTones = to.filter((p) => from.includes(p)).length;
+  const contraryMotion = up > 0 && down > 0;
+  const motion = movement(from, to);
+  const total =
+    motion + 4 * leaps + 3 * crossings + 3 * lowClusters - 2 * commonTones - (contraryMotion ? 1 : 0);
+  return { total, motion, leaps, crossings, lowClusters, commonTones, contraryMotion };
+}
+
 /**
  * Re-voice each chord to move as little as possible from the previous one,
  * by choosing among its inversions within an octave of the starting register.
+ * Candidates are scored with CHORDS.md 8.3's cost, so held common tones and
+ * open low spacing can outweigh a slightly larger total motion.
  * Voice-led harmony is the deep-house default; parallel motion is the
  * deliberate alternative.
  */
@@ -367,7 +421,7 @@ export function voiceLead(chords: number[][], floor = CHORD_FLOOR): number[][] {
     let best = candidates[0]!;
     let bestCost = Infinity;
     for (const candidate of candidates) {
-      const cost = movement(previous, candidate);
+      const cost = voiceLeadingCost(previous, candidate, floor).total;
       if (cost < bestCost) {
         best = candidate;
         bestCost = cost;

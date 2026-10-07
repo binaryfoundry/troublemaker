@@ -1,5 +1,5 @@
 {
-  "source": "CHORDS.md - template table (style and core progression). Its full knowledge base, with tempos, MIDI arrays and Rack designs, was not supplied; keys here are read from each progression's first chord.",
+  "source": "Template table from the earlier research-deliverable summary of CHORDS.md. The full CHORDS.md (supplied 2026-10-07) does not carry this table, so these eight progressions are kept here as the only record of them; keys are read from each progression's first chord. The full document's method - voice leading, inversions, extensions, bass design - is in agent/prompts/chords.md and agent/src/chords.ts.",
   "templates": {
     "H01": {
       "style": "deep / melodic house",
@@ -111,6 +111,24 @@
     "mud_floor_midi": 48,
     "mud_interval": 4,
     "max_voices": 5,
-    "max_motion_per_change": 12
+    "max_motion_per_change": 12,
+    "low_interval_limit": {
+      "source": "CHORDS.md 68 - a production heuristic, not an acoustics law: the lower the register, the wider the spacing should become. Bands are checked lowest first; a pair wider than every band passes.",
+      "bands": [
+        {
+          "below_midi": 36,
+          "min_interval": 12
+        },
+        {
+          "below_midi": 43,
+          "min_interval": 7
+        },
+        {
+          "below_midi": 48,
+          "min_interval": 5
+        }
+      ]
+    },
+    "loop_boundary_max_motion": 12
   }
 }

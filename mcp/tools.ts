@@ -49,7 +49,7 @@ import { drumGenres } from '../agent/src/drums.js';
 import { checkChops, vocalChop, vocalPlan } from '../agent/src/vocals.js';
 import { selectionKnowledge, soundBrief } from '../agent/src/sound-selection.js';
 import { checkMelody, motifMelody, templateMotif, varyMotif, type MotifVariation } from '../agent/src/melody.js';
-import { checkChords, chordKnowledge, chordRhythm, chordTemplate, evolveVoicing, templateInKey, voiceLeadingReport, voiceProgression, type ChordRhythm, type VoicedChord } from '../agent/src/chords.js';
+import { checkChords, chordKnowledge, chordRhythm, chordTemplate, evolveVoicing, loopBoundary, templateInKey, voiceLeadingReport, voiceProgression, type ChordRhythm, type VoicedChord } from '../agent/src/chords.js';
 import { bassPattern, bassPatternNames, checkBassline, mergeRepeats } from '../agent/src/basslines.js';
 import type { ChainState, Decision } from '../agent/src/mastering/policy.js';
 
@@ -426,13 +426,16 @@ export function createMcpServer(client: McpClient): McpServer {
             const length = Math.max(...voiced.map((c) => c.beat + c.beats));
             const pattern = chordRhythm(voiced, (args.chord_rhythm ?? 'sustained') as ChordRhythm);
             commands = writePattern(pattern, { ...target, bars: length / 4, createClip: true, name: 'Chords' });
-            const motion = voiceLeadingReport(voiced).map((st) => `${st.from} → ${st.to}: ${st.motion} semitones, ${st.commonTones} common`).join('; ');
+            const motion = voiceLeadingReport(voiced).map((st) => `${st.from} → ${st.to}: ${st.motion} semitones, ${st.commonTones} common, cost ${st.cost}`).join('; ');
+            // CHORDS.md 69: the reset back to bar 1 is a transition too.
+            const loop = loopBoundary(voiced);
             const findings = checkChords(voiced);
             notes = [
               voiced.map((c) => `${c.symbol}: ${c.pitches.join(' ')}`).join('\n'),
               motion ? `Voice leading: ${motion}.` : 'One chord.',
+              loop ? `Loop boundary ${loop.from} → ${loop.to}: ${loop.motion} semitones, ${loop.commonTones} common, cost ${loop.cost}.` : '',
               findings.length ? findings.map((f) => `[${f.severity}] ${f.message}`).join('\n') : 'Chord checks: no findings.',
-            ];
+            ].filter(Boolean);
             break;
           }
           case 'build_up':
@@ -1224,6 +1227,7 @@ export function createMcpServer(client: McpClient): McpServer {
   const prompts: Array<[string, string, string]> = [
     ['system', 'system.md', 'Working rules for controlling Live: read first, snapshot, verify, report.'],
     ['music-editing', 'music-editing.md', 'How to turn musical language into note edits.'],
+    ['track-construction', 'track-construction.md', 'End-to-end track construction: the agent contract, order of work, validation passes, checkpoints, failure modes (NEW-TRACK-DETAILED.md).'],
     ['composition', 'composition.md', 'Composition and arrangement practice (COMPOSITION.md, EDM-COMPOSITION.md).'],
     ['effects', 'effects.md', 'Production effects practice (EFFECTS.md).'],
     ['mastering', 'mastering.md', 'Club mastering practice (MIXING.md).'],
@@ -1257,7 +1261,8 @@ export function createMcpServer(client: McpClient): McpServer {
     ['sound-selection', 'agent/knowledge/sound-selection.json', 'Role and genre selection data.'],
     ['melodic-techno', 'agent/knowledge/melodic-techno.json', 'MELODIC-TECHNO.md motif, chord loop, automation lanes, returns, device fallbacks.'],
     ['artists', 'agent/knowledge/artists.json', 'JON_HOPKINS.md and TINLICKER.md profiles: hierarchies, cycles, tests, diagnostics, anti-patterns.'],
-    ['chord-progressions', 'agent/knowledge/chord-progressions.json', 'CHORDS.md progression templates H01-H08.'],
+    ['chord-progressions', 'agent/knowledge/chord-progressions.json', 'Progression templates H01-H08, from the earlier summary of CHORDS.md.'],
+    ['track-construction', 'agent/knowledge/track-construction.json', 'NEW-TRACK-DETAILED.md agent contract, order of work, validation passes, failure modes, translation table.'],
     ['bass-patterns', 'agent/knowledge/bass-patterns.json', 'BASSLINES.md pattern library and checks.'],
     ['drum-patterns', 'agent/knowledge/drum-patterns.json', 'DRUMS.md genre grids, velocity tiers, A/A\'/B/F phrase.'],
     ['reference-sets', 'config/reference-sets.json', 'Named reference-track sets and their profiles.'],

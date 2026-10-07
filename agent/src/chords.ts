@@ -9,7 +9,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { CHORD_FLOOR, pitchClass, scalePitches, voiceLead } from './music-theory.js';
+import { CHORD_FLOOR, pitchClass, scalePitches, voiceLead, voiceLeadingCost } from './music-theory.js';
 
 /** Intervals above the root for each quality, longest names first when matching. */
 const QUALITIES: Array<[string, number[]]> = [
@@ -78,7 +78,14 @@ export function parseSlot(slot: string): ParsedChord[] {
 interface ChordKnowledge {
   templates: Record<string, { style: string; progression: string[] }>;
   complexity_ladder: string[];
-  checks: { mud_floor_midi: number; mud_interval: number; max_voices: number; max_motion_per_change: number };
+  checks: {
+    mud_floor_midi: number;
+    mud_interval: number;
+    max_voices: number;
+    max_motion_per_change: number;
+    low_interval_limit: { source: string; bands: Array<{ below_midi: number; min_interval: number }> };
+    loop_boundary_max_motion: number;
+  };
 }
 
 const PATH = fileURLToPath(new URL('../knowledge/chord-progressions.json', import.meta.url));
@@ -183,23 +190,37 @@ export interface VoiceLeadingStep {
   motion: number;
   commonTones: number;
   largestLeap: number;
+  /** CHORDS.md 8.3's cost: motion penalised for leaps and low clusters, credited for common tones. */
+  cost: number;
 }
 
-/** Total motion, common tones and the largest single leap at each change. */
+function stepBetween(from: VoicedChord, to: VoicedChord): VoiceLeadingStep {
+  const a = from.pitches, b = to.pitches;
+  let motion = 0, largest = 0;
+  for (const p of b) {
+    const nearest = Math.min(...a.map((q) => Math.abs(q - p)));
+    motion += nearest;
+    largest = Math.max(largest, nearest);
+  }
+  const commonTones = b.filter((p) => a.includes(p)).length;
+  return { from: from.symbol, to: to.symbol, motion, commonTones, largestLeap: largest, cost: voiceLeadingCost(a, b).total };
+}
+
+/** Total motion, common tones, the largest single leap and the 8.3 cost at each change. */
 export function voiceLeadingReport(chords: VoicedChord[]): VoiceLeadingStep[] {
   const steps: VoiceLeadingStep[] = [];
-  for (let i = 1; i < chords.length; i += 1) {
-    const a = chords[i - 1]!.pitches, b = chords[i]!.pitches;
-    let motion = 0, largest = 0;
-    for (const p of b) {
-      const nearest = Math.min(...a.map((q) => Math.abs(q - p)));
-      motion += nearest;
-      largest = Math.max(largest, nearest);
-    }
-    const commonTones = b.filter((p) => a.includes(p)).length;
-    steps.push({ from: chords[i - 1]!.symbol, to: chords[i]!.symbol, motion, commonTones, largestLeap: largest });
-  }
+  for (let i = 1; i < chords.length; i += 1) steps.push(stepBetween(chords[i - 1]!, chords[i]!));
   return steps;
+}
+
+/**
+ * CHORDS.md 69: the reset from the last chord back to the first is a
+ * transition too. A four-bar loop can voice-lead perfectly inside and still
+ * land ugly on bar 1.
+ */
+export function loopBoundary(chords: VoicedChord[]): VoiceLeadingStep | null {
+  if (chords.length < 2) return null;
+  return stepBetween(chords.at(-1)!, chords[0]!);
 }
 
 export interface ChordFinding {
@@ -214,20 +235,43 @@ export function checkChords(chords: VoicedChord[]): ChordFinding[] {
     const p = chord.pitches;
     // The slash bass is allowed low; the upper voices are judged for mud.
     const upper = chord.symbol.includes('/') && !/6\/9/.test(chord.symbol) ? p.slice(1) : p;
+    // CHORDS.md 68: the lower the register, the wider the spacing has to be.
+    const bands = [...c.low_interval_limit.bands].sort((a, b) => a.below_midi - b.below_midi);
     for (let i = 1; i < upper.length; i += 1) {
-      if (upper[i - 1]! < c.mud_floor_midi && upper[i]! - upper[i - 1]! <= c.mud_interval) {
-        findings.push({ severity: 'warn', message: `${chord.symbol}: a third or closer below MIDI ${c.mud_floor_midi} is muddy; open the low voices.` });
+      const low = upper[i - 1]!, interval = upper[i]! - low;
+      const band = bands.find((b) => low < b.below_midi);
+      if (band && interval < band.min_interval) {
+        findings.push({
+          severity: 'warn',
+          message: `${chord.symbol}: ${interval} semitones above MIDI ${low} is muddy - below MIDI ${band.below_midi} keep voices at least ${band.min_interval} apart. Move a note before reaching for EQ.`,
+        });
         break;
       }
     }
     if (p.length > c.max_voices) {
       findings.push({ severity: 'info', message: `${chord.symbol} has ${p.length} voices; drop the fifth or a doubled tone unless the density is wanted.` });
     }
+    // CHORDS.md 76, the simplification pass: delete notes before adding processing.
+    const classes = p.map((q) => ((q % 12) + 12) % 12);
+    const doubled = classes.filter((q, i) => classes.indexOf(q) !== i);
+    if (doubled.length > 0) {
+      findings.push({
+        severity: 'info',
+        message: `${chord.symbol} doubles ${doubled.length === 1 ? 'a pitch class' : `${doubled.length} pitch classes`}; ask whether the duplicate earns its place before adding anything.`,
+      });
+    }
   }
   for (const step of voiceLeadingReport(chords)) {
     if (step.motion > c.max_motion_per_change) {
       findings.push({ severity: 'warn', message: `${step.from} → ${step.to} moves ${step.motion} semitones in total; try another inversion or a common-tone voicing.` });
     }
+  }
+  const loop = loopBoundary(chords);
+  if (loop && loop.motion > c.loop_boundary_max_motion) {
+    findings.push({
+      severity: 'warn',
+      message: `the loop resets ${loop.from} → ${loop.to} over ${loop.motion} semitones with ${loop.commonTones} common tones; voice-lead the loop boundary, not just the chords inside it.`,
+    });
   }
   return findings;
 }

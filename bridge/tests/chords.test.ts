@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { checkChords, chordKnowledge, chordTemplate, parseChordSymbol, parseSlot, templateInKey, transposeSymbol, voiceLeadingReport, voiceProgression } from '../../agent/src/chords.js';
+import { checkChords, chordKnowledge, chordTemplate, loopBoundary, parseChordSymbol, parseSlot, templateInKey, transposeSymbol, voiceLeadingReport, voiceProgression } from '../../agent/src/chords.js';
 
 const pcs = (pitches: number[]) => [...new Set(pitches.map((p) => p % 12))].sort((a, b) => a - b);
 
@@ -103,6 +103,52 @@ describe('chord checks', () => {
 
   it('passes the deep house template', () => {
     expect(checkChords(voiceProgression(chordTemplate('H01').progression)).filter((f) => f.severity === 'warn')).toEqual([]);
+  });
+
+  // CHORDS.md 68: a heuristic, not an acoustics law - the lower the register,
+  // the wider the spacing has to be before it reads as mud.
+  it('widens the spacing it demands as the register drops', () => {
+    const muddy = (pitches: number[]) =>
+      checkChords([{ symbol: 'X', pitches, beat: 0, beats: 4 }]).some((f) => /muddy/.test(f.message));
+    expect(muddy([31, 36])).toBe(true);   // a fifth down at MIDI 31 is still too close
+    expect(muddy([31, 43])).toBe(false);  // an octave is not
+    expect(muddy([40, 44])).toBe(true);   // a major third at MIDI 40
+    expect(muddy([40, 47])).toBe(false);  // a fifth at MIDI 40 passes
+    expect(muddy([60, 64])).toBe(false);  // the same third around middle C is fine
+  });
+
+  // CHORDS.md 76: delete notes before adding processing.
+  it('names a doubled pitch class for the simplification pass', () => {
+    const text = checkChords([{ symbol: 'Cm', pitches: [48, 55, 60, 63], beat: 0, beats: 4 }])
+      .map((f) => f.message).join(' ');
+    expect(text).toMatch(/doubles a pitch class/);
+  });
+});
+
+// CHORDS.md 69: a loop can voice-lead perfectly inside and reset ugly at bar 1.
+describe('loop-boundary voice leading', () => {
+  it('reports the last chord into the first', () => {
+    const voiced = voiceProgression(['Am7', 'Fmaj7', 'Cmaj7', 'G7']);
+    const loop = loopBoundary(voiced)!;
+    expect(loop.from).toBe('G7');
+    expect(loop.to).toBe('Am7');
+    expect(loop.cost).toBeTypeOf('number');
+  });
+
+  it('has no boundary for a single chord', () => {
+    expect(loopBoundary(voiceProgression(['Am7']))).toBeNull();
+  });
+
+  it('warns when the reset jumps even though every change inside the loop is smooth', () => {
+    const chords = [
+      { symbol: 'Cmaj7', pitches: [60, 64, 67, 71], beat: 0, beats: 4 },
+      { symbol: 'Dm7', pitches: [62, 65, 69, 72], beat: 4, beats: 4 },
+      { symbol: 'Em7', pitches: [64, 67, 71, 74], beat: 8, beats: 4 },
+      { symbol: 'Fmaj7', pitches: [77, 81, 84, 88], beat: 12, beats: 4 },
+    ];
+    const inside = voiceLeadingReport(chords.slice(0, 3));
+    for (const step of inside) expect(step.motion).toBeLessThanOrEqual(12);
+    expect(checkChords(chords).some((f) => /the loop resets/.test(f.message))).toBe(true);
   });
 });
 

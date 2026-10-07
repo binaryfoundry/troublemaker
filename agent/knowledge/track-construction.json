@@ -1,0 +1,175 @@
+{
+  "source": "NEW-TRACK-DETAILED.md (supplied 2026-10-07), an end-to-end operational procedure for house / tech-house. A procedure, not an authority: on any job another guide owns - HOOKS.md, LOW_END.md, GROOVE.md, CHORDS.md, MIXING.md, EMOTION.md, and Basslines in AGENTS.md - that guide wins. Its concrete numbers are labelled [AGENT-DEFAULT] or [AGENT-DERIVED] in the document: starting points, never measurements, so they do not override a value this project has measured.",
+  "action_fields": [
+    { "field": "target", "section": 1, "question": "Which exact track, group, clip or return?" },
+    { "field": "location", "section": 1, "question": "Which exact bar range or MIDI positions?" },
+    { "field": "edit", "section": 1, "question": "Which notes, samples, automation, device, routing or parameter?" },
+    { "field": "starting_value", "section": 1, "question": "Which number, bounded test set, or explicit rule?" },
+    { "field": "expected_effect", "section": 1, "question": "What should audibly change?" },
+    { "field": "test", "section": 1, "question": "How is keep-or-revert decided?" }
+  ],
+  "banned_instructions": [
+    "make the chords more interesting",
+    "add some groove",
+    "make the drums punchier",
+    "clean up the mix",
+    "make it wider",
+    "add movement",
+    "make the drop hit harder",
+    "humanize it",
+    "add ear candy",
+    "use eq where necessary"
+  ],
+  "order_of_work": [
+    "inspect_project",
+    "build_root_motion",
+    "build_triads",
+    "optimize_inversions",
+    "design_top_voice",
+    "test_extensions",
+    "build_kick",
+    "build_root_bass",
+    "rhythmize_bass",
+    "build_drums",
+    "add_velocity_hierarchy",
+    "test_swing",
+    "add_hook",
+    "build_8_bar_loop",
+    "arrange",
+    "add_transitions",
+    "static_mix",
+    "low_end_pass",
+    "eq_dynamics_space",
+    "validate",
+    "save_version"
+  ],
+  "validation_passes": [
+    {
+      "id": "harmonic",
+      "section": "39.1",
+      "checks": [
+        "scale and key known",
+        "every chord note intentional",
+        "every non-scale note intentional",
+        "bass structural notes agree with the harmony",
+        "the top voice has a deliberate contour"
+      ]
+    },
+    {
+      "id": "groove",
+      "section": "39.2",
+      "checks": [
+        "kick is straight",
+        "swing is applied intentionally",
+        "percussion velocities are not all identical",
+        "bass groove locks with the kick",
+        "no excessive timing randomisation"
+      ]
+    },
+    {
+      "id": "low_end",
+      "section": "39.3",
+      "checks": [
+        "kick and bass roles are distinct",
+        "sub is centred",
+        "no uncontrolled overlap from impacts and reverbs",
+        "bass recovers naturally after ducking"
+      ]
+    },
+    {
+      "id": "arrangement",
+      "section": "39.4",
+      "checks": [
+        "at each 8- or 16-bar boundary, name what changes",
+        "verify the change serves the energy direction"
+      ]
+    },
+    {
+      "id": "processing",
+      "section": "39.5",
+      "checks": [
+        "bypass every major effect",
+        "level-match the comparison",
+        "decide whether the processed version is genuinely better",
+        "delete the effects that fail"
+      ]
+    },
+    {
+      "id": "mono",
+      "section": "39.6",
+      "checks": [
+        "kick survives mono",
+        "bass survives mono",
+        "clap or snare survives mono",
+        "the main chord identity survives mono",
+        "the main hook or vocal survives mono"
+      ]
+    },
+    {
+      "id": "low_volume",
+      "section": "39.7",
+      "checks": [
+        "at low level the hierarchy is groove, then main hook or vocal, then harmonic support, then detail",
+        "if detail dominates the hook, rebalance"
+      ]
+    }
+  ],
+  "failure_modes": [
+    { "id": "layers_not_composition", "section": "43.1", "problem": "adding layers instead of fixing composition", "fix": "fix the notes, rhythm, contour and sound role of the weak part" },
+    { "id": "automation_not_arrangement", "section": "43.2", "problem": "solving arrangement with automation", "fix": "a filter sweep cannot rescue a section containing the wrong elements" },
+    { "id": "eq_not_source", "section": "43.3", "problem": "solving sound selection with EQ", "fix": "a kick needing 12 dB in several bands is the wrong kick" },
+    { "id": "complexity_before_voicing", "section": "43.4", "problem": "overcomplicating chords before voice-leading them", "fix": "a well-voiced triad beats a badly voiced ninth" },
+    { "id": "random_velocity", "section": "43.5", "problem": "random velocity everywhere", "fix": "dynamics reinforce metre and groove" },
+    { "id": "swing_everything", "section": "43.6", "problem": "swinging everything", "fix": "the kick stays the anchor" },
+    { "id": "solo_decisions", "section": "43.7", "problem": "processing in solo", "fix": "design in solo if needed, decide keep or delete in context" },
+    { "id": "visible_peaks", "section": "43.8", "problem": "treating visible spectrum peaks as problems", "fix": "cut only what causes an audible problem" },
+    { "id": "no_gaps", "section": "43.9", "problem": "over-filling every frequency", "fix": "professional tracks contain deliberate gaps" }
+  ],
+  "translation_table": [
+    { "vague": "make chords richer", "action": "test a 7th on chord 1 or 2, then a 9th on one chord, and A/B against the triads" },
+    { "vague": "make chords smoother", "action": "generate inversions, minimise semitone movement, preserve common tones" },
+    { "vague": "add groove", "action": "set a velocity cell; test swing at 52, 55 and 58 per cent; keep the kick straight" },
+    { "vague": "humanize drums", "action": "velocity hierarchy first; percussion timing within about 5 ms, only if needed" },
+    { "vague": "make bass punchier", "action": "shorten notes and release; inspect the kick overlap; tune the ducking recovery" },
+    { "vague": "make drop bigger", "action": "increase the contrast before the drop; restore the low end; remove masking; layers last" },
+    { "vague": "clean low end", "action": "identify the owner; shorten tails; remove duplicate lows; duck; EQ last" },
+    { "vague": "add character", "action": "pick one method - Saturator, Redux or filter drive - and level-matched A/B it" },
+    { "vague": "make it wider", "action": "widen only a non-sub role; mono-test; reject it if phase is lost" },
+    { "vague": "add movement", "action": "automate a named parameter from value A to B over named bars" },
+    { "vague": "add ear candy", "action": "one structural accent plus one micro-variation per 8 bars as the starting budget" },
+    { "vague": "fix harshness", "action": "identify the exact resonance; reduce source and spacing first, then EQ" },
+    { "vague": "fix mud", "action": "correct voicing, register, tails and arrangement before broad EQ cuts" },
+    { "vague": "make percussion organic", "action": "velocity hierarchy plus controlled swing, never arbitrary randomisation" }
+  ],
+  "minimum_viable_track": [
+    "kick",
+    "bass",
+    "clap_or_snare",
+    "hat_or_percussion_groove",
+    "harmonic_identity",
+    "main_hook_or_vocal",
+    "arrangement_contrast",
+    "transitions",
+    "balanced_mix"
+  ],
+  "fx_budget_per_8_bars": {
+    "section": 37,
+    "transition_events": 1,
+    "micro_variations": 1,
+    "note": "A starting budget, not a quota. If constant events make the main groove hard to identify, remove FX."
+  },
+  "eight_bar_change_rule": {
+    "section": 22,
+    "kinds": [
+      "element enters",
+      "element exits",
+      "pattern variation",
+      "fill",
+      "automation event",
+      "transition FX",
+      "harmonic variation",
+      "hook variation"
+    ],
+    "note": "An inspection trigger, not a decoration trigger. Do not force a change every 8 bars if it harms the groove's hypnosis; but if no delta can be named across several boundaries, the arrangement is too static."
+  }
+}

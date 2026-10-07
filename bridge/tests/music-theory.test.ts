@@ -14,6 +14,7 @@ import {
   scalePitches,
   seedFrom,
   snapToScale,
+  voiceLeadingCost,
 } from '../../agent/src/music-theory.js';
 
 describe('note names', () => {
@@ -155,5 +156,36 @@ describe('seeded randomness', () => {
   it('derives a stable seed from text', () => {
     expect(seedFrom('Bass Main')).toBe(seedFrom('Bass Main'));
     expect(seedFrom('Bass Main')).not.toBe(seedFrom('Bass Alt'));
+  });
+});
+
+// CHORDS.md 8.3: compare actual candidate note placements, not inversion names.
+describe('voice-leading cost', () => {
+  it('credits common tones and penalises leaps', () => {
+    const from = [57, 64, 67, 72];
+    const held = voiceLeadingCost(from, [57, 64, 65, 72]);   // only G3 -> F3 moves
+    const jumped = voiceLeadingCost(from, [69, 76, 79, 84]); // the whole voicing up an octave
+    expect(held.commonTones).toBe(3);
+    expect(held.leaps).toBe(0);
+    expect(jumped.leaps).toBe(4);
+    expect(jumped.commonTones).toBe(0);
+    expect(held.total).toBeLessThan(jumped.total);
+  });
+
+  it('penalises a close voicing in the low register', () => {
+    const open = voiceLeadingCost([40, 52], [36, 55]);
+    const clustered = voiceLeadingCost([40, 52], [36, 39]);
+    expect(clustered.lowClusters).toBe(1);
+    expect(open.lowClusters).toBe(0);
+  });
+
+  it('gives contrary motion its bonus', () => {
+    expect(voiceLeadingCost([60, 64], [59, 65]).contraryMotion).toBe(true);
+    expect(voiceLeadingCost([60, 64], [61, 65]).contraryMotion).toBe(false);
+  });
+
+  it('counts a crossing only when the caller supplies its own voice order', () => {
+    expect(voiceLeadingCost([60, 64], [64, 60]).crossings).toBe(1);
+    expect(voiceLeadingCost([60, 64], [60, 64]).crossings).toBe(0);
   });
 });

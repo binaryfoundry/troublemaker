@@ -223,8 +223,9 @@ overlaps, polyphony in a sub, envelope restarts on repeated notes (fixed by
 
 ## Chords
 
-`CHORDS.md` arrived as a summary of a larger knowledge base that was not
-included; its progression templates, method and troubleshooting are
+`CHORDS.md` is the full expert manual (supplied 2026-10-07; it replaced an
+earlier summary, whose H01-H08 template table it does not carry - the table
+survives only in `chord-progressions.json`). Its method and troubleshooting are
 integrated as `agent/prompts/chords.md`, `agent/knowledge/chord-progressions.json`
 and `agent/src/chords.ts`: a chord-symbol parser (m9, maj7, add9, 6/9sus4,
 m(add9), 7alt, 13, m11, slash chords, "Gsus4→G"), voice-led voicing with slash
@@ -238,7 +239,7 @@ at a time (ERIC.md).
 
 ## Melody and arpeggios
 
-`EDM-TIPS.md` (a summary; its full file was not included) gives the melody
+`EDM-TIPS.md` (the full expert manual, supplied 2026-10-07) gives the melody
 method in `agent/src/melody.ts` and the decision trees and guardrails in
 `agent/prompts/edm-tips.md`: a one-bar rhythmic motif, chord tones on strong
 beats, stepwise motion with recovered leaps, A A A' B and a resolution to the
