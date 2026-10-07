@@ -326,6 +326,28 @@ Retry both a few times before failing.
   excess eat the headroom the limiter needs, and the top end is missing at its sources. Then
   staged peak control (`master preset club`), measured against the references after each step.
 
+## Re-mastering against the club references (Black Glass, 2026-10-08)
+
+- **Measure every part alone before touching a fader.** Solo each track over the drop with the
+  master's dynamics bypassed, capture, and read its bands, peak and crest. Then solve for the fader
+  moves that bring the mix's tonal shape to the references' (least squares on band power, a cost per
+  dB moved, the kick held as the anchor). One solve took every band from up to 6 dB off to within 2.
+- **One part can eat the headroom.** The growl peaked at -2.4 dBFS on a -20.5 LUFS body (crest 18
+  dB); the master limiter was spending its drive on those spikes. A Limiter on the growl's own track
+  took about 5 dB off them.
+- **Check the meter before believing it.** Three QC readings were wrong on short captures and were
+  fixed: the short-term meter's 3 s warm-up dragged a drop's loudness down 4 LU; the band filter
+  read the sub's 41 Hz fundamental as infra (QC now uses a brick-wall FFT); and density was compared
+  against the references' whole tracks instead of their drops (~7 dB, not 10).
+- **A premaster capture clips at 0 dBFS.** Lower the master's input trim 6 dB to read its real
+  peaks; Black Glass's drop had a 15.4 dB crest against the references' 7.
+- **When the limiter is pinned, drive stops paying.** 3 dB more drive bought 0.8 LU; taking the
+  kick down 1.5 dB lost 0.6 LU, because the limiter had been riding it. The references get more
+  loudness per peak from sustained mid content under the drums - an arrangement difference, not a
+  mastering one.
+- **Listening copies are matched down, never up.** Matching a quiet master up to a loud one pushed
+  it past 0 dBFS and clipped the copy.
+
 ## Outros and clip copies (camelbone)
 
 - **`live.duplicate_clip` copies notes, not clip envelopes**, and it is

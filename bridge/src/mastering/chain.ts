@@ -207,7 +207,10 @@ export class MasterChain {
           'is enforced by measuring the exported file; Live 12 adds the mode.',
       );
     } else if (limiterTruePeak === 'off') {
-      warnings.push("The Limiter's True Peak mode is off. Set limiter_mode to 'True Peak' for masters.");
+      warnings.push(
+        "The Limiter's True Peak mode is off: right for a club master at -0.1 dB when the club references peak above " +
+          "0 dBTP; set limiter_mode to 'True Peak' for an encoded distribution copy.",
+      );
     }
 
     return {

@@ -314,7 +314,10 @@ export function softWarnings(role: string, value: number | string): string[] {
       warnings.push('NOTE: Bass Mono is on. Justify it with measured low-frequency side energy.');
     }
     if (role === 'limiter_mode' && value.toLowerCase() === 'standard') {
-      warnings.push('WARN: Standard mode allows inter-sample overs. Masters should use True Peak.');
+      warnings.push(
+        'NOTE: Standard mode limits sample peak only - right for a club master when the club references peak above ' +
+          '0 dBTP (qc reports their ceiling). Use True Peak for an encoded distribution copy.',
+      );
     }
     if (role === 'glue_soft_clip' && value.toLowerCase() === 'on') {
       warnings.push('NOTE: Glue soft clip is coloration, not a safety limiter.');
@@ -322,20 +325,27 @@ export function softWarnings(role: string, value: number | string): string[] {
     return warnings;
   }
   if (role === 'limiter_gain') {
-    if (value > 4) warnings.push('REVIEW: more than 4 dB of limiter drive. Revisit kick/sub/drum peaks first.');
-    else if (value > 3) warnings.push('WARN: more than 3 dB of limiter drive; scrutinise for audible side effects.');
+    // Judged by the result: qc compares the drop's density with the club references'.
+    if (value > 4) {
+      warnings.push(
+        'NOTE: more than 4 dB of limiter drive. qc judges it by the drop density against the club references; if it ' +
+          'is over-limited, or more drive stops adding loudness, take the peaks out at their source parts.',
+      );
+    } else if (value > 3) {
+      warnings.push('WARN: more than 3 dB of limiter drive; check the drop density against the club references with qc.');
+    }
   }
   if (/^eq_\d_gain$/.test(role) && Math.abs(value) > 2) {
     warnings.push('REVIEW: broad master EQ beyond 2 dB means the mix should probably be revised.');
   }
   if (role === 'saturator_drive' && value > 2.5) {
-    warnings.push('REVIEW: saturator drive above 2.5 dB. Gain-match before judging.');
+    warnings.push('NOTE: saturator drive above 2.5 dB - a clip stage. Level-match it and judge the result against the club references.');
   }
   if (role === 'width' && value > 100) {
     warnings.push('WARN: width above 100%. Requires a positive A/B and a mono-compatibility pass.');
   }
   if (role === 'limiter_ceiling' && value > -1) {
-    warnings.push('NOTE: ceiling above -1 dBTP. Only for a dedicated unencoded club PCM master.');
+    warnings.push('NOTE: ceiling above -1 dBTP - the club master. Make any encoded distribution copy at -1 with the clean preset.');
   }
   return warnings;
 }
