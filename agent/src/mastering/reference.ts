@@ -21,11 +21,20 @@ export interface ReferenceProfile {
    */
   losslessTruePeakDbtp: number | null;
   plrDb: number;
+  /**
+   * Median true peak minus loudest-section loudness: the drop's density.
+   * Whole-track PLR includes the intros, so it cannot be compared with a
+   * 30 s capture of a drop (the drops of five Prydz tracks ran ~7 dB against
+   * a whole-track 10).
+   */
+  sectionPlrDb: number;
   /** Per band: median mid level relative to full band. */
   bandTilt: Record<string, number>;
   /** Per band: median side-minus-mid. */
   bandSideToMid: Record<string, number>;
   lowMonoLossDb: number;
+  /** Median energy below 30 Hz relative to 30-60 Hz (brick-wall), or null. */
+  infraToSubDb: number | null;
   /** Max minus min integrated loudness across references. */
   spreadLu: number;
 }
@@ -64,9 +73,14 @@ export function buildReferenceProfile(references: Analysis[]): ReferenceProfile 
       return lossless.length ? r2(median(lossless.map((r) => r.loudness.truePeakDbtp))) : null;
     })(),
     plrDb: r2(median(references.map((r) => r.loudness.plrDb))),
+    sectionPlrDb: r2(median(references.map((r) => r.loudness.truePeakDbtp - r.section.shortTermMeanLufs))),
     bandTilt,
     bandSideToMid,
     lowMonoLossDb: r2(median(references.map((r) => r.section.stereo.lowMonoLossDb))),
+    infraToSubDb: (() => {
+      const values = references.map((r) => r.section.infraToSubDb).filter((v): v is number => typeof v === 'number');
+      return values.length ? r2(median(values)) : null;
+    })(),
     spreadLu: r2(Math.max(...integrated) - Math.min(...integrated)),
   };
 }
@@ -74,7 +88,10 @@ export function buildReferenceProfile(references: Analysis[]): ReferenceProfile 
 export interface ReferenceComparison {
   integratedDeltaLu: number;
   sectionDeltaLu: number;
+  /** Loudest-section PLR (true peak minus section loudness), target minus references. */
   plrDeltaDb: number;
+  /** Brick-wall infra against the references' (target minus reference), or null. */
+  infraToSubDeltaDb: number | null;
   /** Target tilt minus reference tilt, per band. Positive means the target has more. */
   bandDeltaDb: Record<string, number>;
   sideToMidDeltaDb: Record<string, number>;
@@ -95,7 +112,11 @@ export function compareToReference(
   return {
     integratedDeltaLu: r2(target.loudness.integratedLufs - profile.integratedLufs),
     sectionDeltaLu: r2(target.section.shortTermMeanLufs - profile.sectionLufs),
-    plrDeltaDb: r2(target.loudness.plrDb - profile.plrDb),
+    plrDeltaDb: r2(target.loudness.truePeakDbtp - target.section.shortTermMeanLufs - profile.sectionPlrDb),
+    infraToSubDeltaDb:
+      typeof target.section.infraToSubDb === 'number' && profile.infraToSubDb !== null
+        ? r2(target.section.infraToSubDb - profile.infraToSubDb)
+        : null,
     bandDeltaDb,
     sideToMidDeltaDb,
   };

@@ -14,6 +14,10 @@ export function analysis(overrides: {
   side?: Record<string, number>;
   bitDepth?: number;
   path?: string;
+  /** Brick-wall infra relative to the sub band. */
+  infraToSub?: number | null;
+  /** Loudest-section loudness; default 0.8 LU above integrated. */
+  sectionLufs?: number;
 } = {}): Analysis {
   const lufs = overrides.lufs ?? -8;
   const tp = overrides.tp ?? -1.1;
@@ -32,6 +36,7 @@ export function analysis(overrides: {
     integrity: { clippedRuns: overrides.clipped ?? 0, dcOffset: [0, 0] as [number, number], silentChannel: false },
     rmsDb: -12,
     frames: 1,
+    infraToSubDb: overrides.infraToSub === undefined ? -25 : overrides.infraToSub,
   };
   return {
     file: {
@@ -56,7 +61,7 @@ export function analysis(overrides: {
     section: {
       ...stats,
       range: { startSeconds: 120, durationSeconds: 30, source: 'auto-loudest' },
-      shortTermMeanLufs: lufs + 0.8,
+      shortTermMeanLufs: overrides.sectionLufs ?? lufs + 0.8,
     },
   };
 }

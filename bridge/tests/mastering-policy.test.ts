@@ -132,6 +132,20 @@ describe('policy', () => {
     expect(evaluate({ target: analysis(), profile: techno, reference: onlyMp3 }).working.truePeakCeilingDbtp).toBe(-1);
   });
 
+  it('judges infra by the brick-wall measure, not the band filter that reads a low sub as rumble', () => {
+    // Black Glass: the band delta read +9 dB; by FFT it was level with the references.
+    const reference = buildReferenceProfile([analysis({ infraToSub: -23 })]);
+    const lowSub = evaluate({ target: analysis({ tilt: { infra: -1 }, infraToSub: -22.5 }), profile: techno, reference });
+    expect(ids(lowSub)).not.toContain('infra');
+    const rumble = evaluate({ target: analysis({ infraToSub: -15 }), profile: techno, reference });
+    const finding = rumble.findings.find((f) => f.id === 'infra')!;
+    expect(finding.severity).toBe('fail');
+    expect(finding.message).toMatch(/\+8\.0 dB over the references.*brick-wall/);
+    // Without the measure on either side, the band delta still decides.
+    const old = buildReferenceProfile([analysis({ infraToSub: null })]);
+    expect(ids(evaluate({ target: analysis({ tilt: { infra: -1 }, infraToSub: null }), profile: techno, reference: old }))).toContain('infra');
+  });
+
   it('fails a master whose samples reach full scale', () => {
     const result = evaluate({ target: analysis({ tp: 0.4, sp: 0 }), profile: techno });
     expect(result.findings.find((f) => f.id === 'sample-peak')!.severity).toBe('fail');
@@ -142,6 +156,17 @@ describe('policy', () => {
     const reference = buildReferenceProfile([analysis({ lufs: -9, tp: -1.1 })]);
     const result = evaluate({ target: analysis({ lufs: -13.3, tp: -1.1 }), profile: techno, reference });
     expect(result.findings.find((f) => f.id === 'under-limited')!.message).toMatch(/4\.3 dB above the references/);
+  });
+
+  it('compares a drop capture\'s density with the references\' drops, not their whole tracks', () => {
+    // The Prydz set: integrated -9.6 with long intros, drops at -6.3, true peak +0.7.
+    const prydz = buildReferenceProfile([analysis({ lufs: -9.6, tp: 0.7, sectionLufs: -6.3 })]);
+    expect(prydz.sectionPlrDb).toBe(7);
+    // A 30 s capture of a drop as dense as theirs: integrated and section are the same.
+    const drop = evaluate({ target: analysis({ lufs: -6.5, tp: 0.4, sectionLufs: -6.5 }), profile: techno, reference: prydz });
+    expect(ids(drop)).not.toContain('over-limited');
+    expect(ids(drop)).not.toContain('under-limited');
+    expect(ids(drop)).toContain('loudness-ok');
   });
 
   it('warns that a 16-bit file is not a club master', () => {

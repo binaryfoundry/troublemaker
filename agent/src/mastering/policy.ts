@@ -303,7 +303,7 @@ export function evaluate(input: EvaluateInput): Evaluation {
       id: 'under-limited',
       severity: 'warn',
       area: 'dynamics',
-      message: `Peak-to-loudness ratio is ${comparison.plrDeltaDb.toFixed(1)} dB above the references: the master is much less dense than they are.`,
+      message: `Peak-to-loudness ratio in the loudest section is ${comparison.plrDeltaDb.toFixed(1)} dB above the references': the master is much less dense than they are.`,
       action:
         'The chain is too gentle for this genre. Control the peaks in stages (drum bus, soft clip, limiter) rather than one ' +
         'heavy stage, and compare at matched loudness.',
@@ -314,7 +314,7 @@ export function evaluate(input: EvaluateInput): Evaluation {
       id: 'over-limited',
       severity: 'warn',
       area: 'dynamics',
-      message: `Peak-to-loudness ratio is ${Math.abs(comparison.plrDeltaDb).toFixed(1)} dB below the references.`,
+      message: `Peak-to-loudness ratio in the loudest section is ${Math.abs(comparison.plrDeltaDb).toFixed(1)} dB below the references'.`,
       action:
         'Likely over-compressed or over-limited. Reduce bus/master dynamics and compare at matched loudness.',
     });
@@ -355,13 +355,19 @@ export function evaluate(input: EvaluateInput): Evaluation {
         action: 'Investigate; treat as observations, not automatic corrections.',
       });
     }
-    const infra = comparison.bandDeltaDb.infra;
-    if (infra !== undefined && infra > t.infraExcessDb) {
+    // Brick-wall infra against the sub band, when both sides have it: the band
+    // filter's skirt counts a low sub fundamental as infra (Black Glass read
+    // +9 dB there and level with Pryda by FFT).
+    const brickwall = comparison.infraToSubDeltaDb;
+    const infra = brickwall ?? comparison.bandDeltaDb.infra;
+    if (infra !== undefined && infra !== null && infra > t.infraExcessDb) {
       add({
         id: 'infra',
         severity: 'fail',
         area: 'low-end',
-        message: `Energy below 30 Hz is +${infra.toFixed(1)} dB over the references.`,
+        message:
+          `Energy below 30 Hz is +${infra.toFixed(1)} dB over the references` +
+          (brickwall !== null ? ' (relative to the 30-60 Hz band, brick-wall FFT).' : ' (band filter; may include a low sub fundamental).'),
         action:
           'Find the source of the rumble and cut it there: it costs headroom the club system cannot use. Measure each low ' +
           'part alone below 30 Hz before high-passing.',

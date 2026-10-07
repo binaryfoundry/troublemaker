@@ -23,6 +23,8 @@ export interface VersionSummary {
   sectionLufs: number;
   truePeakDbtp: number;
   plrDb: number;
+  /** True peak minus loudest-section loudness. */
+  sectionPlrDb: number;
   lowMonoLossDb: number;
   clippedRuns: number;
   /** RMS of per-band tilt differences from the reference median; null without references. */
@@ -72,6 +74,7 @@ function summarise(
     sectionLufs: analysis.section.shortTermMeanLufs,
     truePeakDbtp: analysis.loudness.truePeakDbtp,
     plrDb: analysis.loudness.plrDb,
+    sectionPlrDb: r2(analysis.loudness.truePeakDbtp - analysis.section.shortTermMeanLufs),
     lowMonoLossDb: analysis.section.stereo.lowMonoLossDb,
     clippedRuns: analysis.whole.integrity.clippedRuns,
     referenceDistanceDb,
@@ -192,14 +195,17 @@ export function compareVersions(input: {
   const aBelowWindow = (input.reference ? a.sectionLufs : a.integratedLufs) < windowLow;
   let loudnessCredit = false;
   // An absolute floor, so a run of trials cannot each spend "only" 3 dB.
+  // Against references, the drop's density against theirs (section PLR); a
+  // whole-track PLR includes the intros and cannot be compared with a capture.
   const plrFloor = input.reference
-    ? input.reference.plrDb - t.plrBelowReferenceDb
+    ? input.reference.sectionPlrDb - t.plrBelowReferenceDb
     : input.profile.minPlrDb;
+  const bPlr = input.reference ? b.sectionPlrDb : b.plrDb;
   if (louder && aBelowWindow) {
     const tolerable = Math.abs(Math.min(0, plrDeltaDb)) <= t.abPlrTolerableDb;
-    if (tolerable && b.plrDb < plrFloor) {
+    if (tolerable && bPlr < plrFloor) {
       costs.push(
-        `B's loudness takes PLR to ${b.plrDb.toFixed(1)} dB, below the ${plrFloor.toFixed(1)} dB floor ` +
+        `B's loudness takes PLR to ${bPlr.toFixed(1)} dB, below the ${plrFloor.toFixed(1)} dB floor ` +
           `(${input.reference ? 'reference median - 2 dB' : `${input.profile.name} profile`}) - over-limited`,
       );
     } else if (tolerable) {

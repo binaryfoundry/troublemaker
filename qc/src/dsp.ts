@@ -153,6 +153,12 @@ export class SignalAccumulator {
   private clippedRuns = 0;
   private runL = 0;
   private runR = 0;
+  // Brick-wall infra: the mid signal low-passed at 120 Hz and decimated to
+  // about 690 Hz (aliasing over 120 dB down), analysed by FFT at the end.
+  private readonly infraLow: BandFilter;
+  private readonly decimation: number;
+  private readonly decimated: number[] = [];
+  private decimationPhase = 0;
 
   constructor(
     readonly sampleRate: number,
@@ -164,6 +170,8 @@ export class SignalAccumulator {
     this.bandSide = new Float64Array(bands.length);
     this.lowL = new BandFilter(sampleRate, 0, LOW_SPLIT_HZ);
     this.lowR = new BandFilter(sampleRate, 0, LOW_SPLIT_HZ);
+    this.infraLow = new BandFilter(sampleRate, 0, LOW_SPLIT_HZ);
+    this.decimation = Math.max(1, Math.round(sampleRate / 690));
   }
 
   /** Interleaved L,R,L,R... float samples. */
@@ -183,6 +191,12 @@ export class SignalAccumulator {
       const mid = (l + r) / 2;
       const side = (l - r) / 2;
       this.sumMid2 += mid * mid;
+
+      const low = this.infraLow.process(mid);
+      if (++this.decimationPhase >= this.decimation) {
+        this.decimationPhase = 0;
+        this.decimated.push(low);
+      }
 
       for (let b = 0; b < bandCount; b += 1) {
         const m = this.midFilters[b]!.process(mid);
@@ -246,7 +260,64 @@ export class SignalAccumulator {
       },
       rmsDb: round(toDb(stereoPower)),
       frames: this.frames,
+      infraToSubDb: infraToSub(this.decimated, this.sampleRate / this.decimation),
     };
+  }
+}
+
+/**
+ * Energy below 30 Hz relative to 30-60 Hz, by Welch-averaged FFT: a brick-wall
+ * split. The band filters' skirts read a low sub fundamental (E1, 41 Hz) as
+ * infra - Black Glass showed "+9 dB of infra" that the FFT put level with
+ * Pryda's "The Return". Null when the signal is too short or has no sub.
+ */
+export function infraToSub(x: number[], rate: number): number | null {
+  const n = 1024;
+  if (x.length < n) return null;
+  const psd = new Float64Array(n / 2);
+  for (let start = 0; start + n <= x.length; start += n / 2) {
+    const re = new Float64Array(n);
+    const im = new Float64Array(n);
+    for (let i = 0; i < n; i += 1) re[i] = x[start + i]! * (0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (n - 1)));
+    fft(re, im);
+    for (let k = 0; k < n / 2; k += 1) psd[k]! += re[k]! * re[k]! + im[k]! * im[k]!;
+  }
+  let infra = 0, sub = 0;
+  for (let k = 1; k < n / 2; k += 1) {
+    const hz = (k * rate) / n;
+    if (hz < 30) infra += psd[k]!;
+    else if (hz < 60) sub += psd[k]!;
+  }
+  if (sub <= 1e-20) return null;
+  return round(10 * Math.log10(Math.max(infra, 1e-30) / sub));
+}
+
+/** In-place radix-2 FFT. */
+function fft(re: Float64Array, im: Float64Array): void {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i += 1) {
+    let bit = n >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if (i < j) {
+      [re[i], re[j]] = [re[j]!, re[i]!];
+      [im[i], im[j]] = [im[j]!, im[i]!];
+    }
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const angle = (-2 * Math.PI) / len;
+    for (let i = 0; i < n; i += len) {
+      for (let k = 0; k < len / 2; k += 1) {
+        const wr = Math.cos(angle * k), wi = Math.sin(angle * k);
+        const a = i + k, b = i + k + len / 2;
+        const vr = re[b]! * wr - im[b]! * wi;
+        const vi = re[b]! * wi + im[b]! * wr;
+        re[b] = re[a]! - vr;
+        im[b] = im[a]! - vi;
+        re[a] = re[a]! + vr;
+        im[a] = im[a]! + vi;
+      }
+    }
   }
 }
 
@@ -270,17 +341,24 @@ export function loudestWindow(
   stepSeconds = 0.1,
 ): { startSeconds: number; meanLufs: number } {
   const width = Math.max(1, Math.round(windowSeconds / stepSeconds));
-  if (series.length <= width) {
-    const finite = series.filter((v) => v > -70);
+  // The first 3 s of short-term loudness are its window filling up: they read
+  // far below the audio (down to -70) and are not the music's level. On a
+  // whole track the loudest window never starts there, but a 30 s capture has
+  // to include them, and they pulled a -11.8 LUFS capture down to -16.1.
+  const warmup = Math.round(3 / stepSeconds);
+  const skip = series.length > warmup * 2 ? warmup : 0;
+  const usable = series.slice(skip);
+  if (usable.length <= width) {
+    const finite = usable.filter((v) => v > -70);
     const mean = finite.length ? finite.reduce((a, b) => a + b, 0) / finite.length : -70;
     return { startSeconds: 0, meanLufs: round(mean) };
   }
   let sum = 0;
-  for (let i = 0; i < width; i += 1) sum += Math.max(series[i]!, -70);
+  for (let i = 0; i < width; i += 1) sum += Math.max(usable[i]!, -70);
   let best = sum;
   let bestStart = 0;
-  for (let i = width; i < series.length; i += 1) {
-    sum += Math.max(series[i]!, -70) - Math.max(series[i - width]!, -70);
+  for (let i = width; i < usable.length; i += 1) {
+    sum += Math.max(usable[i]!, -70) - Math.max(usable[i - width]!, -70);
     if (sum > best) {
       best = sum;
       bestStart = i - width + 1;
@@ -288,6 +366,6 @@ export function loudestWindow(
   }
   // Short-term loudness lags by its 3 s window; shift back so the section
   // covers the audio that produced the reading.
-  const start = Math.max(0, (bestStart + 1) * stepSeconds - 3);
+  const start = Math.max(0, (bestStart + skip + 1) * stepSeconds - 3);
   return { startSeconds: round(start, 1), meanLufs: round(best / width) };
 }

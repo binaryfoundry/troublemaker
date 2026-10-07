@@ -68,6 +68,8 @@ export interface SignalStats {
   integrity: IntegrityStats;
   rmsDb: number;
   frames: number;
+  /** Energy below 30 Hz relative to 30-60 Hz, by brick-wall FFT; null if too short or no sub. */
+  infraToSubDb: number | null;
 }
 
 export interface Section {

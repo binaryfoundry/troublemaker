@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { BANDS, SignalAccumulator, loudestWindow } from '../src/dsp.js';
+import { BANDS, SignalAccumulator, infraToSub, loudestWindow } from '../src/dsp.js';
 import { parseEbur128 } from '../src/ffmpeg.js';
 
 const RATE = 48000;
@@ -128,6 +128,29 @@ describe('integrity', () => {
   });
 });
 
+describe('brick-wall infra', () => {
+  const rate = 690;
+  const tone = (hz: number, amp: number, seconds = 30) =>
+    Array.from({ length: rate * seconds }, (_, i) => amp * Math.sin((2 * Math.PI * hz * i) / rate));
+  const add = (a: number[], b: number[]) => a.map((v, i) => v + b[i]!);
+
+  it('reads a low sub fundamental (E1, 41 Hz) as sub, not infra', () => {
+    // The 30 Hz band filter read Black Glass's E1 sub as +9 dB of infra.
+    expect(infraToSub(tone(41.2, 0.5), rate)!).toBeLessThan(-35);
+  });
+
+  it('reads real rumble below 30 Hz against the sub', () => {
+    // A 20 Hz rumble 10 dB under a 45 Hz sub.
+    const ratio = infraToSub(add(tone(45, 0.5), tone(20, 0.5 / Math.sqrt(10))), rate)!;
+    expect(ratio).toBeGreaterThan(-11);
+    expect(ratio).toBeLessThan(-9);
+  });
+
+  it('is null for a signal too short to measure', () => {
+    expect(infraToSub(tone(45, 0.5, 1), rate)).toBeNull();
+  });
+});
+
 describe('loudest window', () => {
   it('finds the drop in a short-term loudness series', () => {
     const series = [
@@ -144,6 +167,13 @@ describe('loudest window', () => {
 
   it('handles a series shorter than the window', () => {
     expect(loudestWindow([-10, -10], 30).meanLufs).toBe(-10);
+  });
+
+  it('leaves out the short-term meter warming up at the start of a short capture', () => {
+    // A 30.7 s capture of a drop at -11.8: the first 3 s ramp up from -70.
+    const ramp = Array.from({ length: 30 }, (_, i) => -70 + (58.2 * i) / 29);
+    const series = [...ramp, ...Array(277).fill(-11.8)];
+    expect(loudestWindow(series, 30).meanLufs).toBeCloseTo(-11.8, 1);
   });
 });
 

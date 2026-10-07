@@ -19,7 +19,8 @@ import { getProfile } from '../../agent/src/mastering/profiles.js';
 import { formatReport } from '../../agent/src/mastering/report.js';
 
 /** Bump when analysis output changes shape, so stale cache entries are ignored. */
-const CACHE_VERSION = 2;
+// 3: brick-wall infra (infraToSubDb).
+const CACHE_VERSION = 3;
 
 export interface QcJob {
   target: string;
@@ -48,9 +49,13 @@ export async function runQc(job: QcJob): Promise<QcResult> {
   // The target is never cached: it is the thing being changed.
   const analysis = await analyzeFile(resolve(job.target), options);
 
+  // A section given in seconds belongs to the target; each reference is
+  // measured on its own loudest stretch. Applying the target's times to the
+  // references compared a drop with their intros.
+  const referenceOptions: AnalyzeOptions = { sectionSeconds: job.sectionSeconds };
   const references: Analysis[] = [];
   for (const path of job.references ?? []) {
-    references.push(await cachedAnalysis(resolve(path), options, cacheDir));
+    references.push(await cachedAnalysis(resolve(path), referenceOptions, cacheDir));
   }
   const reference = references.length ? buildReferenceProfile(references) : null;
 
