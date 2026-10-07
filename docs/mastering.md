@@ -160,6 +160,19 @@ In File → Export Audio/Video:
 - **32-bit float** with dither off for an archive or a file that will be
   processed further.
 
+Live writes no artist or title, so tag the file. Every release goes out as
+**NothingButTrouble**, which is the default:
+
+```bash
+npm run cli -- tag mixdown.wav --title "B.O.B. (Electric Revival Remix)"
+```
+
+The audio is copied, not re-encoded, and the file is replaced only after its
+tags read back and its decoded audio hashes the same as before. Existing tags
+are kept. FLAC, AIFF and MP3 carry standard tags; WAV only a RIFF INFO chunk,
+which some DJ software ignores in favour of an ID3 chunk ffmpeg cannot write
+into WAV. Deliver FLAC or AIFF where the tags matter.
+
 Then measure the exported file:
 
 ```bash

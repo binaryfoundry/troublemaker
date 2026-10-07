@@ -24,7 +24,7 @@ export class QcError extends Error {
   }
 }
 
-function run(command: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
+export function run(command: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { windowsHide: true });
     const out: Buffer[] = [];

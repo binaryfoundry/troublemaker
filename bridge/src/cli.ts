@@ -22,6 +22,7 @@ import { checkDrumPattern, drumGenres, drumGrids, drumPattern, formatGrid, type 
 import { genreSummary, loadReferenceSets, scanLibrary } from '../../qc/src/library.js';
 import { buildArrangement, resolveReferenceFiles, sampleLibraryConfig, shortlistLocalSamples, writeDrums, type ResolvedReferences } from './workflows.js';
 import { scanSamples } from '../../qc/src/samples.js';
+import { DEFAULT_ARTIST, tagFile } from '../../qc/src/tag.js';
 import { soundBrief } from '../../agent/src/sound-selection.js';
 import { PROFILES } from '../../agent/src/mastering/profiles.js';
 import type { ChainState, Decision } from '../../agent/src/mastering/policy.js';
@@ -108,6 +109,11 @@ Mastering QC (runs locally on exported files; no bridge needed):
         --bars <n>             capture length (default 16)
         --scene <id>           launch this scene for the capture
   Exit code: 0 PASS, 1 REVIEW, 2 FAIL.
+
+Release tags (Live's export writes none; run this on every export):
+  ableton-agent tag <file>... [--artist <name>] [--title <t>] [--album <a>]
+      Sets artist (default ${DEFAULT_ARTIST}), keeps the file's other tags and its
+      audio bit for bit. --title needs a single file. WAV, FLAC, AIFF, MP3.
 
 Reference library:
   ableton-agent refs sets                          Named sets from config/reference-sets.json
@@ -326,6 +332,9 @@ async function main(argv: string[]): Promise<number> {
     case 'compare':
       return compare(rest);
 
+    case 'tag':
+      return tag(rest);
+
     case 'refs':
       return refs(rest);
 
@@ -531,6 +540,24 @@ async function qc(argv: string[]): Promise<number> {
     process.stdout.write(`Wrote ${jsonOut}\n`);
   }
   return result.evaluation.verdict === 'FAIL' ? 2 : result.evaluation.verdict === 'REVIEW' ? 1 : 0;
+}
+
+async function tag(argv: string[]): Promise<number> {
+  const args = [...argv];
+  const [artist = DEFAULT_ARTIST] = takeOption(args, '--artist');
+  const [title] = takeOption(args, '--title');
+  const [album] = takeOption(args, '--album');
+  const files = args;
+  if (!files.length) throw new Error("'tag' needs at least one exported file.");
+  if (title && files.length > 1) throw new Error('--title names one track; give a single file with it.');
+  for (const file of files) {
+    const result = await tagFile(file, { artist, title, album });
+    const shown = ['artist', 'title', 'album'].filter((key) => result.tags[key]);
+    process.stdout.write(
+      `${file}\n  ${shown.map((key) => `${key}: ${result.tags[key]}`).join('\n  ')}\n  audio unchanged\n`,
+    );
+  }
+  return 0;
 }
 
 async function compare(argv: string[]): Promise<number> {

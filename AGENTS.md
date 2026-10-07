@@ -100,7 +100,7 @@ more than one client.
 ## Testing
 
 ```bash
-npm test                      # 465 tests, no Ableton needed
+npm test                      # 474 tests, no Ableton needed
 npm run typecheck
 npm run cli -- selftest       # round trip, needs Live running
 ```
@@ -619,7 +619,7 @@ preset file, not from reading it back. Threshold's instances are all 0.5 as of
 | Cathedral | `D:/ableton/cathedral` | E minor (9A), 126 | 2026-10-05, partial: hygiene clean; rubs 0 genuine; DJ intro/outro pass; automation plays; HOOKS 23/40 (arp never removed, 3-8 dB under the mix in its bands, static sound); build 2 repeats build 1; peak's ceiling (E6) spent in the builds; four groove layers (brief); peak QC REVIEW (air -8, low-mid -3.3, -11.9 LUFS) | CAMELPHAT 6; LOW_END 19 against references; EMOTION in full; NEW_TRACK /100; timpani tuning; bars 65-96 darker than the render above 6 kHz; arp, bass, chords, shimmer are pre-0.3 renders; listening tests open | partly done |
 | Clockwork | `D:/ableton/clockwork` | D minor (7A), 121 | never | **no Set in the folder** - ask the user where it was saved; then everything above; LOW_END audit (sec. 19, measured) | due - blocked on the Set |
 | Threshold | `D:/ableton/threshold` | D minor (7A), 124 | 2026-10-05: HOOKS audit, 28/40; LOW_END audit (sub D2 -> D1; kick +1.5 dB with a post-saturation cut at 220 Hz; low bands now within 2.7 dB of three CamelPhat references, from 6.7); CAMELPHAT; QC PASS | listening tests (HOOKS 13, 14) open; HOOKS 30 four variants not written; return at bar 97 identical to 65; sound identity 2/5; GROOVE §26 not re-run since the lead became the groove layer; NEW_TRACK audit not done | partly done |
-| B.O.B. (Electric Revival Remix) | `D:/ableton/bobdad` | B minor (10A), 132 | 2026-10-06, first build, partial audit: hygiene, DJ, rubs (0), low-end phase, automation entrances PASS; final chorus QC REVIEW (air -3.5, -13.8 LUFS unmastered); rap + crowd-chant vocals from 11B at 154, not transposed | listening tests; HOOKS /40; EMOTION review; LOW_END 19 in full; mastering; NEW_TRACK /100; rap processing; Set unsaved (Temp Project) | in production |
+| B.O.B. (Electric Revival Remix) | `D:/ableton/bobdad` | B minor (10A), 132 | 2026-10-07 verse pass: source tempo is **153.82**, not 154 (rewarped; drift now -18 ms over a 32-bar verse, 100 % of onsets within half a 16th); rap clips **Pitch +1 st**; the rap's fundamentals cleared (spiccato +12 st, strings' low voice +12 st, 0 rubs); vocal chain built and measured (verse 1 QC vs `camelphat`: air -3.2 -> -1.4, mid +3.4 -> +2.8, three REVIEW flags down to one). 2026-10-06 first build: hygiene, DJ, rubs, low-end phase, automation PASS | verse 1's clip is off-grid (beat 255.75 to 385.50, spilling 1.5 beats over bar 97); final chorus lost its register lift over the verse spiccato; the TRACK.md hook map still describes structure v1; listening tests; HOOKS /40; EMOTION review; LOW_END 19 in full; mastering; NEW_TRACK /100 | in production |
 
 ## Starting a new track - ask for the key
 
