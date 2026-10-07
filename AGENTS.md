@@ -100,7 +100,7 @@ more than one client.
 ## Testing
 
 ```bash
-npm test                      # 495 tests, no Ableton needed
+npm test                      # 501 tests, no Ableton needed
 npm run typecheck
 npm run cli -- selftest       # round trip, needs Live running
 ```
@@ -387,8 +387,7 @@ user had to point at it mid-build.)
 |---|---|
 | `EMOTION.md` | first: the emotional sentence (§3) and the arc (§4) before any notes; then ≥3 levers per emotion (§53), one surprise per section (§54), protect the peak (§55), withholding (§56) |
 | `COMPOSITION.md` | the decision order (idea → groove → arrangement → sound → balance → … → loudness) and the arrangement |
-| `EDM-COMPOSITION.md` | effects and advanced rhythm, as perception → mechanism |
-| `EDM-TIPS.md` | melody method, harmony complexity ladder, transition families, mix heuristics |
+| `EDM-TIPS.md` | diagnose before touching anything and solve at the earliest stage (§2), the production order (§5), melody (§6), layering by role (§9), transitions (§12), the symptom → action table (§21); a `[STARTING RANGE]` is never a target |
 | `GROOVE.md` | every rhythmic part: assign anchor / groove / ornament roles (§15) before writing any of them; exactly one groove layer; run the §26 checklist |
 | `HOOKS.md` | choose the hook type and attention hierarchy (§8) before writing it; one primary hook per section (§9); introduce, remove, return (§11); 80/20 variation (§12); the arrangement map (§41) in TRACK.md; the audit (§42) and the /40 score (§31), without inflation, before reporting a track done |
 | `NEW_TRACK.md` | the finishing pass: diagnose in its order, minimum effective change, the 10-category audit scored /100 without inflation, and the Professional Finish Report |
@@ -402,6 +401,7 @@ user had to point at it mid-build.)
 | Kick, sub and the low end as a system | `LOW_END.md` |
 | Drums | `DRUMS.md` |
 | Chords, pads | `CHORDS.md` |
+| Strings, orchestra, any orchestral part | `ORCHESTRAL.md`; check every part with `checkInstrumentRange` |
 | Shimmer | `SHIMMER.md` |
 | Choosing a sound | `Ableton_Sound_Selection_Expert.md` |
 | Mix and master | `MIXING.md`, `LOW_END.md` (kick and bass first), `docs/lessons.md` |
@@ -413,11 +413,11 @@ what order, with a pass/fail test at each step. Read its agent contract
 edit, starting value, expected effect, pass/fail test. "Add some groove" is
 not an instruction. Its §43 failure modes name what this project keeps doing
 wrong — adding layers instead of fixing composition, solving arrangement with
-automation, processing in solo, swinging everything. It does not outrank the
-guides above on their own jobs (see *Which guide for which job*).
+automation, processing in solo, swinging everything. Where it contradicts a
+guide above, ask (see *When guides conflict, ask*).
 
 Plus the genre or artist profile the brief names (see *Which guide for which
-job*). Where guides conflict, the more specific one wins, as below.
+job*). Where guides conflict, ask the user - see *When guides conflict, ask*.
 
 **Show the work.** The track's `TRACK.md` lists, for each element, the guides
 applied and the rules taken from them by section number, and the result of
@@ -623,13 +623,13 @@ preset file, not from reading it back. Threshold's instances are all 0.5 as of
 
 | Track | Folder | Key / BPM | Last audited | Known gaps from rules learned since | Status |
 |---|---|---|---|---|---|
-| camelbone | `D:/ableton/tinman` | A minor (8A), 124 | never, against the rules below | leads plucked and arpeggiated (*Leads*); no hook audit (HOOKS); AF101 before 0.3 (velocity silent, filter tied to amp); bass before *Basslines*; GROOVE one-layer check; DJ intro/outro pitch rule; envelope `value_at_start`; LOW_END audit (sec. 19, measured); full CHORDS.md and EDM-TIPS.md (2026-10-07) and NEW-TRACK-DETAILED.md never applied: harmony audited against §8 voice leading, §68 low-interval limit and §69 loop boundary; EDM-TIPS §21 symptom table; the §39 validation passes | due |
-| Cowboy | `D:/ableton/cowboy` | unknown - **no TRACK.md**, write one from the Set first | never | all of the above; LOW_END audit (sec. 19, measured); full CHORDS.md and EDM-TIPS.md (2026-10-07) and NEW-TRACK-DETAILED.md never applied: harmony audited against §8 voice leading, §68 low-interval limit and §69 loop boundary; EDM-TIPS §21 symptom table; the §39 validation passes | due |
-| Black Glass | `D:/ableton/blackglass` | E minor (9A), 125 | 2026-10-05, partial: hygiene clean; rubs 0 genuine (183 tails crossing chord changes); harmony agrees bar by bar; Arrangement envelopes have no seed blip; arp register against the strings measured and kept (an octave lift cost the breakdown 2.3 dB); arp now a live AF101 0.5 (patch rebuilt by measurement, `blackglass-arp.txt`; accents rewritten 112/65/41; Drop B within 0.6 dB of the render); stabs given a Simpler filter envelope and velocity to cutoff; GROOVE one-layer: six polymeters, kept as the user's brief; QC PASS | hook audit (HOOKS 42, /40); lead numbers (CAMELPHAT 6); LOW_END 19 against references; emotion; NEW_TRACK /100; DJ intro sub vs "after the build"; growl and stabs are still pre-0.3 AF101 renders in Simpler; listening tests open; full CHORDS.md and EDM-TIPS.md (2026-10-07) and NEW-TRACK-DETAILED.md never applied: harmony audited against §8 voice leading, §68 low-interval limit and §69 loop boundary; EDM-TIPS §21 symptom table; the §39 validation passes | due |
-| Cathedral | `D:/ableton/cathedral` | E minor (9A), 126 | 2026-10-05, partial: hygiene clean; rubs 0 genuine; DJ intro/outro pass; automation plays; HOOKS 23/40 (arp never removed, 3-8 dB under the mix in its bands, static sound); build 2 repeats build 1; peak's ceiling (E6) spent in the builds; four groove layers (brief); peak QC REVIEW (air -8, low-mid -3.3, -11.9 LUFS) | CAMELPHAT 6; LOW_END 19 against references; EMOTION in full; NEW_TRACK /100; timpani tuning; bars 65-96 darker than the render above 6 kHz; arp, bass, chords, shimmer are pre-0.3 renders; listening tests open; full CHORDS.md and EDM-TIPS.md (2026-10-07) and NEW-TRACK-DETAILED.md never applied: harmony audited against §8 voice leading, §68 low-interval limit and §69 loop boundary; EDM-TIPS §21 symptom table; the §39 validation passes | due |
-| Clockwork | `D:/ableton/clockwork` | D minor (7A), 121 | never | **no Set in the folder** - ask the user where it was saved; then everything above; LOW_END audit (sec. 19, measured); full CHORDS.md and EDM-TIPS.md (2026-10-07) and NEW-TRACK-DETAILED.md never applied: harmony audited against §8 voice leading, §68 low-interval limit and §69 loop boundary; EDM-TIPS §21 symptom table; the §39 validation passes | due - blocked on the Set |
-| Threshold | `D:/ableton/threshold` | D minor (7A), 124 | 2026-10-05: HOOKS audit, 28/40; LOW_END audit (sub D2 -> D1; kick +1.5 dB with a post-saturation cut at 220 Hz; low bands now within 2.7 dB of three CamelPhat references, from 6.7); CAMELPHAT; QC PASS | listening tests (HOOKS 13, 14) open; HOOKS 30 four variants not written; return at bar 97 identical to 65; sound identity 2/5; GROOVE §26 not re-run since the lead became the groove layer; NEW_TRACK audit not done; full CHORDS.md and EDM-TIPS.md (2026-10-07) and NEW-TRACK-DETAILED.md never applied: harmony audited against §8 voice leading, §68 low-interval limit and §69 loop boundary; EDM-TIPS §21 symptom table; the §39 validation passes | due |
-| B.O.B. (Electric Revival Remix) | `D:/ableton/bobdad` | B minor (10A), 132 | 2026-10-07 verse pass: source tempo is **153.82**, not 154 (rewarped; drift now -18 ms over a 32-bar verse, 100 % of onsets within half a 16th); rap clips **Pitch +1 st**; the rap's fundamentals cleared (spiccato +12 st, strings' low voice +12 st, 0 rubs); vocal chain built and measured (verse 1 QC vs `camelphat`: air -3.2 -> -1.4, mid +3.4 -> +2.8, three REVIEW flags down to one). 2026-10-06 first build: hygiene, DJ, rubs, low-end phase, automation PASS | verse 1's clip is off-grid (beat 255.75 to 385.50, spilling 1.5 beats over bar 97); final chorus lost its register lift over the verse spiccato; the TRACK.md hook map still describes structure v1; listening tests; HOOKS /40; EMOTION review; LOW_END 19 in full; mastering; NEW_TRACK /100; full CHORDS.md and EDM-TIPS.md (2026-10-07) and NEW-TRACK-DETAILED.md never applied: harmony audited against §8 voice leading, §68 low-interval limit and §69 loop boundary; EDM-TIPS §21 symptom table; the §39 validation passes | in production |
+| camelbone | `D:/ableton/tinman` | A minor (8A), 124 | never, against the rules below | leads plucked and arpeggiated (*Leads*); no hook audit (HOOKS); AF101 before 0.3 (velocity silent, filter tied to amp); bass before *Basslines*; GROOVE one-layer check; DJ intro/outro pitch rule; envelope `value_at_start`; LOW_END audit (sec. 19, measured); full CHORDS.md, EDM-TIPS.md and EDM-PRODUCTION.md (2026-10-07) and NEW-TRACK-DETAILED.md never applied: harmony audited against §8 voice leading, §68 low-interval limit and §69 loop boundary; EDM-TIPS §21 symptom table; the §39 validation passes; EDM-PRODUCTION §13.4 energy ledger and §21 definition of done | due |
+| Cowboy | `D:/ableton/cowboy` | unknown - **no TRACK.md**, write one from the Set first | never | all of the above; LOW_END audit (sec. 19, measured); full CHORDS.md, EDM-TIPS.md and EDM-PRODUCTION.md (2026-10-07) and NEW-TRACK-DETAILED.md never applied: harmony audited against §8 voice leading, §68 low-interval limit and §69 loop boundary; EDM-TIPS §21 symptom table; the §39 validation passes; EDM-PRODUCTION §13.4 energy ledger and §21 definition of done | due |
+| Black Glass | `D:/ableton/blackglass` | E minor (9A), 125 | 2026-10-05, partial: hygiene clean; rubs 0 genuine (183 tails crossing chord changes); harmony agrees bar by bar; Arrangement envelopes have no seed blip; arp register against the strings measured and kept (an octave lift cost the breakdown 2.3 dB); arp now a live AF101 0.5 (patch rebuilt by measurement, `blackglass-arp.txt`; accents rewritten 112/65/41; Drop B within 0.6 dB of the render); stabs given a Simpler filter envelope and velocity to cutoff; GROOVE one-layer: six polymeters, kept as the user's brief; QC PASS | hook audit (HOOKS 42, /40); lead numbers (CAMELPHAT 6); LOW_END 19 against references; emotion; NEW_TRACK /100; DJ intro sub vs "after the build"; growl and stabs are still pre-0.3 AF101 renders in Simpler; listening tests open; full CHORDS.md, EDM-TIPS.md and EDM-PRODUCTION.md (2026-10-07) and NEW-TRACK-DETAILED.md never applied: harmony audited against §8 voice leading, §68 low-interval limit and §69 loop boundary; EDM-TIPS §21 symptom table; the §39 validation passes; EDM-PRODUCTION §13.4 energy ledger and §21 definition of done; orchestral parts never checked against ORCHESTRAL.md (ranges in scientific pitch, the §7 layer budget, §19 low spacing, §46 withheld climax resources) | due |
+| Cathedral | `D:/ableton/cathedral` | E minor (9A), 126 | 2026-10-05, partial: hygiene clean; rubs 0 genuine; DJ intro/outro pass; automation plays; HOOKS 23/40 (arp never removed, 3-8 dB under the mix in its bands, static sound); build 2 repeats build 1; peak's ceiling (E6) spent in the builds; four groove layers (brief); peak QC REVIEW (air -8, low-mid -3.3, -11.9 LUFS) | CAMELPHAT 6; LOW_END 19 against references; EMOTION in full; NEW_TRACK /100; timpani tuning; bars 65-96 darker than the render above 6 kHz; arp, bass, chords, shimmer are pre-0.3 renders; listening tests open; full CHORDS.md, EDM-TIPS.md and EDM-PRODUCTION.md (2026-10-07) and NEW-TRACK-DETAILED.md never applied: harmony audited against §8 voice leading, §68 low-interval limit and §69 loop boundary; EDM-TIPS §21 symptom table; the §39 validation passes; EDM-PRODUCTION §13.4 energy ledger and §21 definition of done; orchestral parts never checked against ORCHESTRAL.md (ranges in scientific pitch, the §7 layer budget, §19 low spacing, §46 withheld climax resources) | due |
+| Clockwork | `D:/ableton/clockwork` | D minor (7A), 121 | never | **no Set in the folder** - ask the user where it was saved; then everything above; LOW_END audit (sec. 19, measured); full CHORDS.md, EDM-TIPS.md and EDM-PRODUCTION.md (2026-10-07) and NEW-TRACK-DETAILED.md never applied: harmony audited against §8 voice leading, §68 low-interval limit and §69 loop boundary; EDM-TIPS §21 symptom table; the §39 validation passes; EDM-PRODUCTION §13.4 energy ledger and §21 definition of done | due - blocked on the Set |
+| Threshold | `D:/ableton/threshold` | D minor (7A), 124 | 2026-10-05: HOOKS audit, 28/40; LOW_END audit (sub D2 -> D1; kick +1.5 dB with a post-saturation cut at 220 Hz; low bands now within 2.7 dB of three CamelPhat references, from 6.7); CAMELPHAT; QC PASS | listening tests (HOOKS 13, 14) open; HOOKS 30 four variants not written; return at bar 97 identical to 65; sound identity 2/5; GROOVE §26 not re-run since the lead became the groove layer; NEW_TRACK audit not done; full CHORDS.md, EDM-TIPS.md and EDM-PRODUCTION.md (2026-10-07) and NEW-TRACK-DETAILED.md never applied: harmony audited against §8 voice leading, §68 low-interval limit and §69 loop boundary; EDM-TIPS §21 symptom table; the §39 validation passes; EDM-PRODUCTION §13.4 energy ledger and §21 definition of done; orchestral parts never checked against ORCHESTRAL.md (ranges in scientific pitch, the §7 layer budget, §19 low spacing, §46 withheld climax resources) | due |
+| B.O.B. (Electric Revival Remix) | `D:/ableton/bobdad` | B minor (10A), 132 | 2026-10-07 verse pass: source tempo is **153.82**, not 154 (rewarped; drift now -18 ms over a 32-bar verse, 100 % of onsets within half a 16th); rap clips **Pitch +1 st**; the rap's fundamentals cleared (spiccato +12 st, strings' low voice +12 st, 0 rubs); vocal chain built and measured (verse 1 QC vs `camelphat`: air -3.2 -> -1.4, mid +3.4 -> +2.8, three REVIEW flags down to one). 2026-10-06 first build: hygiene, DJ, rubs, low-end phase, automation PASS | verse 1's clip is off-grid (beat 255.75 to 385.50, spilling 1.5 beats over bar 97); final chorus lost its register lift over the verse spiccato; the TRACK.md hook map still describes structure v1; listening tests; HOOKS /40; EMOTION review; LOW_END 19 in full; mastering; NEW_TRACK /100; full CHORDS.md, EDM-TIPS.md and EDM-PRODUCTION.md (2026-10-07) and NEW-TRACK-DETAILED.md never applied: harmony audited against §8 voice leading, §68 low-interval limit and §69 loop boundary; EDM-TIPS §21 symptom table; the §39 validation passes; EDM-PRODUCTION §13.4 energy ledger and §21 definition of done; orchestral parts never checked against ORCHESTRAL.md (ranges in scientific pitch, the §7 layer budget, §19 low spacing, §46 withheld climax resources) | in production |
 
 ## Starting a new track - ask for the key
 
@@ -694,7 +694,7 @@ the code enforces it yet — apply it by reading, and treat that as a gap.
 |---|---|---|
 | `EMOTION.md` | Emotional intent first: write the *emotional sentence* (§3), plan the arc (§4), change ≥3 levers per emotion (§53), one surprise per section (§54), **protect the peak** (§55), withholding (§56) | not encoded |
 | `COMPOSITION.md` | House / deep house / techno end to end; sets the decision order idea → groove → arrangement → sound → balance → … → loudness | `agent/src/arrangement.ts`, `styles.json` |
-| `NEW-TRACK-DETAILED.md` | The end-to-end operational procedure, house / tech-house: the **agent contract** (§1) — every production action states target, location, edit, starting value, expected effect and a pass/fail test — session init (§2), harmony → voicing → extensions (§3-6), chord rhythm and sound (§7-9), kick, bass and ducking (§10-12), drums, velocity and swing (§13-16), hook (§17), space (§19), the 8-bar loop before arrangement (§20), arrangement and the 8-bar change rule (§21-22), transitions and automation (§23-24), mixing order (§25-32), per-element diagnostics (§34-36), seven validation passes (§39), the execution state machine (§40), checkpoint outputs (§41), the no-hand-waving table (§42), nine failure modes (§43), and the one-pass procedure (§45). A **procedure, not an authority**: see the precedence note below | `agent/prompts/track-construction.md`, `track-construction.json`, `track-construction.ts` (`checkAction` for the six fields, `translateRequest` for §42, the §39 passes, §43 failure modes, §44 minimum track) |
+| `NEW-TRACK-DETAILED.md` | The end-to-end operational procedure, house / tech-house: the **agent contract** (§1) — every production action states target, location, edit, starting value, expected effect and a pass/fail test — session init (§2), harmony → voicing → extensions (§3-6), chord rhythm and sound (§7-9), kick, bass and ducking (§10-12), drums, velocity and swing (§13-16), hook (§17), space (§19), the 8-bar loop before arrangement (§20), arrangement and the 8-bar change rule (§21-22), transitions and automation (§23-24), mixing order (§25-32), per-element diagnostics (§34-36), seven validation passes (§39), the execution state machine (§40), checkpoint outputs (§41), the no-hand-waving table (§42), nine failure modes (§43), and the one-pass procedure (§45). A **procedure**: where it contradicts another guide, ask (*When guides conflict, ask*) | `agent/prompts/track-construction.md`, `track-construction.json`, `track-construction.ts` (`checkAction` for the six fields, `translateRequest` for §42, the §39 passes, §43 failure modes, §44 minimum track) |
 | `MELODIC-TECHNO.md` | Genre profile: tempo, motif, chord loop, drum and bass templates, arrangement. Uses **Live octave names** (C1 = 36) | `melodic-techno.json`, `styles.json`, `melody.ts` |
 | `HOUSE.md` | House / tech-house build order: groove -> kick/bass -> hook -> arrangement. Riffs rhythmically distinct from the bass, one primary hook, remove something before a drop, sidechained chord stabs, high-pass non-bass parts, balance in mono, quality gates A-F. Written for Wavetable, which Standard lacks: use AF101 or Drift | not encoded |
 | `HOOKS.md` | The hook as the track's identity: five hook types and how to choose one, the primary-hook rule, introduce-remove-return, 80/20 variation, memory and one-finger tests, rhythmic fingerprint, layering and mixing a hook, failure modes, the arrangement map, the audit, a /40 score | not encoded |
@@ -704,7 +704,7 @@ the code enforces it yet — apply it by reading, and treat that as a gap.
 | `BASSLINES.md` | Bassline writing. Uses **scientific octave names** (C4 = 60) | `bass-patterns.json`, `basslines.ts` |
 | `DRUMS.md` | Drum grids, variation, swing, fills, anchors | `drum-patterns.json`, `drums.ts` |
 | `GROOVE.md` | Dotted-eighth (3/16) syncopation: one stable anchor (kick, clap, hats), **one** groove layer moving around it, phrase-reset vs free-running pulse, note length shorter than spacing, accents, omissions. "If everything is syncopated, nothing sounds syncopated" | not encoded |
-| `ORCHESTRAL.md` | Orchestral composition and mock-ups. Assumes **Live Suite / Max for Live**; this machine runs Standard, so only its `filesystem` mode applies | not encoded |
+| `ORCHESTRAL.md` | The full orchestral composer guide (supplied 2026-10-07, replacing a report about a spec): emotion → idea → harmony → voice leading → orchestration → articulation → dynamics → production (§1), never hand-wave (§3), the active-layer budget (§7), motifs and development (§8-9), low-register spacing (§19), practical ranges (§21), section roles and articulations (§22-36), doubling and register (§37-38), tension, climax and subtraction (§45-47), orchestration passes (§48), MIDI dynamics (§51-57), electronic + orchestra (§66-70), diagnosis order (§99), report and definition of done (§106-107). Its ranges are **scientific pitch** (violin G3 = MIDI 55), unstated in the document. Conflicts to ask about: its §67 allows subtle sidechain where *Basslines* says the orchestra is never ducked. Already settled: the key of a new track is always asked (its §98 says decide). A limit, not a conflict: the bridge has no MIDI CC lanes, so its §51-52 CC1/CC11 go through a mapped parameter | `agent/prompts/orchestral.md`, `orchestral.json`, `orchestral.ts` (`checkInstrumentRange`) |
 
 **Artist and style profiles** — each names an artist through a style template
 
@@ -720,8 +720,7 @@ the code enforces it yet — apply it by reading, and treat that as a gap.
 |---|---|---|
 | `ANALOG_SYNTH_AGENT.md` | Spec for **our own synth**, AnalogFoundry 101 — see *Synthesis* above | `analogfoundry/` |
 | `Ableton_Sound_Selection_Expert.md` | Choosing samples and presets by role before processing them | `sound-selection.json`, `sound-selection.ts`, `qc/src/samples.ts` |
-| `EFFECTS.md` | Effects field guide: cue, mechanism, control law, confusions | `effects.json`, `qc/src/identify.ts` |
-| `EDM-COMPOSITION.md` | Effects and advanced rhythm (ratchets, retrigger deceleration, polymeters) as perception → mechanism | `effects.json`, `patterns.ts` |
+| `EFFECTS.md` | Effects field guide: cue, mechanism, control law, confusions, including ratchets, retrigger deceleration, tape stop and beat repeat. (`EDM-COMPOSITION.md` was removed on 2026-10-07; the codex and rhythm generators built partly from it were measured on Live and kept) | `effects.json`, `qc/src/identify.ts`, `patterns.ts` |
 | `SHIMMER.md` | Granular sparkle / crystal / shimmer: short tonal source -> Grain Delay (+12, +7, +19) -> dotted-eighth delay -> slow pan -> dark reverb, high-passed. An **event** at 3-8 structural moments (phrase ends, breakdown entry/exit, before drops), automated as a bloom - slow start, accelerating rise, peak, sharp cut leaving the tail. Standard lacks Echo and Hybrid Reverb (use Delay, Reverb) and the bridge cannot reach return devices, so build it as an insert chain on its own track | not encoded |
 | `ABLETON_VOCALS_EXPERT.md` | Vocals: chops, processing, placement | `vocals.ts` |
 
@@ -732,7 +731,7 @@ the code enforces it yet — apply it by reading, and treat that as a gap.
 | `LOW_END.md` | Kick, bass and low end as one system: a reference with a similar low-end design (sec. 3), mono + 120 Hz low-pass analysis (4), kick first (5-6), bass against it (7), diagnose before processing (8), phase and timing (9), sidechain as a tool not the whole fix (10), small deliberate EQ (11), harmonics for translation (12), envelopes (13), back to full context (14), club verification (17), the decision tree (19), anti-patterns (20), report format (22) | not encoded |
 | `MIXING.md` | Mix and master policy: references, true-peak ceiling, QC rules, master-chain roles | `agent/src/mastering/`, `bridge/src/mastering/`, `qc/` |
 | `NEW_TRACK.md` | Despite the filename, titled *PROFESSIONAL_TRACK_FINISH*: the finishing pass. Diagnose in order composition → … → mastering, minimum effective change, a 10-category audit scored /100 **without inflation**, and a required *Professional Finish Report* | not encoded |
-| `EDM-PRODUCTION.md` | A summary of a generated production `AGENTS.md` that was **not supplied**; overlaps the guides above. Use only the rules it states | not encoded |
+| `EDM-PRODUCTION.md` | The full production manual (supplied 2026-10-07, replacing a summary): the capability contract (§1), no hand-waving and one bottleneck at a time (§2), rhythm (§6), the bassline engine and pattern library (§7), kick (§8), techno rumble (§9), theory (§10), sound design and the two-move test (§11), starting without blank-canvas drift (§12), the rule of three, mutation dimensions and energy ledger (§13), mixing (§14), thirteen diagnostic playbooks (§15), the execution loop (§19), the response format (§20), definition of done by stage (§21), anti-patterns (§23). Its numbers are starting ranges (§2.2). Its §7.2 pattern library (offbeat eighths first) conflicts with the rolling default in *Basslines*: ask which the track wants | `agent/prompts/edm-production.md` |
 
 **Background, not instructions**
 
@@ -742,28 +741,51 @@ the code enforces it yet — apply it by reading, and treat that as a gap.
 | `docs/lessons.md` | What producing whole tracks taught. **Read before producing or mixing** |
 | `docs/capabilities.md` | What the bridge can and cannot do in Live |
 
-Where guides overlap, the more specific one wins for its own job: `MELODIC-TECHNO.md` over `HOUSE.md` for a melodic track, `MELODY.md`
+#### When guides conflict, ask
+
+**Where two guides, or a guide and a rule in this file, give contradictory
+instructions, ask the user which to follow before acting.** The right answer
+depends on what the track is doing, so no fixed precedence settles it. Name
+both rules with their sections, say what each would do to this part, and give
+your recommendation. Examples: ORCHESTRAL.md 67 allows subtle sidechain on the
+orchestral low end where *Basslines* says the orchestra is never ducked;
+EDM-PRODUCTION.md 7.2's offbeat-eighths bass against the rolling default;
+ORCHESTRAL.md 98's "decide, don't ask" against asking for a new track's key
+(this one is already answered: always ask for the key); a guide's starting
+value against a number this project measured.
+
+Overlap is not conflict. Where guides agree and one is simply more detailed
+for the job, use the detailed one without asking. The ownership below is for
+that, and for framing the question when they do disagree.
+
+Usually the more specific guide owns its job: `MELODIC-TECHNO.md` over `HOUSE.md` for a melodic track, `MELODY.md`
 over `EDM-TIPS.md` for leads, `HOOKS.md` over `MELODY.md` for what the hook is and
 where it appears (MELODY.md still governs how its line is written), `MIXING.md` over `COMPOSITION.md` for the master
 chain, `LOW_END.md` over `MIXING.md` for the kick/bass relationship (MIXING.md
 still owns the master chain and loudness), *Basslines* above over `LOW_END.md` for
 what the bass plays (LOW_END.md decides how it sits), an artist profile over its genre profile.
 
-`NEW-TRACK-DETAILED.md` is the exception to that rule, because it is a
-procedure rather than an authority. Use it for the **order of work**, the
-agent contract and its pass/fail tests, and let the specific guide win on
-every job it owns: HOOKS.md for the hook, LOW_END.md for kick and bass,
-GROOVE.md for syncopation, *Basslines* above for what the bass plays,
-MIXING.md for the master chain. Its concrete values are self-labelled
-`[AGENT-DEFAULT]` or `[AGENT-DERIVED]` — starting points its author added so
-an agent could act, not measurements — so they never override a number this
-project measured. The same holds for EDM-TIPS.md's `[STARTING RANGE]` values.
+`NEW-TRACK-DETAILED.md` and `EDM-PRODUCTION.md` are procedures: use them for
+the **order of work**, the agent contract and its pass/fail tests. The
+specific guides usually own the jobs - HOOKS.md the hook, LOW_END.md kick and
+bass, GROOVE.md syncopation, *Basslines* above what the bass plays, MIXING.md
+the master chain - and where a procedure contradicts one of them, ask. Their
+concrete values are self-labelled `[AGENT-DEFAULT]` or `[AGENT-DERIVED]`
+(NEW-TRACK-DETAILED), `[STARTING RANGE]` (EDM-TIPS) or "hypotheses, not
+rituals" (EDM-PRODUCTION 2.2): starting points, not measurements. Where one
+contradicts a number this project measured, say so and ask.
+
+**The new guides assume devices this machine lacks.** EDM-PRODUCTION.md names
+Operator, Wavetable, Sampler, Echo, Hybrid Reverb and Roar; EDM-TIPS.md names
+Echo, Hybrid Reverb and Sampler; NEW-TRACK-DETAILED.md names Wavetable. Live 12
+Standard has none of them: use AF101 (or Drift for a pure sine sub), Simpler,
+Delay, Reverb and Saturator, and say which substitute was used.
 
 - **Octave names differ between documents.** BASSLINES.md is read as
   scientific pitch (C4 = 60); MELODIC-TECHNO.md uses Live's names (its kick
   is C1 = 36). Each pattern records its `convention`; never mix them silently.
-- **CHORDS.md and EDM-TIPS.md are now the full expert documents** (supplied
-  2026-10-07, replacing the summaries). Anything written against the
+- **CHORDS.md, EDM-TIPS.md, EDM-PRODUCTION.md and ORCHESTRAL.md are now the
+  full expert documents** (supplied 2026-10-07, replacing the summaries). Anything written against the
   summaries — prompts, knowledge data, the checks in `melody.ts` and
   `chords.ts` — was built without their detail, so treat a rule missing from
   the code as unencoded rather than rejected, and read the section before

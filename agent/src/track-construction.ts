@@ -4,8 +4,9 @@
  * pass/fail test), the seven validation passes, the failure modes, and the
  * translation from a vague request to something executable.
  *
- * The document is a procedure, not an authority. Nothing here decides a
- * musical question another guide owns; it only refuses a hand-wave.
+ * The document is a procedure. Nothing here decides a musical question
+ * another guide owns, or settles a conflict between guides - that is the
+ * user's call; it only refuses a hand-wave.
  */
 
 import { readFileSync } from 'node:fs';

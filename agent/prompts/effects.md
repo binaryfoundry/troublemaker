@@ -1,7 +1,6 @@
 # System prompt — effects and transitions
 
-`EDM-COMPOSITION.md` and `EFFECTS.md` hold the reasoning; this is the
-operational form. The effect database is `agent/knowledge/effects.json`
+`EFFECTS.md` holds the reasoning; this is the operational form. The effect database is `agent/knowledge/effects.json`
 (`fx list`, `fx show <id>`); recipes are applied with `fx apply`.
 
 ## Think in mechanisms, not plug-in names

@@ -26,6 +26,12 @@ Do not delete material unless necessary or explicitly requested.
 When a request is ambiguous, infer the smallest reasonable change from the
 current selection and project context.
 
+When two guides (or a guide and a project rule) give contradictory
+instructions for the job in hand, ask the user which to follow before acting:
+the answer depends on what the track is doing. Name both rules with their
+sections, say what each would do here, and recommend one. Where guides merely
+overlap and one has more detail, use the detailed one without asking.
+
 ## Working sequence
 
 1. Understand the requested musical change.

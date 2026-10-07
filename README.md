@@ -231,7 +231,7 @@ and `agent/src/chords.ts`: a chord-symbol parser (m9, maj7, add9, 6/9sus4,
 m(add9), 7alt, 13, m11, slash chords, "Gsus4→G"), voice-led voicing with slash
 basses held as pedals, transposition that spells for the key, a motion /
 common-tone report, and checks for mud, over-extension and jumpy changes.
-Templates H01-H08 (CHORDS.md) and MT1-MT3 (MELODIC-TECHNO.md). `write_part
+Templates H01-H08 (the earlier CHORDS.md summary) and MT1-MT3 (MELODIC-TECHNO.md). `write_part
 part: chords` takes symbols, a template (moved to `root`) or degrees and is
 always voice-led; `chord_rhythm` plays it sustained, as offbeat stabs, an
 eighth pulse or syncopated cells, and `one_voice` evolves one voicing a note
@@ -242,7 +242,7 @@ at a time (ERIC.md).
 `EDM-TIPS.md` (the full expert manual, supplied 2026-10-07) gives the melody
 method in `agent/src/melody.ts` and the decision trees and guardrails in
 `agent/prompts/edm-tips.md`: a one-bar rhythmic motif, chord tones on strong
-beats, stepwise motion with recovered leaps, A A A' B and a resolution to the
+beats, stepwise motion with recovered leaps, A A' A B and a resolution to the
 tonic (`write_part part: melody`). `part: arp` writes a cycle arpeggio:
 contour, accent, octave and rest cycles of different lengths over a
 voice-led progression, drifting against the bar.
@@ -337,7 +337,7 @@ any arrangement (`arrangement action: vocal_plan`).
 
 ## Composition and effects
 
-`COMPOSITION.md`, `EDM-COMPOSITION.md` and `EFFECTS.md` are integrated as
+`COMPOSITION.md` and `EFFECTS.md` are integrated as
 agent prompts (`agent/prompts/composition.md`, `agent/prompts/effects.md`),
 machine-readable knowledge (`agent/knowledge/effects.json`, `styles.json`)
 and tools:
@@ -360,6 +360,30 @@ ratchets and retrigger decelerations, fills, risers and pre-drop silence. Every
 buildable recipe has been applied on Live 12.4 Standard; effects Live cannot
 build through its API (tape stop, reverse reverb, kick-keyed sidechain) are
 refused with the reason, and Suite-only devices are never used.
+
+## Orchestral parts
+
+`ORCHESTRAL.md` is integrated as `agent/prompts/orchestral.md` and
+`agent/knowledge/orchestral.json`. `checkInstrumentRange` in `agent/src/orchestral.ts`
+checks a part against the instrument's practical sounding range. The guide's ranges
+are scientific pitch (violin G3 = MIDI 55), so findings name each note in both Live's
+and scientific octave names.
+
+## Production procedure
+
+`NEW-TRACK-DETAILED.md` (end-to-end track construction) and `EDM-PRODUCTION.md`
+(the production manual) are integrated as prompts
+(`agent/prompts/track-construction.md`, `agent/prompts/edm-production.md`). The
+construction guide is also data and checks (`agent/knowledge/track-construction.json`,
+`agent/src/track-construction.ts`): `checkAction` refuses an action that does not
+name its target, location, edit, starting value, expected effect and pass/fail
+test, `translateRequest` turns "add some groove" into an executable step, and
+the seven validation passes, failure modes and minimum viable track are there to
+check against. Both guides are procedures and their numbers are starting ranges;
+where either contradicts another guide or a measured value, the agent asks which
+to follow. Both name devices
+Live 12 Standard lacks (Operator, Wavetable, Sampler, Echo, Hybrid Reverb, Roar);
+the prompts give the Standard substitutes.
 
 ## HTTP API
 
@@ -430,7 +454,7 @@ Live's shared undo stack.
 ## Testing
 
 ```bash
-npm run test:all     # 402 TypeScript + 120 Python tests, no Ableton required
+npm run test:all     # 501 TypeScript + 133 Python tests, no Ableton required
 npm test             # TypeScript only
 npm run test:python  # Live-side handlers only
 npm run typecheck

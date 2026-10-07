@@ -3,14 +3,15 @@
 The operational procedure from `NEW-TRACK-DETAILED.md` (49 sections, supplied
 2026-10-07): what to build in what order, with a pass/fail test at every step.
 
-**It is a procedure, not an authority.** Use it for the order of work, the
-agent contract and its tests. On any job another guide owns, that guide wins:
-`HOOKS.md` for the hook, `LOW_END.md` for kick and bass, `GROOVE.md` for
-syncopation, *Basslines* in `AGENTS.md` for what the bass plays, `CHORDS.md`
-for harmony, `MIXING.md` for the master chain, `EMOTION.md` for intent. Its
-concrete numbers are self-labelled `[AGENT-DEFAULT]` or `[AGENT-DERIVED]` —
-starting points its author supplied so an agent could act, not measurements —
-so they never override a value this project has measured.
+**It is a procedure.** Use it for the order of work, the agent contract and its
+tests. Specific guides usually own their jobs - `HOOKS.md` the hook,
+`LOW_END.md` kick and bass, `GROOVE.md` syncopation, *Basslines* in `AGENTS.md`
+what the bass plays, `CHORDS.md` harmony, `MIXING.md` the master chain,
+`EMOTION.md` intent. **Where it contradicts another guide or a rule in `AGENTS.md`, ask the user
+which to follow** - it depends on what the track is doing. Name both rules,
+say what each would do here, and recommend one. Its concrete numbers are self-labelled
+`[AGENT-DEFAULT]` or `[AGENT-DERIVED]` — starting points, not measurements —
+so where one contradicts a value this project measured, say so and ask.
 
 ## The agent contract (§1)
 

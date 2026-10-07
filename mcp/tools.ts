@@ -309,11 +309,11 @@ export function createMcpServer(client: McpClient): McpServer {
         'A/A2/B/A3 development, checked against the kick), ' +
         'vocal_chop (a chop phrase for a Simpler holding a vocal fragment: anchor note, one repeated motif, at most four ' +
         'pitches, space, a changed ending; needs root), ' +
-        'melody (motif-first hook: rhythm on one note, chord tones on strong beats, A A A\' B, resolves to the tonic; ' +
+        'melody (motif-first hook: rhythm on one note, chord tones on strong beats, A A\' A B, resolves to the tonic; ' +
         'needs root, chords from symbols/template/degrees), ' +
         'arp (cycle arpeggio over a voice-led progression: contour, accent, octave and rest cycles of different ' +
         'lengths drift against the bar; needs root), kick (four on the floor), hats (offbeat), drum_kit, bass (rolling, ' +
-        'needs root), chords (voice-led: symbols, a CHORDS.md template H01-H08, or root + degrees), build_up, euclidean (hits/steps/pitch), ' +
+        'needs root), chords (voice-led: symbols, a template H01-H08, or root + degrees), build_up, euclidean (hits/steps/pitch), ' +
         'polyrhythm (a:b), bass_from_reference (copy a reference track\'s bass rhythm, accents and pitches). ' +
         'Replaces the clip in that slot; the previous clip is snapshotted when there was one.',
       inputSchema: {
@@ -347,7 +347,7 @@ export function createMcpServer(client: McpClient): McpServer {
         scale: z.string().optional().describe('minor, major, dorian, phrygian, ...'),
         degrees: z.array(z.number().int().min(1).max(7)).optional().describe('chords'),
         symbols: z.array(z.string()).optional().describe('chords: chord symbols, e.g. ["F#m9","Dmaj7","Aadd9","E6/9sus4"]; "Gsus4→G" resolves inside one slot'),
-        template: z.string().optional().describe(`chords: CHORDS.md template ${Object.entries(chordKnowledge().templates).map(([k, t]) => `${k} ${t.style}`).join('; ')}`),
+        template: z.string().optional().describe(`chords: template (from the earlier CHORDS.md summary) ${Object.entries(chordKnowledge().templates).map(([k, t]) => `${k} ${t.style}`).join('; ')}`),
         voicing: z.enum(['triad', 'seventh', 'ninth', 'sus2', 'sus4', 'power']).optional().describe('chords from degrees'),
         chord_rhythm: z.enum(['sustained', 'offbeat_stabs', 'eighth_pulse', 'syncopated']).optional().describe('chords: how the voicings are played (ERIC.md)'),
         one_voice: z.boolean().optional().describe('chords: keep the first voicing and move one note per change (needs root for the scale)'),
@@ -405,7 +405,7 @@ export function createMcpServer(client: McpClient): McpServer {
             commands = createRollingBass(target, { ...groove, root: args.root, scale: args.scale, density: args.density });
             break;
           case 'chords': {
-            // Symbols, a CHORDS.md template, or scale degrees - always voice-led.
+            // Symbols, a template, or scale degrees - always voice-led.
             const beatsPerChord = args.beats_per_chord ?? (args.bars_per_chord ?? 1) * 4;
             let voiced: VoicedChord[];
             if (args.symbols?.length || args.template) {
@@ -1156,7 +1156,7 @@ export function createMcpServer(client: McpClient): McpServer {
   );
 
   // -------------------------------------------------------------------------
-  // Arrangement (COMPOSITION.md, EDM-COMPOSITION.md)
+  // Arrangement (COMPOSITION.md)
   // -------------------------------------------------------------------------
 
   server.registerTool(
@@ -1228,7 +1228,7 @@ export function createMcpServer(client: McpClient): McpServer {
     ['system', 'system.md', 'Working rules for controlling Live: read first, snapshot, verify, report.'],
     ['music-editing', 'music-editing.md', 'How to turn musical language into note edits.'],
     ['track-construction', 'track-construction.md', 'End-to-end track construction: the agent contract, order of work, validation passes, checkpoints, failure modes (NEW-TRACK-DETAILED.md).'],
-    ['composition', 'composition.md', 'Composition and arrangement practice (COMPOSITION.md, EDM-COMPOSITION.md).'],
+    ['composition', 'composition.md', 'Composition and arrangement practice (COMPOSITION.md).'],
     ['effects', 'effects.md', 'Production effects practice (EFFECTS.md).'],
     ['mastering', 'mastering.md', 'Club mastering practice (MIXING.md).'],
     ['drums', 'drums.md', '808/909 drum programming practice (DRUMS.md).'],
@@ -1240,6 +1240,8 @@ export function createMcpServer(client: McpClient): McpServer {
     ['jon-hopkins', 'jon-hopkins.md', 'Jon Hopkins-inspired production: process, transformation, orbiting rhythm, journeys (JON_HOPKINS.md).'],
     ['tinlicker', 'tinlicker.md', 'Tinlicker-inspired melodic/progressive house: song first, bass motion, kick/bass system (TINLICKER.md).'],
     ['edm-tips', 'edm-tips.md', 'EDM Tips decision trees, guardrails and QA (EDM-TIPS.md).'],
+    ['orchestral', 'orchestral.md', 'Orchestral composition: order of work, layer budget, ranges, articulation, dynamics, electronic + orchestra (ORCHESTRAL.md).'],
+    ['edm-production', 'edm-production.md', 'Production manual: execution loop, rhythm, bass, kick, rumble, sound design, arrangement, mixing, playbooks, anti-patterns (EDM-PRODUCTION.md).'],
     ['basslines', 'basslines.md', 'Bassline writing, kick/bass and low-end practice (BASSLINES.md).'],
   ];
   for (const [name, file, description] of prompts) {
@@ -1262,6 +1264,7 @@ export function createMcpServer(client: McpClient): McpServer {
     ['melodic-techno', 'agent/knowledge/melodic-techno.json', 'MELODIC-TECHNO.md motif, chord loop, automation lanes, returns, device fallbacks.'],
     ['artists', 'agent/knowledge/artists.json', 'JON_HOPKINS.md and TINLICKER.md profiles: hierarchies, cycles, tests, diagnostics, anti-patterns.'],
     ['chord-progressions', 'agent/knowledge/chord-progressions.json', 'Progression templates H01-H08, from the earlier summary of CHORDS.md.'],
+    ['orchestral', 'agent/knowledge/orchestral.json', 'ORCHESTRAL.md instrument ranges (scientific pitch) and the active-layer budget.'],
     ['track-construction', 'agent/knowledge/track-construction.json', 'NEW-TRACK-DETAILED.md agent contract, order of work, validation passes, failure modes, translation table.'],
     ['bass-patterns', 'agent/knowledge/bass-patterns.json', 'BASSLINES.md pattern library and checks.'],
     ['drum-patterns', 'agent/knowledge/drum-patterns.json', 'DRUMS.md genre grids, velocity tiers, A/A\'/B/F phrase.'],

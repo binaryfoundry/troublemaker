@@ -413,7 +413,8 @@ export function bassFromFeel(feel: BassFeel, options: BassFeelOptions = {}): Pat
 }
 
 // ---------------------------------------------------------------------------
-// Advanced rhythm (EDM-COMPOSITION.md)
+// Advanced rhythm: ratchets and retrigger decelerations (EFFECTS.md),
+// polymeter and polyrhythm (EDM-TIPS.md 8, EDM-PRODUCTION.md 6.7)
 // ---------------------------------------------------------------------------
 
 /**

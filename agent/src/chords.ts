@@ -78,6 +78,7 @@ export function parseSlot(slot: string): ParsedChord[] {
 interface ChordKnowledge {
   templates: Record<string, { style: string; progression: string[] }>;
   complexity_ladder: string[];
+  complexity_ladder_source: string;
   checks: {
     mud_floor_midi: number;
     mud_interval: number;

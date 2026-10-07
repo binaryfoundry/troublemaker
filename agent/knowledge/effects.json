@@ -1,5 +1,5 @@
 {
-  "$comment": "Effects codex consolidated from EDM-COMPOSITION.md and EFFECTS.md. Effect = perceptual cue + mechanism + control law + time scale + energy function. 'build' is a recipe for Ableton Live 12 Standard using device and parameter names read from the real devices; numbers are display units (Hz, dB, ms, %), strings are named options. Automation points use 'at' as a fraction (0..1) of the effect span. Values are starting points, not standards: tune by ear and tempo, and level-match before judging.",
+  "$comment": "Effects codex consolidated from EFFECTS.md and EDM-COMPOSITION.md (the latter removed 2026-10-07; EFFECTS.md covers the same effects, and each recipe here was measured on Live rather than taken on trust). Effect = perceptual cue + mechanism + control law + time scale + energy function. 'build' is a recipe for Ableton Live 12 Standard using device and parameter names read from the real devices; numbers are display units (Hz, dB, ms, %), strings are named options. Automation points use 'at' as a fraction (0..1) of the effect span. Values are starting points, not standards: tune by ear and tempo, and level-match before judging.",
   "version": 1,
   "energy_functions": {
     "accumulate": "Build tension towards an arrival",

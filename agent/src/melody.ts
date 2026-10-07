@@ -24,7 +24,7 @@ export interface MelodyOptions {
   register?: [number, number];
   /** Onsets in the one-bar rhythmic motif (of 16 steps). Default 5. */
   hits?: number;
-  /** Bar plan; default A A A' B repeated. */
+  /** Bar plan; default A A' A B repeated - EDM-TIPS 6.4: bar 3 returns to the motif, bar 4 answers. */
   plan?: Array<'A' | "A'" | 'B'>;
   seed?: number;
 }
@@ -46,7 +46,7 @@ export function motifMelody(options: MelodyOptions): Pattern {
   const [low, high] = options.register ?? [65, 82];
   const totalBeats = (options.bars ?? (options.chords.length * options.beatsPerChord) / 4) * 4;
   const bars = Math.round(totalBeats / 4);
-  const plan = options.plan ?? ['A', 'A', "A'", 'B'];
+  const plan = options.plan ?? ['A', "A'", 'A', 'B'];
   const pool = scalePitches(options.root, scale, low, high);
   const tonic = pitchClass(options.root);
   const rhythmA = motifRhythm(options.hits ?? 5, options.seed ?? 1);

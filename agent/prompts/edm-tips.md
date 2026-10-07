@@ -82,7 +82,9 @@ Not more notes, layers or effects. In order:
    rhythm alone.
 2. Restore pitch around chord tones on the strong beats; mostly stepwise,
    occasional leaps that recover the other way; a range of about an octave.
-3. Repeat it; introduce **one** controlled variation (A A A′ B).
+3. Repeat it before varying it (§6.4): bar 1 motif A, bar 2 A or A′, bar 3
+   A again, bar 4 the answer or turnaround (A A′ A B). Four unrelated bars
+   are not development.
 4. Check the loop resolves.
 5. Humanise velocity and timing last.
 
@@ -124,8 +126,8 @@ envelope → ducking with a reason → phase/polarity, only if demonstrably a
 problem → kick+bass bus → mono compatibility → harmonics for translation. A
 clean sub with no unison or detune; heavier ducking on the sub than the
 mid-bass; **envelope and time separation matter as much as EQ**. One fixed
-sidechain amount on every bass is a forbidden shortcut. `LOW_END.md` wins
-where the two differ.
+sidechain amount on every bass is a forbidden shortcut. `LOW_END.md` has the
+detail; where the two contradict each other, ask the user which to follow.
 
 ## Arrangement (§11)
 

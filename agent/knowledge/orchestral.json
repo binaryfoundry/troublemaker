@@ -1,0 +1,102 @@
+{
+  "source": "ORCHESTRAL.md 21, practical instrument ranges: approximate sounding ranges for MIDI composition, not absolute limits; always check the specific library, and treat extremes as special colours rather than default writing areas.",
+  "convention": "scientific",
+  "convention_note": "ORCHESTRAL.md does not state its octave names. Its ranges are the standard sounding ranges in scientific pitch (C4 = 60): the violin's open G3 is MIDI 55. Live's piano roll calls MIDI 55 G2, so reading these names in Live's convention would put every part an octave too high.",
+  "extensions_note": "Some double-bass libraries extend to C1; do not use extension notes unless the instrument actually has them.",
+  "instruments": {
+    "violin": {
+      "family": "strings",
+      "low": "G3",
+      "high": "E7"
+    },
+    "viola": {
+      "family": "strings",
+      "low": "C3",
+      "high": "C6"
+    },
+    "cello": {
+      "family": "strings",
+      "low": "C2",
+      "high": "G5"
+    },
+    "double_bass": {
+      "family": "strings",
+      "low": "E1",
+      "high": "C4"
+    },
+    "piccolo": {
+      "family": "woodwinds",
+      "low": "D5",
+      "high": "C8"
+    },
+    "flute": {
+      "family": "woodwinds",
+      "low": "C4",
+      "high": "D7"
+    },
+    "oboe": {
+      "family": "woodwinds",
+      "low": "Bb3",
+      "high": "A6"
+    },
+    "english_horn": {
+      "family": "woodwinds",
+      "low": "E3",
+      "high": "C6"
+    },
+    "clarinet": {
+      "family": "woodwinds",
+      "low": "D3",
+      "high": "Bb6"
+    },
+    "bass_clarinet": {
+      "family": "woodwinds",
+      "low": "D2",
+      "high": "F5"
+    },
+    "bassoon": {
+      "family": "woodwinds",
+      "low": "Bb1",
+      "high": "E5"
+    },
+    "contrabassoon": {
+      "family": "woodwinds",
+      "low": "Bb0",
+      "high": "Bb3"
+    },
+    "horn": {
+      "family": "brass",
+      "low": "B1",
+      "high": "F5"
+    },
+    "trumpet": {
+      "family": "brass",
+      "low": "F#3",
+      "high": "D6"
+    },
+    "trombone": {
+      "family": "brass",
+      "low": "E2",
+      "high": "Bb4"
+    },
+    "bass_trombone": {
+      "family": "brass",
+      "low": "Bb1",
+      "high": "F4"
+    },
+    "tuba": {
+      "family": "brass",
+      "low": "D1",
+      "high": "F4"
+    }
+  },
+  "layer_budget": {
+    "section": 7,
+    "primary": 1,
+    "secondary_max": 2,
+    "harmonic_support": 1,
+    "foundation": 1,
+    "optional_rhythm_or_texture": 1,
+    "note": "At most moments. If the music becomes muddy, reduce competing musical functions before reaching for EQ."
+  }
+}

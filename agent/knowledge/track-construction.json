@@ -1,5 +1,5 @@
 {
-  "source": "NEW-TRACK-DETAILED.md (supplied 2026-10-07), an end-to-end operational procedure for house / tech-house. A procedure, not an authority: on any job another guide owns - HOOKS.md, LOW_END.md, GROOVE.md, CHORDS.md, MIXING.md, EMOTION.md, and Basslines in AGENTS.md - that guide wins. Its concrete numbers are labelled [AGENT-DEFAULT] or [AGENT-DERIVED] in the document: starting points, never measurements, so they do not override a value this project has measured.",
+  "source": "NEW-TRACK-DETAILED.md (supplied 2026-10-07), an end-to-end operational procedure for house / tech-house. A procedure: specific guides usually own their jobs (HOOKS.md, LOW_END.md, GROOVE.md, CHORDS.md, MIXING.md, EMOTION.md, and Basslines in AGENTS.md), and where this document contradicts one of them, or a value this project measured, the user is asked which to follow. Its concrete numbers are labelled [AGENT-DEFAULT] or [AGENT-DERIVED] in the document: starting points, never measurements.",
   "action_fields": [
     { "field": "target", "section": 1, "question": "Which exact track, group, clip or return?" },
     { "field": "location", "section": 1, "question": "Which exact bar range or MIDI positions?" },
