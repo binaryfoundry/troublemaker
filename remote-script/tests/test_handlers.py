@@ -825,6 +825,19 @@ class TestArrangementAndReturns(HandlerTestCase):
                                device_id=device["device_id"], parameter_name="Frequency")
         self.assertEqual(error["code"], "UNSUPPORTED")
 
+    def test_reads_every_arrangement_clip_with_notes_in_one_request(self):
+        self.call("live.place_clip_in_arrangement", track_id=self.bass, clip_slot=0, beat=64)
+        self.call("live.place_clip_in_arrangement", track_id=self.bass, clip_slot=0, beat=68)
+        result = self.call("live.get_arrangement_notes", track_id=self.bass)
+        clips = result["clips"]
+        self.assertEqual([(c["arrangement_index"], c["start"], c["end"]) for c in clips],
+                         [(0, 64.0, 68.0), (1, 68.0, 72.0)])
+        self.assertEqual([len(c["notes"]) for c in clips], [8, 8])
+        self.assertEqual((clips[0]["start_marker"], clips[0]["looping"]), (0.0, True))
+        # the same notes the per-clip read returns
+        single = self.call("live.get_notes", track_id=self.bass, arrangement_index=1)["notes"]
+        self.assertEqual(clips[1]["notes"], single)
+
     def test_edits_an_arrangement_clip_in_place(self):
         self.call("live.place_clip_in_arrangement", track_id=self.bass, clip_slot=0, beat=64)
         notes = self.call("live.get_notes", track_id=self.bass, arrangement_index=0)["notes"]

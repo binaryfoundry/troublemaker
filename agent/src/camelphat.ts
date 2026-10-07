@@ -66,13 +66,17 @@ export function checkLeadNumbers(notes: Note[] | Array<{ pitch: number; start: n
   const top = starts.sort((a, b) => a - b).map((t) => Math.max(...line.filter((n) => n.start === t).map((n) => n.pitch)));
 
   // Leaps of 5+ semitones that continue the previous interval's direction.
-  let leaps = 0, chained = 0;
+  // Section 2.4 counts a leap that lands on the anchor as coming back, so say how many do.
+  let leaps = 0, chained = 0, chainedHome = 0;
   for (let i = 1; i < top.length; i += 1) {
     const interval = top[i]! - top[i - 1]!;
     if (Math.abs(interval) < 5) continue;
     leaps += 1;
     const before = i > 1 ? top[i - 1]! - top[i - 2]! : 0;
-    if (before !== 0 && Math.sign(before) === Math.sign(interval)) chained += 1;
+    if (before !== 0 && Math.sign(before) === Math.sign(interval)) {
+      chained += 1;
+      if (top[i] === anchor) chainedHome += 1;
+    }
   }
 
   // Note length where the next onset is a dotted 8th away.
@@ -106,7 +110,7 @@ export function checkLeadNumbers(notes: Note[] | Array<{ pitch: number; start: n
     { check: 'Range', value: `${high - low} semitones`, pass: high - low <= 12, rule: '<= 12 semitones' },
     {
       check: 'Leaps that chain in one direction',
-      value: leaps ? `${chained} of ${leaps} (${pct(chained / leaps)})` : 'no leaps',
+      value: leaps ? `${chained} of ${leaps} (${pct(chained / leaps)})${chainedHome ? `, ${chainedHome} landing on the anchor` : ''}` : 'no leaps',
       pass: !leaps || chained / leaps < 0.15,
       rule: '< 15 % (pack 7 %)',
     },

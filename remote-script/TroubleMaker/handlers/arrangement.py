@@ -10,6 +10,7 @@ Which section goes where is decided by the agent.
 from .. import errors
 from .. import lom
 from ..dispatch import req_int, req_float, opt_str
+from .notes import _read_all
 
 
 def place_clip_in_arrangement(ctx, args):
@@ -82,9 +83,58 @@ def create_return_track(ctx, args):
     return lom.serialize_track(ctx, track, song, with_clips=False, with_devices=True)
 
 
+def _warp_markers(clip):
+    markers = lom.safe(lambda: list(clip.warp_markers), None)
+    if markers is None:
+        return None
+    return [
+        {"beat_time": float(m.beat_time), "sample_time": float(m.sample_time)}
+        for m in markers
+    ]
+
+
+def get_arrangement_notes(ctx, args):
+    """Every Arrangement clip on a track in one read: position and markers,
+    and the notes (clip time) of a MIDI clip or the file, warping,
+    transposition and warp markers of an audio clip. Read-only. A long
+    Arrangement then costs one request per track instead of one per clip."""
+    track = lom.resolve_track(ctx, req_int(args, "track_id"))
+    clips = lom.safe(lambda: list(track.arrangement_clips), None)
+    if clips is None:
+        raise errors.Unsupported("This Live version does not expose Arrangement clips.")
+    out = []
+    for index, c in enumerate(clips):
+        entry = {
+            "arrangement_index": index,
+            "name": lom.safe(lambda: c.name, ""),
+            "start": lom.safe(lambda: float(c.start_time), None),
+            "end": lom.safe(lambda: float(c.end_time), None),
+            "length_beats": lom.safe(lambda: float(c.length), None),
+            "is_midi_clip": lom.safe(lambda: bool(c.is_midi_clip), False),
+            "start_marker": lom.safe(lambda: float(c.start_marker), 0.0),
+            "end_marker": lom.safe(lambda: float(c.end_marker), None),
+            "loop_start": lom.safe(lambda: float(c.loop_start), 0.0),
+            "loop_end": lom.safe(lambda: float(c.loop_end), None),
+            "looping": lom.safe(lambda: bool(c.looping), False),
+        }
+        if entry["is_midi_clip"]:
+            notes, _ = _read_all(c)
+            notes.sort(key=lambda n: (n["start"], n["pitch"]))
+            entry["notes"] = notes
+        else:
+            entry["file_path"] = lom.safe(lambda: str(c.file_path), None)
+            entry["warping"] = lom.safe(lambda: bool(c.warping), None)
+            entry["pitch_coarse"] = lom.safe(lambda: int(c.pitch_coarse), 0)
+            entry["pitch_fine"] = lom.safe(lambda: float(c.pitch_fine), 0.0)
+            entry["warp_markers"] = _warp_markers(c)
+        out.append(entry)
+    return {"track_id": ctx.registry.handle_for(track), "clips": out}
+
+
 COMMANDS = {
     "live.place_clip_in_arrangement": place_clip_in_arrangement,
     "live.get_arrangement_clips": get_arrangement_clips,
+    "live.get_arrangement_notes": get_arrangement_notes,
     "live.clear_arrangement": clear_arrangement,
     "live.create_return_track": create_return_track,
 }

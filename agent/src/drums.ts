@@ -422,6 +422,15 @@ export function kitMapFromPads(pads: Array<{ note: number; name: string }>): Kit
   return { notes, missing };
 }
 
+/** The DRUMS.md voice a Drum Rack pad is, from its name ("Kick 909" -> BD), or null. */
+export function voiceForPadName(name: string): Voice | null {
+  const k = drumKnowledge();
+  for (const voice of Object.keys(k.kit_pad_names) as Voice[]) {
+    if (new RegExp(k.kit_pad_names[voice], 'i').test(name)) return voice;
+  }
+  return null;
+}
+
 export function remapToKit(pattern: Pattern, kit: KitMap): { pattern: Pattern; dropped: Voice[] } {
   const k = drumKnowledge();
   const byNote = new Map((Object.entries(k.note_map) as Array<[Voice, number]>).map(([v, n]) => [n, v]));

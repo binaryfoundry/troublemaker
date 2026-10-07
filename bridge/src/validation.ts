@@ -322,6 +322,7 @@ export const schemas = {
   'live.get_meters': trackRef.strict(),
   'live.place_clip_in_arrangement': clipRef.extend({ beat }).strict(),
   'live.get_arrangement_clips': trackRef.strict(),
+  'live.get_arrangement_notes': trackRef.strict(),
   'live.clear_arrangement': trackRef.strict(),
   'live.create_return_track': z.object({ name: nonEmptyName.optional() }).strict(),
   'live.set_song_time': z.object({ beat }).strict(),

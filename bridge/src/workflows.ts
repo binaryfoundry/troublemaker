@@ -25,7 +25,8 @@ import {
 } from '../../agent/src/arrangement.js';
 import { checkStylePlan } from '../../agent/src/artists.js';
 import { auditTimeline, formatAuditReport, type AuditOptions, type AuditReport } from '../../agent/src/audit.js';
-import { buildTimeline, type ArrangementClipData, type Timeline, type TimelineOptions, type TrackData } from '../../agent/src/timeline.js';
+import { buildTimeline, isPitched, trackRole, type ArrangementClipData, type Timeline, type TimelineOptions, type TrackData } from '../../agent/src/timeline.js';
+import { audioClipNotes, type AudioNotesResult } from '../../qc/src/audio-notes.js';
 import { inferTrackRole, writePattern } from '../../agent/src/composition.js';
 import {
   checkDrumPattern,
@@ -553,8 +554,71 @@ interface LiveTrackSummary {
   track_id: number;
   name: string;
   type: string;
-  devices?: Array<{ class_name?: string | null }>;
+  devices?: Array<{ device_id: number; class_name?: string | null }>;
   clips?: Array<{ name: string; slot: number; is_midi_clip: boolean }>;
+}
+
+/**
+ * Detect notes in each audio clip, in arrangement beats. Clips that share a
+ * file, markers, loop, warp and transposition are analysed once.
+ */
+async function analyseAudioClips(
+  clips: ArrangementClipData[],
+  decode: ((path: string) => Promise<Float32Array>) | undefined,
+  cache: Map<string, AudioNotesResult>,
+): Promise<void> {
+  for (const clip of clips) {
+    if (clip.is_midi_clip) continue;
+    const key = JSON.stringify([
+      clip.file_path, clip.end - clip.start, clip.start_marker, clip.loop_start, clip.loop_end, clip.looping,
+      clip.warping, clip.pitch_coarse, clip.pitch_fine, clip.warp_markers,
+    ]);
+    let result = cache.get(key);
+    if (!result) {
+      // Analyse as if the clip started at beat 0, then place it.
+      result = await audioClipNotes({ ...clip, start: 0, end: clip.end - clip.start }, decode);
+      cache.set(key, result);
+    }
+    clip.audioNotes = result.notes.map((n) => ({ ...n, start: n.start + clip.start }));
+    clip.audioAnalysis = { analysed: result.analysed, reason: result.reason, voicedShare: result.voicedShare };
+  }
+}
+
+function isUnknownCommand(error: unknown): boolean {
+  const code = (error as { code?: string } | null)?.code;
+  return code === 'UNKNOWN_COMMAND' || (error instanceof Error && error.message.includes('UNKNOWN_COMMAND'));
+}
+
+async function readTrackBatched(client: LiveClient, trackId: number): Promise<ArrangementClipData[]> {
+  const { clips } = (await client.post('live.get_arrangement_notes', { track_id: trackId })) as { clips: ArrangementClipData[] };
+  return clips;
+}
+
+async function readTrackPerClip(client: LiveClient, trackId: number): Promise<ArrangementClipData[]> {
+  const result = (await client.post('live.get_arrangement_clips', { track_id: trackId })) as {
+    clips: Array<Omit<ArrangementClipData, 'arrangement_index'>>;
+  };
+  const clips: ArrangementClipData[] = result.clips.map((c, i) => ({ ...c, arrangement_index: i }));
+  for (const clip of clips) {
+    if (!clip.is_midi_clip) continue;
+    const read = (await client.post('live.get_notes', { track_id: trackId, arrangement_index: clip.arrangement_index })) as {
+      notes: Note[];
+      start_marker?: number;
+      end_marker?: number;
+      loop_start?: number;
+      loop_end?: number;
+      looping?: boolean;
+    };
+    Object.assign(clip, {
+      notes: read.notes,
+      start_marker: read.start_marker,
+      end_marker: read.end_marker,
+      loop_start: read.loop_start,
+      loop_end: read.loop_end,
+      looping: read.looping,
+    });
+  }
+  return clips;
 }
 
 /**
@@ -564,7 +628,12 @@ interface LiveTrackSummary {
  */
 export async function gatherTimeline(
   client: LiveClient,
-  options: TimelineOptions = {},
+  options: TimelineOptions & {
+    /** Analyse the audio clips of pitched tracks for notes (default true). */
+    audio?: boolean;
+    /** Decoder for audio files; tests replace it. */
+    decode?: (path: string) => Promise<Float32Array>;
+  } = {},
 ): Promise<{ timeline: Timeline; tempo: number | null; skipped: string[] }> {
   const { tracks } = (await client.post('live.get_tracks', { include_devices: true, include_clips: true })) as {
     tracks: LiveTrackSummary[];
@@ -575,36 +644,34 @@ export async function gatherTimeline(
   const data: TrackData[] = [];
   const skipped: string[] = [];
   let firstError: unknown = null;
+  const audioCache = new Map<string, AudioNotesResult>();
+  // One request per track when the bridge and the Remote Script know
+  // live.get_arrangement_notes; one per clip on older ones.
+  let batched = true;
   for (const track of tracks) {
     let clips: ArrangementClipData[];
     try {
-      const result = (await client.post('live.get_arrangement_clips', { track_id: track.track_id })) as {
-        clips: Array<Omit<ArrangementClipData, 'arrangement_index'>>;
-      };
-      clips = result.clips.map((c, i) => ({ ...c, arrangement_index: i }));
+      clips = batched ? await readTrackBatched(client, track.track_id) : await readTrackPerClip(client, track.track_id);
     } catch (error) {
-      firstError ??= error;
-      skipped.push(`${track.name} (${error instanceof Error ? error.message : String(error)})`);
-      continue;
+      if (batched && isUnknownCommand(error)) {
+        batched = false;
+        try {
+          clips = await readTrackPerClip(client, track.track_id);
+        } catch (inner) {
+          firstError ??= inner;
+          skipped.push(`${track.name} (${inner instanceof Error ? inner.message : String(inner)})`);
+          continue;
+        }
+      } else {
+        firstError ??= error;
+        skipped.push(`${track.name} (${error instanceof Error ? error.message : String(error)})`);
+        continue;
+      }
     }
-    for (const clip of clips) {
-      if (!clip.is_midi_clip) continue;
-      const read = (await client.post('live.get_notes', { track_id: track.track_id, arrangement_index: clip.arrangement_index })) as {
-        notes: Note[];
-        start_marker?: number;
-        end_marker?: number;
-        loop_start?: number;
-        loop_end?: number;
-        looping?: boolean;
-      };
-      Object.assign(clip, {
-        notes: read.notes,
-        start_marker: read.start_marker,
-        end_marker: read.end_marker,
-        loop_start: read.loop_start,
-        loop_end: read.loop_end,
-        looping: read.looping,
-      });
+    // Pitched audio (a vocal, a sampled hook): detect its notes so the audit can see them.
+    const role = trackRole(track.name, options.roles);
+    if (options.audio !== false && isPitched(track.name, role, [], options.unpitched)) {
+      await analyseAudioClips(clips, options.decode, audioCache);
     }
     const names = new Set(clips.map((c) => c.name));
     const session: TrackData['session'] = [];
@@ -613,12 +680,26 @@ export async function gatherTimeline(
       const read = (await client.post('live.get_notes', { track_id: track.track_id, clip_slot: s.slot })) as { notes: Note[] };
       session.push({ name: s.name, slot: s.slot, notes: read.notes });
     }
+    // A Drum Rack's pad names tell its kick from its hats.
+    let pads: TrackData['pads'];
+    const rack = (track.devices ?? []).find((d) => d.class_name === 'DrumGroupDevice');
+    if (rack) {
+      try {
+        const read = (await client.post('live.get_drum_pads', { track_id: track.track_id, device_id: rack.device_id })) as {
+          pads: Array<{ note: number; name: string }>;
+        };
+        pads = read.pads;
+      } catch {
+        pads = undefined;
+      }
+    }
     data.push({
       track_id: track.track_id,
       name: track.name,
       devices: (track.devices ?? []).map((d) => d.class_name ?? '').filter(Boolean),
       clips,
       session,
+      pads,
     });
   }
   if (!data.length && firstError) throw firstError;
@@ -626,14 +707,17 @@ export async function gatherTimeline(
   return { timeline: buildTimeline(data, { ...options, beatsPerBar }), tempo, skipped };
 }
 
-export interface AuditRequest extends AuditOptions, TimelineOptions {}
+export interface AuditRequest extends AuditOptions, TimelineOptions {
+  /** Analyse pitched audio clips for notes (default true). */
+  audio?: boolean;
+}
 
 /** Run every measurable step of the track audit on the open Set. Read-only. */
 export async function auditTrack(
   client: LiveClient,
   request: AuditRequest = {},
 ): Promise<{ report: AuditReport; markdown: string; skipped: string[] }> {
-  const { timeline, tempo, skipped } = await gatherTimeline(client, { roles: request.roles, unpitched: request.unpitched });
+  const { timeline, tempo, skipped } = await gatherTimeline(client, { roles: request.roles, unpitched: request.unpitched, audio: request.audio });
   if (!timeline.bars) {
     throw new BridgeError('EMPTY_ARRANGEMENT', 'The Arrangement has no clips to audit. Build or place the Arrangement first.');
   }

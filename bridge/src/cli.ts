@@ -6,7 +6,8 @@
  * Live, so the CLI and an agent can both be connected at once.
  */
 
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 
 import { COMMANDS, formatCommandTable } from './commands/registry.js';
@@ -92,7 +93,8 @@ Usage:
   ableton-agent devices <track_id>          Devices on a track
   ableton-agent params <track_id> <dev_id>  Parameters of a device
   ableton-agent play | stop                 Transport
-  ableton-agent commands [--markdown]       The full command catalogue (--markdown: the table for docs/capabilities.md)
+  ableton-agent commands [--markdown | --update-docs]
+                                            The full command catalogue; --update-docs rewrites docs/capabilities.md's list
   ableton-agent raw <command> [json]        Any command, with JSON arguments
   ableton-agent selftest                    Round-trip check against Live
 
@@ -147,10 +149,11 @@ Arrangement (agent/knowledge/styles.json):
 Track audit (AGENTS.md *Auditing a track*; read-only, needs the bridge):
   ableton-agent audit [--hook <track>] [--peak <from>-<to>] [--title <name>]
       [--role <track>=<role>]... [--unpitched <track>]... [--instrument <track>=<instrument>]...
-      [--out <file.md>] [--json <file.json>]
+      [--no-audio] [--out <file.md>] [--json <file.json>]
       Every measurable audit step from the Arrangement's notes: hygiene, DJ intro/outro, rubs,
       harmony and orchestral ranges, groove layers, the hook map, lead numbers, low end and
       emotion; the capture and listening steps are listed as manual. Markdown for TRACK.md.
+      Pitched audio clips (warped) are analysed for notes; --no-audio skips that.
   Exit code: 0 PASS, 1 REVIEW, 2 FAIL.
 
 Bassline analysis:
@@ -209,8 +212,20 @@ async function main(argv: string[]): Promise<number> {
       return 0;
 
     case 'commands':
-      // --markdown: the table docs/capabilities.md carries between its command-list markers.
-      if (rest.includes('--markdown')) process.stdout.write(`${formatCommandTable()}\n`);
+      // --markdown: the table docs/capabilities.md carries between its command-list markers;
+      // --update-docs: rewrite that table in place.
+      if (rest.includes('--update-docs')) {
+        const path = fileURLToPath(new URL('../../docs/capabilities.md', import.meta.url));
+        const doc = readFileSync(path, 'utf8');
+        const start = '<!-- commands:start -->';
+        const end = '<!-- commands:end -->';
+        const from = doc.indexOf(start), to = doc.indexOf(end);
+        if (from < 0 || to < from) throw new Error(`${path} has no ${start} ... ${end} markers.`);
+        const eol = doc.includes('\r\n') ? '\r\n' : '\n';
+        const table = formatCommandTable().split('\n').join(eol);
+        writeFileSync(path, `${doc.slice(0, from + start.length)}${eol}${table}${eol}${doc.slice(to)}`);
+        process.stdout.write(`Updated the command list in ${path} (${COMMANDS.length} commands).\n`);
+      } else if (rest.includes('--markdown')) process.stdout.write(`${formatCommandTable()}\n`);
       else print(COMMANDS);
       return 0;
 
@@ -862,6 +877,7 @@ async function audit(argv: string[]): Promise<number> {
   const roles = takePairs(args, '--role');
   const instruments = takePairs(args, '--instrument');
   const unpitched = takeOption(args, '--unpitched');
+  const audio = !takeFlag(args, '--no-audio');
   if (args.length) throw new Error(`Unknown audit arguments: ${args.join(' ')}`);
 
   let peak: { from: number; to: number } | undefined;
@@ -871,7 +887,7 @@ async function audit(argv: string[]): Promise<number> {
     peak = { from, to };
   }
   process.stderr.write('Reading the Arrangement...\n');
-  const { report, markdown } = await auditTrack({ post }, { hook, peak, title, roles, instruments, unpitched });
+  const { report, markdown } = await auditTrack({ post }, { hook, peak, title, roles, instruments, unpitched, audio });
   process.stdout.write(markdown);
   if (out) {
     writeFileSync(out, markdown);

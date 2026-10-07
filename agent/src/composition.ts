@@ -364,8 +364,9 @@ export function inferTrackRole(name: string): { role: string; confidence: number
     // Plurals count: real tracks are called "Hats" and "Chords".
     [/\b(kicks?|bd|bass ?drums?)\b/, 'kick'],
     [/\b(snares?|claps?|rims?|sd)\b/, 'snare'],
-    [/\b(hats?|hh|cymbals?|rides?)\b/, 'hats'],
-    [/\b(percs?|percussion|shakers?|toms?|congas?|bongos?|tops?)\b/, 'perc'],
+    // "OpenHat" and "ClosedHat" are written as one word as often as two.
+    [/\b((open|closed) ?)?(hats?|hh)\b|\b(cymbals?|rides?)\b/, 'hats'],
+    [/\b(percs?|percussion|shakers?|toms?|congas?|bongos?|tops?|wood ?blocks?|woods?|claves?|cow ?bells?|tamb(ourine)?s?|snaps?|guiros?|cabasas?)\b/, 'perc'],
     [/\b(sub|bass|basses|808s?|reese)\b/, 'bass'],
     [/\b(counter|counters|counter ?motif|answer)\b/, 'counter'],
     [/\b(leads?|arps?|melody|melodies|hooks?|top ?lines?)\b/, 'lead'],

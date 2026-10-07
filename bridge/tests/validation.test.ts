@@ -42,7 +42,7 @@ describe('command surface', () => {
     const doc = readFileSync(fileURLToPath(new URL('../../docs/capabilities.md', import.meta.url)), 'utf8').replace(/\r\n/g, '\n');
     const listed = /<!-- commands:start -->\n([\s\S]*?)\n<!-- commands:end -->/.exec(doc)?.[1];
     expect(listed, 'docs/capabilities.md has no command-list markers').toBeDefined();
-    expect(listed, 'regenerate it with: npm run cli -- commands --markdown').toBe(formatCommandTable());
+    expect(listed, 'regenerate it with: npm run cli -- commands --update-docs').toBe(formatCommandTable());
   });
 
   it('never lists as unsupported an area a registered command covers', () => {

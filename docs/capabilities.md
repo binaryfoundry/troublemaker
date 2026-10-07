@@ -129,7 +129,7 @@ that would have worked.
 ## Command list
 
 Every command the bridge accepts, generated from `bridge/src/commands/registry.ts`
-(`npm run cli -- commands --markdown`). `bridge/tests/validation.test.ts` fails if
+(`npm run cli -- commands --update-docs`). `bridge/tests/validation.test.ts` fails if
 this table and the registry disagree, so regenerate it when a command is added.
 
 <!-- commands:start -->
@@ -154,6 +154,7 @@ this table and the registry disagree, so regenerate it when a command is added.
 | `live.fire_clip` | Launch a clip. | yes |  |
 | `live.fire_scene` | Launch a scene. | yes |  |
 | `live.get_arrangement_clips` | A track's Arrangement clips with start and end beats. |  |  |
+| `live.get_arrangement_notes` | Every Arrangement clip on a track in one read: markers, and a MIDI clip's notes or an audio clip's file, warping, transposition and warp markers. |  |  |
 | `live.get_automation` | Sample a Session clip automation envelope on a beat grid. Arrangement clips are UNSUPPORTED: Live reports no envelope there even where one plays. |  |  |
 | `live.get_capabilities` | What this Live install supports. Consult before assuming an API exists. |  |  |
 | `live.get_clip` | One clip: length, loop region, note count. |  |  |

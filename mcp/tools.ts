@@ -1223,6 +1223,7 @@ export function createMcpServer(client: McpClient): McpServer {
         roles: z.record(z.string()).optional().describe('track name -> role (kick, bass, lead, chords...) where the name does not say'),
         unpitched: z.array(z.string()).optional().describe('track names to treat as unpitched (noise FX, drum loops)'),
         instruments: z.record(z.string()).optional().describe('track name -> orchestral instrument (violin, cello, horn...) for range checks'),
+        audio: z.boolean().optional().describe('analyse warped audio clips on pitched tracks for notes (default true; slower)'),
       },
     },
     (args) =>

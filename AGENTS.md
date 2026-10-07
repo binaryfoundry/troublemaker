@@ -86,7 +86,7 @@ It must be added in five places, and the test suite enforces the last two:
 4. **Tests** in `bridge/tests/`. `validation.test.ts` fails if a command has
    no catalogue entry.
 5. **The command list** in `docs/capabilities.md`: regenerate it with
-   `npm run cli -- commands --markdown` and paste it between the markers.
+   `npm run cli -- commands --update-docs`.
    `validation.test.ts` fails until it matches the registry, and fails if an
    area under *Not supported* is covered by a registered command.
 
@@ -104,7 +104,7 @@ more than one client.
 ## Testing
 
 ```bash
-npm test                      # 534 tests, no Ableton needed
+npm test                      # 550 tests, no Ableton needed
 npm run typecheck
 npm run cli -- selftest       # round trip, needs Live running
 ```

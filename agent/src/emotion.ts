@@ -59,13 +59,43 @@ export function blockFeatures(timeline: Timeline, size = 8): BlockFeatures[] {
 }
 
 /** The peak: the given bars, or the 16-bar span with the most layers (the later one on a tie). */
-export function findPeak(timeline: Timeline, given?: { from: number; to: number }): { from: number; to: number } {
-  if (given) return given;
-  const blocks = blockFeatures(timeline, 16);
+export interface Peak {
+  from: number;
+  to: number;
+  /** How it was found: given, clip names, or the layer heuristic. */
+  source: 'given' | 'clip names' | 'most layers';
+}
+
+/**
+ * The emotional peak. Given, it is used as is. Otherwise clips named "Peak"
+ * mark it (this project names Arrangement clips by section - Cathedral's
+ * "arp Peak" at bars 161-192). Failing that, the 16 bars with the most layers
+ * where kick and bass both play, skipping any block holding a "Build" clip: a
+ * build can stack more layers than the peak (Cathedral's build 2 did).
+ */
+export function findPeak(timeline: Timeline, given?: { from: number; to: number }): Peak {
+  if (given) return { ...given, source: 'given' };
+  const clips = timeline.tracks.flatMap((t) => t.clips);
+  const named = clips.filter((c) => /\bpeak\b/i.test(c.name));
+  if (named.length) {
+    return {
+      from: barOf(timeline, Math.min(...named.map((c) => c.start))),
+      to: barOf(timeline, Math.max(...named.map((c) => c.end)) - 1e-3),
+      source: 'clip names',
+    };
+  }
+  const builds = clips.filter((c) => /\bbuild\b/i.test(c.name));
+  const all = blockFeatures(timeline, 16).filter((b) => {
+    const from = (b.bar - 1) * timeline.beatsPerBar, to = from + 16 * timeline.beatsPerBar;
+    return !builds.some((c) => c.start < to && c.end > from);
+  });
+  const roleOf = new Map(timeline.tracks.map((t) => [t.name, t.role]));
+  const grounded = all.filter((b) => b.layers.some((l) => roleOf.get(l) === 'kick') && b.layers.some((l) => roleOf.get(l) === 'bass'));
+  const blocks = grounded.length ? grounded : all.length ? all : blockFeatures(timeline, 16);
   let best = blocks[0];
   for (const b of blocks) if (best && (b.layers.length > best.layers.length || (b.layers.length === best.layers.length && b.onsets >= best.onsets))) best = b;
   const from = best?.bar ?? 1;
-  return { from, to: Math.min(timeline.bars, from + 15) };
+  return { from, to: Math.min(timeline.bars, from + 15), source: 'most layers' };
 }
 
 /** Largest number of distinct pitched notes sounding at once, and where it first happens. */
@@ -89,7 +119,7 @@ function largestChord(timeline: Timeline): { size: number; bar: number } | null 
 export function checkEmotion(
   timeline: Timeline,
   options: { peak?: { from: number; to: number }; introBars?: number; outroBars?: number } = {},
-): { peak: { from: number; to: number }; blocks: BlockFeatures[]; findings: EmotionFinding[] } {
+): { peak: Peak; blocks: BlockFeatures[]; findings: EmotionFinding[] } {
   const findings: EmotionFinding[] = [];
   const peak = findPeak(timeline, options.peak);
   const blocks = blockFeatures(timeline, 8);

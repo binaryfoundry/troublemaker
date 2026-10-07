@@ -12,7 +12,7 @@
  * counted by hand.
  */
 
-import type { Timeline, TimelineTrack } from './timeline.js';
+import { doublesTrack, type Timeline, type TimelineTrack } from './timeline.js';
 
 export type GrooveRole = 'anchor' | 'groove' | 'ornament' | 'straight' | 'silent';
 
@@ -29,6 +29,14 @@ export interface GrooveProfile {
   onBeatShare: number;
   /** Median note length over the gap to the next onset. */
   gate: number | null;
+  /** A groove part that doubles or quotes another's rhythm: that part's name. */
+  follows?: string;
+  /** A pitch cycle of this many notes turning against the beat. */
+  cycle?: number;
+  /** Mostly on 8th-note-triplet positions, against the straight grid. */
+  triplets?: boolean;
+  /** A velocity-accent cycle of this many notes turning against the beat. */
+  accentCycle?: number;
 }
 
 export interface GrooveFinding {
@@ -36,9 +44,10 @@ export interface GrooveFinding {
   message: string;
 }
 
-const STEPS = 16;
+/** 48 steps a bar: 16ths and 8th-note triplets both land exactly. */
+const STEPS = 48;
 
-/** A bar's onsets as 16 steps (4/4). */
+/** A bar's onsets on the 48-step grid (4/4). */
 function barVectors(timeline: Timeline, track: TimelineTrack): Map<number, boolean[]> {
   const step = timeline.beatsPerBar / STEPS;
   const bars = new Map<number, boolean[]>();
@@ -59,21 +68,99 @@ const same = (a: boolean[], b: boolean[]) => a.every((x, i) => x === b[i]);
 /**
  * A bar is displaced when its pattern does not repeat on the beat and at least
  * two onsets fall off it. One stray off-beat hit is an ornament, not a groove.
+ * Works on any grid that divides the bar into four beats.
  */
 export function isDisplacedBar(v: boolean[]): boolean {
-  if (same(v, rotate(v, 4))) return false;
-  const offBeat = v.filter((on, i) => on && i % 4 !== 0).length;
+  const beat = v.length / 4;
+  if (same(v, rotate(v, beat))) return false;
+  const offBeat = v.filter((on, i) => on && i % beat !== 0).length;
   return offBeat >= 2;
+}
+
+/**
+ * A pitch cycle that turns against the beat: a stream of at least two notes a
+ * beat whose pitches repeat every k notes, where k does not fit the notes in a
+ * beat (4 against 3, 5 against 4). Its onsets can be perfectly regular and it
+ * is still a groove layer - Cathedral's triplet arp, Black Glass's 5-cycle.
+ * Returns the share of 4-bar windows that hold such a cycle, and the cycle.
+ */
+export function pitchCycle(timeline: Timeline, track: TimelineTrack): { share: number; cycle: number | null } {
+  return streamCycle(timeline, track, 'pitch');
+}
+
+/**
+ * The same test on velocity accents: a stream whose accents repeat every k
+ * notes against the beat (Black Glass's arp, a 3-step accent cycle on 16ths).
+ * A window counts only if its velocities split into clear accents (at least
+ * 15 apart); humanised velocity does not repeat at 90 % and is not a cycle.
+ */
+export function accentCycle(timeline: Timeline, track: TimelineTrack): { share: number; cycle: number | null } {
+  return streamCycle(timeline, track, 'accent');
+}
+
+function streamCycle(timeline: Timeline, track: TimelineTrack, kind: 'pitch' | 'accent'): { share: number; cycle: number | null } {
+  const windowBeats = 4 * timeline.beatsPerBar;
+  const top = new Map<number, { pitch: number; velocity: number }>();
+  for (const n of track.notes) {
+    const at = Math.round(n.start * 12) / 12;
+    const current = top.get(at);
+    if (!current || n.pitch > current.pitch) top.set(at, { pitch: n.pitch, velocity: Math.max(n.velocity, current?.velocity ?? 0) });
+    else current.velocity = Math.max(current.velocity, n.velocity);
+  }
+  const line = [...top.entries()].sort((a, b) => a[0] - b[0]);
+  const windows = new Map<number, typeof line>();
+  for (const entry of line) {
+    const w = Math.floor(entry[0] / windowBeats);
+    windows.set(w, [...(windows.get(w) ?? []), entry]);
+  }
+  let counted = 0, cycling = 0;
+  const cycles = new Map<number, number>();
+  for (const notes of windows.values()) {
+    if (notes.length < 8) continue;
+    const beats = new Set(notes.map(([t]) => Math.floor(t + 1e-6))).size;
+    const perBeat = Math.round(notes.length / beats);
+    if (perBeat < 2) continue;
+    let seq: number[];
+    if (kind === 'pitch') {
+      seq = notes.map(([, n]) => n.pitch);
+    } else {
+      const velocities = notes.map(([, n]) => n.velocity);
+      const low = Math.min(...velocities), high = Math.max(...velocities);
+      if (high - low < 15) continue;
+      seq = velocities.map((v) => (v >= (low + high) / 2 ? 1 : 0));
+    }
+    counted += 1;
+    // From k = 1: a held-pitch stream (a KBBB roll on one root) repeats every note.
+    for (let k = 1; k <= 8 && k < seq.length / 2; k += 1) {
+      let match = 0;
+      for (let i = 0; i + k < seq.length; i += 1) if (seq[i] === seq[i + k]) match += 1;
+      if (match / (seq.length - k) < 0.9) continue;
+      // The smallest repeating period decides; it turns against the beat only if neither divides the other.
+      if (k % perBeat !== 0 && perBeat % k !== 0) {
+        cycling += 1;
+        cycles.set(k, (cycles.get(k) ?? 0) + 1);
+      }
+      break;
+    }
+  }
+  const cycle = [...cycles.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  return { share: counted ? cycling / counted : 0, cycle };
 }
 
 export function grooveProfile(timeline: Timeline, track: TimelineTrack): GrooveProfile {
   const vectors = barVectors(timeline, track);
   const active = [...vectors.values()];
   const displaced = active.filter(isDisplacedBar).length;
-  const onsets = [...new Set(track.notes.map((n) => Math.round(n.start * 4) / 4))].sort((a, b) => a - b);
+  const onsets = [...new Set(track.notes.map((n) => Math.round(n.start * 12) / 12))].sort((a, b) => a - b);
   let dotted = 0;
   for (let i = 1; i < onsets.length; i += 1) if (Math.abs(onsets[i]! - onsets[i - 1]! - 0.75) < 0.02) dotted += 1;
   const onBeat = onsets.filter((t) => Math.abs(t - Math.round(t)) < 0.02).length;
+  // Triplet positions (a third and two thirds of a beat) are off the straight 16th grid.
+  const onTriplet = onsets.filter((t) => {
+    const frac = t - Math.floor(t + 1e-6);
+    return Math.abs(frac - 1 / 3) < 0.02 || Math.abs(frac - 2 / 3) < 0.02;
+  }).length;
+  const triplets = onsets.length >= 8 && onTriplet / onsets.length >= 0.4;
 
   const gates: number[] = [];
   const notes = [...track.notes].sort((a, b) => a.start - b.start);
@@ -84,10 +171,12 @@ export function grooveProfile(timeline: Timeline, track: TimelineTrack): GrooveP
   gates.sort((a, b) => a - b);
 
   const syncopatedShare = active.length ? displaced / active.length : 0;
+  const cycle = track.pitched ? pitchCycle(timeline, track) : { share: 0, cycle: null };
+  const accents = accentCycle(timeline, track);
   let role: GrooveRole;
   if (!active.length) role = 'silent';
   else if (track.role === 'kick') role = 'anchor';
-  else if (syncopatedShare >= 0.5) role = 'groove';
+  else if (syncopatedShare >= 0.5 || cycle.share >= 0.5 || accents.share >= 0.5 || triplets) role = 'groove';
   else if (syncopatedShare >= 0.1) role = 'ornament';
   else role = 'straight';
 
@@ -99,7 +188,39 @@ export function grooveProfile(timeline: Timeline, track: TimelineTrack): GrooveP
     dottedShare: round2(onsets.length > 1 ? dotted / (onsets.length - 1) : 0),
     onBeatShare: round2(onsets.length ? onBeat / onsets.length : 0),
     gate: gates.length ? round2(gates[Math.floor(gates.length / 2)]!) : null,
+    ...(cycle.share >= 0.5 && cycle.cycle ? { cycle: cycle.cycle } : {}),
+    ...(triplets ? { triplets: true } : {}),
+    ...(accents.share >= 0.5 && accents.cycle ? { accentCycle: accents.cycle } : {}),
   };
+}
+
+/**
+ * Groove parts that only repeat another's rhythm: an octave double, or hints
+ * and quotes of the hook's cell. The part that runs longest leads; another
+ * follows it when it doubles it (unison or octaves at the same moments) or when
+ * at least 60 % of its displaced bars are covered by one of the leader's bar
+ * patterns. Measured on Threshold (Lead Oct, the pizzicato hook hints) and
+ * Cathedral (Violin II doubling the arp at the peak).
+ */
+function followers(timeline: Timeline, grooves: GrooveProfile[]): Map<string, string> {
+  const tracks = new Map(timeline.tracks.map((t) => [t.name, t]));
+  const patterns = new Map(grooves.map((g) => [g.track, [...barVectors(timeline, tracks.get(g.track)!).values()].filter(isDisplacedBar)]));
+  const covers = (big: boolean[], small: boolean[]) => small.every((on, i) => !on || big[i]);
+  const covered = (part: string, leader: string) => {
+    const own = patterns.get(part)!, theirs = patterns.get(leader)!;
+    return own.length > 0 && own.filter((v) => theirs.some((w) => covers(w, v))).length >= 0.6 * own.length;
+  };
+  const order = [...grooves].sort((a, b) => b.activeBars - a.activeBars);
+  const follows = new Map<string, string>();
+  for (const part of order) {
+    const leader = order.find(
+      (l) =>
+        l !== part && !follows.has(l.track) && l.activeBars >= part.activeBars &&
+        (doublesTrack(tracks.get(part.track)!, tracks.get(l.track)!) || covered(part.track, l.track)),
+    );
+    if (leader) follows.set(part.track, leader.track);
+  }
+  return follows;
 }
 
 /** Sections 9, 15, 22 and 26: one stable anchor, exactly one groove layer. */
@@ -107,12 +228,28 @@ export function checkGroove(timeline: Timeline): { profiles: GrooveProfile[]; fi
   const profiles = timeline.tracks.filter((t) => t.notes.length).map((t) => grooveProfile(timeline, t));
   const findings: GrooveFinding[] = [];
   const grooves = profiles.filter((p) => p.role === 'groove');
+  const follows = followers(timeline, grooves);
+  for (const p of profiles) if (follows.has(p.track)) p.follows = follows.get(p.track);
+  const layers = grooves.filter((g) => !follows.has(g.track));
+  const describe = (g: GrooveProfile) => {
+    const with_ = grooves.filter((x) => follows.get(x.track) === g.track).map((x) => x.track);
+    const ways = [
+      g.cycle ? `a ${g.cycle}-note pitch cycle against the beat` : '',
+      g.accentCycle ? `a ${g.accentCycle}-note accent cycle against the beat` : '',
+      g.triplets ? 'triplets against the straight grid' : '',
+      g.syncopatedShare >= 0.5 ? `${pct(g.syncopatedShare)} of bars displaced` : '',
+    ].filter(Boolean);
+    const how = ways.join(', ');
+    return `${g.track} (${how}${with_.length ? `; ${with_.join(', ')} double or quote its rhythm` : ''})`;
+  };
 
-  if (grooves.length > 1) {
+  if (layers.length > 1) {
     findings.push({
       severity: 'warn',
-      message: `${grooves.length} groove layers: ${grooves.map((g) => `${g.track} (${pct(g.syncopatedShare)} of bars displaced)`).join(', ')}. GROOVE.md wants one: "if everything is syncopated, nothing sounds syncopated". Keep the strongest, straighten or thin the others - unless the brief asks for more.`,
+      message: `${layers.length} groove layers: ${layers.map(describe).join(', ')}. GROOVE.md wants one: "if everything is syncopated, nothing sounds syncopated". Keep the strongest, straighten or thin the others - unless the brief asks for more.`,
     });
+  } else if (layers.length === 1 && follows.size) {
+    findings.push({ severity: 'info', message: `One groove layer: ${describe(layers[0]!)}.` });
   } else if (!grooves.length) {
     findings.push({
       severity: 'info',

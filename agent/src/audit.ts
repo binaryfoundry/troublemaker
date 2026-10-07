@@ -18,11 +18,13 @@
 import type { Note } from '../../bridge/src/protocol.js';
 import { checkLeadNumbers, type LeadCheck } from './camelphat.js';
 import { checkChords, type VoicedChord } from './chords.js';
-import { checkEmotion, type BlockFeatures } from './emotion.js';
+import { checkEmotion, type BlockFeatures, type Peak } from './emotion.js';
 import { checkGroove, type GrooveProfile } from './groove.js';
 import { checkHook, summariseBars, type HookMap } from './hooks.js';
-import { checkInstrumentRange, orchestralKnowledge } from './orchestral.js';
-import { activitySpans, barOf, type Timeline, type TimelineNote, type TimelineTrack } from './timeline.js';
+import { checkInstrumentRange, instrumentFor, orchestralKnowledge } from './orchestral.js';
+
+export { instrumentFor };
+import { activitySpans, barOf, doublesTrack, type Timeline, type TimelineNote, type TimelineTrack } from './timeline.js';
 
 export type Severity = 'fail' | 'warn' | 'info';
 export type StepStatus = 'PASS' | 'REVIEW' | 'FAIL' | 'MANUAL';
@@ -69,7 +71,7 @@ export interface AuditReport {
   hook: HookMap | null;
   leads: Array<{ track: string; bars: string; checks: LeadCheck[] }>;
   blocks: BlockFeatures[];
-  peak: { from: number; to: number };
+  peak: Peak;
 }
 
 const THIRTY_SECOND = 0.125;
@@ -151,17 +153,28 @@ export function checkDjEnds(timeline: Timeline, options: { pitchFreeBars?: numbe
 
   // No pitched material in the first or last 16 bars.
   for (const track of timeline.tracks.filter((t) => t.pitched)) {
-    const early = track.notes.filter((n) => bars(timeline, n.start) <= free);
-    const late = track.notes.filter((n) => bars(timeline, n.start) > last - free);
-    if (early.length) {
-      findings.push({ severity: 'fail', message: `${track.name}: pitched notes in the first ${free} bars (from bar ${bars(timeline, early[0]!.start)}). The DJ mixes over the neighbouring record here.` });
+    // Written MIDI is fact and fails; pitch detected in audio is evidence and warns.
+    for (const audio of [false, true]) {
+      const notes = track.notes.filter((n) => Boolean(n.audio) === audio);
+      const early = notes.filter((n) => bars(timeline, n.start) <= free);
+      const late = notes.filter((n) => bars(timeline, n.start) > last - free);
+      // An FX track's notes usually trigger a sample, not a pitch: worth a look, not a fail.
+      const fx = track.role === 'atmosphere';
+      const severity = audio || fx ? 'warn' : 'fail';
+      const what = audio ? 'pitch detected in its audio' : fx ? 'FX notes (tonal, or only sample triggers?)' : 'pitched notes';
+      if (early.length) {
+        findings.push({ severity, message: `${track.name}: ${what} in the first ${free} bars (from bar ${bars(timeline, early[0]!.start)}). The DJ mixes over the neighbouring record here.` });
+      }
+      if (late.length) {
+        findings.push({ severity, message: `${track.name}: ${what} in the last ${free} bars (until bar ${bars(timeline, late.at(-1)!.start)}).` });
+      }
     }
-    if (late.length) {
-      findings.push({ severity: 'fail', message: `${track.name}: pitched notes in the last ${free} bars (until bar ${bars(timeline, late.at(-1)!.start)}).` });
-    }
-    const audio = track.clips.filter((c) => !c.is_midi_clip && (bars(timeline, c.start) <= free || bars(timeline, c.end - 1e-3) > last - free));
-    if (audio.length) {
-      findings.push({ severity: 'warn', message: `${track.name}: an audio clip within the first or last ${free} bars (bar ${bars(timeline, audio[0]!.start)}); its pitch is invisible to this check - listen or capture.` });
+    const unseen = track.clips.filter(
+      (c) => !c.is_midi_clip && !c.audioAnalysis?.analysed && (bars(timeline, c.start) <= free || bars(timeline, c.end - 1e-3) > last - free),
+    );
+    if (unseen.length) {
+      const why = unseen[0]!.audioAnalysis?.reason ?? 'not analysed';
+      findings.push({ severity: 'warn', message: `${track.name}: an audio clip within the first or last ${free} bars (bar ${bars(timeline, unseen[0]!.start)}) that could not be analysed (${why}) - listen or capture.` });
     }
   }
 
@@ -185,13 +198,23 @@ export function checkDjEnds(timeline: Timeline, options: { pitchFreeBars?: numbe
   }
 
   // Changes on 8-bar lines; spans shorter than 8 bars are fills and transitions.
-  const onLine = (bar: number, size: number) => (bar - 1) % size === 0 || bar % size === 0;
-  for (const track of timeline.tracks) {
-    for (const span of activitySpans(timeline, track, 4)) {
-      if (span.to - span.from + 1 < 8) continue;
-      if (!onLine(span.from, 8)) findings.push({ severity: 'warn', message: `${track.name} enters at bar ${span.from}, off the 8-bar grid.` });
-      if (!onLine(span.to, 8) && span.to !== last) findings.push({ severity: 'warn', message: `${track.name} leaves after bar ${span.to}, off the 8-bar grid.` });
+  // An entry counts as on the line from the bar before it (a pickup); an exit
+  // from one bar before it (a breath, a cut) to the bar after (a tail).
+  const entersOn = (bar: number, size: number) => (bar - 1) % size === 0 || bar % size === 0;
+  const leavesOn = (bar: number, size: number) => bar % size === 0 || (bar + 1) % size === 0 || (bar - 1) % size === 0;
+  const all = timeline.tracks.flatMap((track) => activitySpans(timeline, track, 4).map((s) => ({ track, ...s })));
+  const spans = all.filter((s) => s.to - s.from + 1 >= 8);
+  // A phrase that changed on its line may bring parts in one by one (Threshold's
+  // orchestral warm-up, which AGENTS.md holds up as the model): those are a build.
+  // Any entry on the line counts as the change, a short one included (the warm-up's
+  // tuning A at bar 17 is a single held note).
+  const phraseOf = (bar: number) => Math.floor((bar - 1) / 8) * 8 + 1;
+  const changedOnLine = new Set(all.filter((s) => entersOn(s.from, 8)).map((s) => phraseOf(s.from + 1)));
+  for (const s of spans) {
+    if (!entersOn(s.from, 8) && !changedOnLine.has(phraseOf(s.from))) {
+      findings.push({ severity: 'warn', message: `${s.track.name} enters at bar ${s.from}, off the 8-bar grid, in a phrase that did not change on its line.` });
     }
+    if (!leavesOn(s.to, 8) && s.to !== last) findings.push({ severity: 'warn', message: `${s.track.name} leaves after bar ${s.to}, off the 8-bar grid.` });
   }
 
   // The bass in and out on a 16-bar line; outro order melodic -> bass -> drums.
@@ -200,8 +223,8 @@ export function checkDjEnds(timeline: Timeline, options: { pitchFreeBars?: numbe
   for (const t of bass) {
     const spans = activitySpans(timeline, t, 4);
     const first = spans[0], end = spans.at(-1);
-    if (first && !onLine(first.from, 16)) findings.push({ severity: 'warn', message: `${t.name} first enters at bar ${first.from}, not on a 16-bar line (the DJ's bass swap).` });
-    if (end && !onLine(end.to, 16) && end.to !== last) findings.push({ severity: 'warn', message: `${t.name} leaves after bar ${end.to}, not on a 16-bar line.` });
+    if (first && !entersOn(first.from, 16)) findings.push({ severity: 'warn', message: `${t.name} first enters at bar ${first.from}, not on a 16-bar line (the DJ's bass swap).` });
+    if (end && !leavesOn(end.to, 16) && end.to !== last) findings.push({ severity: 'warn', message: `${t.name} leaves after bar ${end.to}, not on a 16-bar line.` });
   }
   const melodic = timeline.tracks.filter((t) => t.pitched && t.role !== 'bass' && t.notes.length);
   const drumTracks = timeline.tracks.filter((t) => drums(t) && t.notes.length);
@@ -224,6 +247,8 @@ export interface Rub {
   bar: number;
   pitches: [number, number];
   overlap: number;
+  /** One of the two notes was detected in audio. */
+  audio: boolean;
 }
 
 /**
@@ -233,7 +258,8 @@ export interface Rub {
  */
 export function findRubs(timeline: Timeline): Rub[] {
   const notes = timeline.tracks
-    .filter((t) => t.pitched)
+    // FX notes trigger samples (an impact on C3 is not a C): their pitch is unknown.
+    .filter((t) => t.pitched && t.role !== 'atmosphere')
     .flatMap((t) => t.notes.map((n) => ({ ...n, track: t.name })))
     .sort((a, b) => a.start - b.start);
   const rubs: Rub[] = [];
@@ -244,7 +270,7 @@ export function findRubs(timeline: Timeline): Rub[] {
       if (a.track === n.track || Math.abs(a.pitch - n.pitch) % 12 !== 1) continue;
       const overlap = Math.min(a.start + a.duration, n.start + n.duration) - n.start;
       if (overlap > THIRTY_SECOND + 1e-6) {
-        rubs.push({ a: a.track, b: n.track, bar: barOf(timeline, n.start), pitches: [a.pitch, n.pitch], overlap: round(overlap) });
+        rubs.push({ a: a.track, b: n.track, bar: barOf(timeline, n.start), pitches: [a.pitch, n.pitch], overlap: round(overlap), audio: Boolean(a.audio || n.audio) });
       }
     }
     active.push(n);
@@ -262,9 +288,11 @@ function rubFindings(rubs: Rub[]): AuditFinding[] {
     .sort((x, y) => y[1].length - x[1].length)
     .map(([pair, list]) => {
       const longest = [...list].sort((x, y) => y.overlap - x.overlap)[0]!;
+      const fromAudio = list.filter((r) => r.audio).length;
+      const source = fromAudio ? ` ${fromAudio === list.length ? 'All' : fromAudio} of them involve pitch detected in audio - confirm by ear.` : '';
       return {
         severity: 'warn' as const,
-        message: `${pair}: ${list.length} semitone/minor-ninth overlap${list.length === 1 ? '' : 's'} longer than a 32nd, at ${summariseBars([...new Set(list.map((r) => r.bar))])}; longest ${longest.overlap} beats (MIDI ${longest.pitches[0]} against ${longest.pitches[1]}, bar ${longest.bar}). Resolving appoggiatura, or a clash?`,
+        message: `${pair}: ${list.length} semitone/minor-ninth overlap${list.length === 1 ? '' : 's'} longer than a 32nd, at ${summariseBars([...new Set(list.map((r) => r.bar))])}; longest ${longest.overlap} beats (MIDI ${longest.pitches[0]} against ${longest.pitches[1]}, bar ${longest.bar}). Resolving appoggiatura, or a clash?${source}`,
       };
     });
 }
@@ -306,32 +334,6 @@ function voicingsOf(timeline: Timeline, notes: TimelineNote[]): VoicedChord[] {
   return out;
 }
 
-const INSTRUMENT_NAMES: Array<[RegExp, string]> = [
-  [/\bpiccolo\b/i, 'piccolo'],
-  [/\b(english horn|cor anglais)\b/i, 'english_horn'],
-  [/\bbass clarinet\b/i, 'bass_clarinet'],
-  [/\bcontrabassoon\b/i, 'contrabassoon'],
-  [/\bbass trombone\b/i, 'bass_trombone'],
-  [/\b(double ?bass(es)?|contrabass(es)?|string bass)\b/i, 'double_bass'],
-  [/\b(violins?|vln?s?)\b/i, 'violin'],
-  [/\b(violas?|vla)\b/i, 'viola'],
-  [/\b(cellos?|celli|vc)\b/i, 'cello'],
-  [/\bflutes?\b/i, 'flute'],
-  [/\boboes?\b/i, 'oboe'],
-  [/\bclarinets?\b/i, 'clarinet'],
-  [/\bbassoons?\b/i, 'bassoon'],
-  [/\b(french )?horns?\b/i, 'horn'],
-  [/\btrumpets?\b/i, 'trumpet'],
-  [/\btrombones?\b/i, 'trombone'],
-  [/\btubas?\b/i, 'tuba'],
-];
-
-export function instrumentFor(name: string, explicit: Record<string, string> = {}): string | null {
-  if (explicit[name]) return explicit[name]!;
-  for (const [pattern, instrument] of INSTRUMENT_NAMES) if (pattern.test(name)) return instrument;
-  return null;
-}
-
 export function checkRanges(timeline: Timeline, instruments: Record<string, string> = {}): AuditFinding[] {
   const known = orchestralKnowledge().instruments;
   const findings: AuditFinding[] = [];
@@ -351,6 +353,61 @@ export function checkRanges(timeline: Timeline, instruments: Record<string, stri
   return findings;
 }
 
+/** What the audio-clip analysis saw, and what it could not. */
+function audioSummary(timeline: Timeline): { summary: string; manual: string[] } {
+  const clips = timeline.tracks.flatMap((t) => t.clips.filter((c) => !c.is_midi_clip && c.audioAnalysis).map((c) => ({ track: t.name, clip: c })));
+  if (!clips.length) return { summary: '', manual: [] };
+  const analysed = clips.filter((c) => c.clip.audioAnalysis!.analysed);
+  const voiced = analysed.length ? analysed.reduce((sum, c) => sum + c.clip.audioAnalysis!.voicedShare, 0) / analysed.length : 0;
+  const notes = timeline.tracks.reduce((n, t) => n + t.notes.filter((x) => x.audio).length, 0);
+  const manual: string[] = [];
+  const skipped = clips.filter((c) => !c.clip.audioAnalysis!.analysed);
+  if (skipped.length) {
+    const reasons = [...new Set(skipped.map((c) => `${c.track}: ${c.clip.audioAnalysis!.reason}`))];
+    manual.push(`${plural(skipped.length, 'audio clip')} not analysed for pitch (${reasons.slice(0, 4).join('; ')}) - their rubs and DJ-end pitch need an ear or a capture.`);
+  }
+  if (analysed.length) {
+    manual.push(`Pitch in ${plural(analysed.length, 'audio clip')} is detected, not written (monophonic YIN, ${Math.round(voiced * 100)} % of audible 16ths voiced): treat findings that involve it as evidence to check by ear.`);
+  }
+  return { summary: `${plural(analysed.length, 'audio clip')} analysed (${notes} notes detected)`, manual };
+}
+
+// ---------------------------------------------------------------------------
+// 6. Lead numbers: which notes are "the lead"
+// ---------------------------------------------------------------------------
+
+const clipKey = (clip: { notes?: Note[] }) => (clip.notes ?? []).filter((n) => !n.mute).map(noteKey).sort().join(',');
+
+/** The clip content placed for the most bars: the loop as written, not a tease or a fill. */
+function mainLoop(track: TimelineTrack): { notes: Note[]; bars: number; firstBar: number } | null {
+  const byKey = new Map<string, { notes: Note[]; beats: number; first: number }>();
+  for (const clip of track.clips) {
+    if (!clip.is_midi_clip || !clip.notes?.length) continue;
+    const key = clipKey(clip);
+    const entry = byKey.get(key) ?? { notes: clip.notes.filter((n) => !n.mute), beats: 0, first: clip.start };
+    entry.beats += clip.end - clip.start;
+    entry.first = Math.min(entry.first, clip.start);
+    byKey.set(key, entry);
+  }
+  const best = [...byKey.values()].sort((a, b) => b.beats - a.beats)[0];
+  return best ? { notes: best.notes, bars: Math.round(best.beats / 4), firstBar: Math.floor(best.first / 4) + 1 } : null;
+}
+
+/** A sustained part holding notes in MIDI 53-67 for most of the lead's bars, or null. */
+function sustainedInRegister(timeline: Timeline, lead: TimelineTrack): string | null {
+  const leadBars = new Set(lead.notes.map((n) => barOf(timeline, n.start)));
+  for (const t of timeline.tracks) {
+    if (t === lead || !t.pitched || t.role === 'bass' || t.role === 'lead') continue;
+    const lengths = t.notes.map((n) => n.duration).sort((x, y) => x - y);
+    const held = t.role === 'chords' || /\b(pads?|strings?|choir|organ|violins?|vln|section)\b/i.test(t.name) || (lengths.length > 0 && lengths[Math.floor(lengths.length / 2)]! >= 1);
+    if (!held) continue;
+    const bars = new Set(t.notes.filter((n) => n.pitch >= 53 && n.pitch <= 67).map((n) => barOf(timeline, n.start)));
+    const shared = [...leadBars].filter((b) => bars.has(b) || bars.has(b - 1)).length;
+    if (shared >= 0.5 * leadBars.size) return t.name;
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // 7. Bass and the low end (the part the notes show)
 // ---------------------------------------------------------------------------
@@ -364,7 +421,11 @@ export function checkLowEnd(timeline: Timeline): AuditFinding[] {
   for (const t of bass) {
     const onKick = t.notes.filter((n) => kickBeats.has(Math.round(n.start * 4) / 4)).length;
     const share = onKick / t.notes.length;
-    if (kickBeats.size && share >= 0.25) {
+    // A held sub starts on the kick and is ducked under it (*Basslines*); the
+    // never-on-the-kick rule is for the rolling bass. Found on Threshold's Sub.
+    const lengths = t.notes.map((n) => n.duration).sort((a, b) => a - b);
+    const held = lengths[Math.floor(lengths.length / 2)]! >= 1;
+    if (kickBeats.size && share >= 0.25 && !held) {
       findings.push({ severity: 'info', message: `${t.name}: ${Math.round(share * 100)} % of its notes start on a kick. The rolling default (*Basslines*) never plays on the kick; if this bass is meant to be another kind, that is the user's call.` });
     }
     const low = t.notes.filter((n) => hz(n.pitch) < 35);
@@ -394,8 +455,10 @@ function chooseHook(timeline: Timeline, name?: string): { track: TimelineTrack |
     const track = timeline.tracks.find((t) => t.name.toLowerCase() === name.toLowerCase()) ?? null;
     return { track, note: track ? `hook: ${track.name} (given)` : `no track named "${name}"` };
   }
-  const leads = timeline.tracks.filter((t) => t.role === 'lead' && t.notes.length);
-  if (leads.length === 1) return { track: leads[0]!, note: `hook: ${leads[0]!.name} (the only lead-role track; name it to be sure)` };
+  // A lead that only doubles another (an octave layer) is not a candidate.
+  const all = timeline.tracks.filter((t) => t.role === 'lead' && t.notes.length);
+  const leads = all.filter((t) => !all.some((o) => o !== t && doublesTrack(t, o)));
+  if (leads.length === 1) return { track: leads[0]!, note: `hook: ${leads[0]!.name} (the only lead-role part; name it to be sure)` };
   return {
     track: null,
     note: leads.length ? `${leads.length} lead-role tracks (${leads.map((t) => t.name).join(', ')}); name the primary hook` : 'no lead-role track; name the primary hook',
@@ -411,7 +474,9 @@ export function auditTimeline(timeline: Timeline, options: AuditOptions = {}): A
   add({
     step: 1, name: 'Arrangement hygiene', guides: 'AGENTS.md audit 1', findings: hygiene,
     summary: `${timeline.tracks.reduce((n, t) => n + t.clips.length, 0)} Arrangement clips on ${timeline.tracks.length} tracks`,
-    manual: timeline.tracks.some((t) => t.wrapped) ? ['Some clips loop or start from a marker; their notes were placed by Live\'s marker semantics - spot-check one in Live.'] : [],
+    manual: timeline.tracks.some((t) => t.wrapped)
+      ? ['Some clips are stretched longer than their loop; their repeats follow Live\'s documented loop semantics, not yet measured - spot-check one in Live.']
+      : [],
   });
 
   const dj = checkDjEnds(timeline, options);
@@ -424,15 +489,16 @@ export function auditTimeline(timeline: Timeline, options: AuditOptions = {}): A
   const rubs = findRubs(timeline);
   const harmony = checkHarmony(timeline);
   const ranges = checkRanges(timeline, options.instruments);
+  const audio = audioSummary(timeline);
   add({
     step: 3, name: 'Rubs, harmony and ranges', guides: 'AGENTS.md audit 3; CHORDS.md 8, 68, 69, 76; ORCHESTRAL.md 21',
     findings: [...rubFindings(rubs), ...harmony, ...ranges],
-    summary: `${plural(rubs.length, 'rub')} between parts; ${plural(harmony.length, 'chord finding')}; ${plural(ranges.length, 'range finding')}`,
-    manual: [],
+    summary: `${plural(rubs.length, 'rub')} between parts; ${plural(harmony.length, 'chord finding')}; ${plural(ranges.length, 'range finding')}${audio.summary ? `; ${audio.summary}` : ''}`,
+    manual: audio.manual,
   });
 
   const groove = checkGroove(timeline);
-  const grooveLayers = groove.profiles.filter((p) => p.role === 'groove').map((p) => p.track);
+  const grooveLayers = groove.profiles.filter((p) => p.role === 'groove' && !p.follows).map((p) => p.track);
   add({
     step: 4, name: 'Groove', guides: 'GROOVE.md 9, 15, 22, 26', findings: groove.findings,
     summary: `groove layers: ${grooveLayers.join(', ') || 'none'}`,
@@ -444,7 +510,7 @@ export function auditTimeline(timeline: Timeline, options: AuditOptions = {}): A
   add({
     step: 5, name: 'Hook', guides: 'HOOKS.md 11, 12, 18, 41, 42', findings: hook?.findings ?? [],
     measured: Boolean(hook),
-    summary: hook ? `${chosen.note}; first full at bar ${hook.map.firstFull}, removed at ${hook.map.removedAt ?? '-'}, returns at ${hook.map.returnsAt ?? '-'}; nucleus ${hook.map.nucleusBars ? plural(hook.map.nucleusBars, 'bar') : 'over 4 bars'}` : chosen.note,
+    summary: hook ? `${chosen.note}; first full at bar ${hook.map.firstFull}, removed at ${hook.map.removedAt ?? '-'}, returns at ${hook.map.returnsAt ?? '-'}; nucleus ${hook.map.nucleusBars ? plural(hook.map.nucleusBars, 'bar') : hook.map.cellNotes ? `a ${hook.map.cellNotes}-note cell` : 'over 4 bars'}` : chosen.note,
     manual: [
       'Name the primary hook in one sentence and classify every other part (secondary, support, texture, transition) - HOOKS 9, 42.',
       'Measure it in context: the hook, the rest and each competitor captured alone, compared in its bands.',
@@ -454,25 +520,40 @@ export function auditTimeline(timeline: Timeline, options: AuditOptions = {}): A
 
   const leads: AuditReport['leads'] = [];
   const leadFindings: AuditFinding[] = [];
-  for (const track of timeline.tracks.filter((t) => t.role === 'lead' && t.notes.length)) {
-    const seen = new Set<string>();
-    track.clips.forEach((clip, index) => {
-      const notes = (clip.notes ?? []).filter((n) => !n.mute);
-      const key = notes.map(noteKey).sort().join(',');
-      if (!notes.length || seen.has(key)) return;
-      seen.add(key);
-      const checks = checkLeadNumbers(notes, timeline.beatsPerBar);
-      const range = `bar ${barOf(timeline, clip.start)}`;
-      leads.push({ track: track.name, bars: range, checks });
-      const failed = checks.filter((c) => !c.pass);
-      if (failed.length) {
-        leadFindings.push({ severity: 'warn', message: `${track.name} (clip at ${range}, index ${index}): ${failed.map((c) => `${c.check} ${c.value} (pass: ${c.rule})`).join('; ')}.` });
-      }
-    });
+  const leadTracks = timeline.tracks.filter((t) => t.role === 'lead' && t.notes.length);
+  for (const track of leadTracks) {
+    // CAMELPHAT.md measures leads apart from plucks and synths; its lead table is not for an arpeggio.
+    if (/\barps?\b/i.test(track.name)) {
+      leadFindings.push({ severity: 'info', message: `${track.name} is an arpeggio: CAMELPHAT.md 6's lead numbers do not apply to it.` });
+      continue;
+    }
+    const doubled = leadTracks.find((other) => other !== track && doublesTrack(track, other));
+    if (doubled) {
+      leadFindings.push({ severity: 'info', message: `${track.name} doubles ${doubled.name} (same rhythm, unison or octaves); measured as ${doubled.name}.` });
+      continue;
+    }
+    const main = mainLoop(track);
+    if (!main) continue;
+    const checks = checkLeadNumbers(main.notes, timeline.beatsPerBar);
+    const where = `the loop placed for ${plural(main.bars, 'bar')}, first at bar ${main.firstBar}`;
+    leads.push({ track: track.name, bars: where, checks });
+    const failed = checks.filter((c) => !c.pass);
+    // AGENTS.md *Leads*: low - unless the pad lives there. A lead above a pad that holds the pack's register is the exception, not a failure.
+    const register = failed.find((c) => c.check === 'Register');
+    const padThere = register ? sustainedInRegister(timeline, track) : null;
+    const counted = padThere ? failed.filter((c) => c !== register) : failed;
+    if (counted.length) {
+      leadFindings.push({ severity: 'warn', message: `${track.name} (${where}): ${counted.map((c) => `${c.check} ${c.value} (pass: ${c.rule})`).join('; ')}.` });
+    }
+    if (padThere) {
+      leadFindings.push({ severity: 'info', message: `${track.name} sits above the pack's register (${register!.value}) while ${padThere} holds MIDI 53-67 - the exception AGENTS.md *Leads* makes ("low, unless the pad lives there").` });
+    }
+    const others = new Set(track.clips.filter((c) => c.is_midi_clip && c.notes?.length).map((c) => clipKey(c))).size - 1;
+    if (others > 0) leadFindings.push({ severity: 'info', message: `${track.name}: ${plural(others, 'other clip')} (teases, variations) not measured as the loop.` });
   }
   add({
-    step: 6, name: 'Lead numbers', guides: 'CAMELPHAT.md 6', findings: leadFindings, measured: leads.length > 0,
-    summary: leads.length ? `${plural(leads.length, 'distinct lead clip')} measured` : 'no lead-role track',
+    step: 6, name: 'Lead numbers', guides: 'CAMELPHAT.md 6; AGENTS.md *Leads*', findings: leadFindings, measured: leads.length > 0,
+    summary: leads.length ? `${plural(leads.length, 'lead loop')} measured` : 'no lead-role track',
     manual: ['Expression: does velocity reach the sound, does the filter move within the note and across the phrase? Verify velocity on an unducked probe track.'],
   });
 
@@ -496,7 +577,7 @@ export function auditTimeline(timeline: Timeline, options: AuditOptions = {}): A
   const emotion = checkEmotion(timeline, { peak: options.peak, introBars: options.djBars, outroBars: options.djBars });
   add({
     step: 9, name: 'Emotion', guides: 'EMOTION.md 53, 55, 56; NEW-TRACK-DETAILED.md 22', findings: emotion.findings,
-    summary: `peak taken as bars ${emotion.peak.from}-${emotion.peak.to}${options.peak ? '' : ' (most layers; pass the real one)'}`,
+    summary: `peak at bars ${emotion.peak.from}-${emotion.peak.to} (${emotion.peak.source === 'most layers' ? 'guessed from the most layers; pass the real one' : emotion.peak.source === 'clip names' ? 'from clips named Peak' : 'given'})`,
     manual: ['One surprise per section (EMOTION 54) and the emotional sentence and arc (3, 4) are judgement.'],
   });
 
@@ -565,13 +646,16 @@ export function formatAuditReport(report: AuditReport, timeline: Timeline, optio
     for (const m of s.manual) lines.push(`- [manual] ${m}`);
     if (s.step === 4 && report.groove.length) {
       lines.push('', '| Part | Role | Displaced bars | Dotted gaps | On the beat | Gate |', '|---|---|---|---|---|---|');
-      for (const g of report.groove) lines.push(`| ${g.track} | ${g.role} | ${pct(g.syncopatedShare)} | ${pct(g.dottedShare)} | ${pct(g.onBeatShare)} | ${g.gate ?? '-'} |`);
+      for (const g of report.groove) {
+        const role = g.follows ? `${g.role} (follows ${g.follows})` : g.role;
+        lines.push(`| ${g.track} | ${role} | ${pct(g.syncopatedShare)} | ${pct(g.dottedShare)} | ${pct(g.onBeatShare)} | ${g.gate ?? '-'} |`);
+      }
     }
     if (s.step === 5 && report.hook) {
       const h = report.hook;
       lines.push('', '```text', `HOOK: ${h.track}`, `FIRST HINT: bar ${h.firstHint ?? '-'}`, `FIRST FULL APPEARANCE: bar ${h.firstFull ?? '-'}`,
         `REMOVED AT: ${h.removedAt ? `bar ${h.removedAt}` : 'never'}`, `RETURNS AT: ${h.returnsAt ? `bar ${h.returnsAt}` : '-'}`,
-        `PLAYS: ${h.spans.map((x) => `${x.from}-${x.to}`).join(', ')}`, `NUCLEUS: ${h.nucleusBars ?? '> 4'} bars; identity per return ${h.identity === null ? '-' : pct(h.identity)}`, '```');
+        `PLAYS: ${h.spans.map((x) => `${x.from}-${x.to}`).join(', ')}`, `NUCLEUS: ${h.nucleusBars ? plural(h.nucleusBars, 'bar') : h.cellNotes ? `a ${h.cellNotes}-note cell (no repeating bar pattern within 4 bars)` : 'over 4 bars'}; identity per return ${h.identity === null ? '-' : pct(h.identity)}`, '```');
     }
     if (s.step === 6 && report.leads.length) {
       for (const lead of report.leads) {

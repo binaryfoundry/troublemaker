@@ -80,3 +80,31 @@ export function checkInstrumentRange(instrument: string, pitches: number[]): Ran
   }
   return findings;
 }
+
+/** Instrument names as tracks spell them, most specific first. */
+const INSTRUMENT_NAMES: Array<[RegExp, string]> = [
+  [/\bpiccolo\b/i, 'piccolo'],
+  [/\b(english horn|cor anglais)\b/i, 'english_horn'],
+  [/\bbass clarinet\b/i, 'bass_clarinet'],
+  [/\bcontrabassoon\b/i, 'contrabassoon'],
+  [/\bbass trombone\b/i, 'bass_trombone'],
+  [/\b(double ?bass(es)?|contrabass(es)?|string bass)\b/i, 'double_bass'],
+  [/\b(violins?|vln?s?)\b/i, 'violin'],
+  [/\b(violas?|vla)\b/i, 'viola'],
+  [/\b(cellos?|celli|vc)\b/i, 'cello'],
+  [/\bflutes?\b/i, 'flute'],
+  [/\boboes?\b/i, 'oboe'],
+  [/\bclarinets?\b/i, 'clarinet'],
+  [/\bbassoons?\b/i, 'bassoon'],
+  [/\b(french )?horns?\b/i, 'horn'],
+  [/\btrumpets?\b/i, 'trumpet'],
+  [/\btrombones?\b/i, 'trombone'],
+  [/\btubas?\b/i, 'tuba'],
+];
+
+/** The orchestral instrument a track name names, or null. */
+export function instrumentFor(name: string, explicit: Record<string, string> = {}): string | null {
+  if (explicit[name]) return explicit[name]!;
+  for (const [pattern, instrument] of INSTRUMENT_NAMES) if (pattern.test(name)) return instrument;
+  return null;
+}

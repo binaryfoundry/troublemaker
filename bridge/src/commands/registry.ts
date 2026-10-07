@@ -139,6 +139,11 @@ const SUMMARIES: Record<CommandName, { summary: string; mutates?: boolean; bridg
     mutates: true,
   },
   'live.get_arrangement_clips': { summary: "A track's Arrangement clips with start and end beats." },
+  'live.get_arrangement_notes': {
+    summary:
+      "Every Arrangement clip on a track in one read: markers, and a MIDI clip's notes or an audio clip's file, " +
+      'warping, transposition and warp markers.',
+  },
   'live.clear_arrangement': { summary: "Delete every Arrangement clip on a track. Destructive.", mutates: true },
   'live.create_return_track': { summary: 'Create a return track (where Live supports it).', mutates: true },
   'live.set_song_time': { summary: 'Move the song position, in beats.', mutates: true },
