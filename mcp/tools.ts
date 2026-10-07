@@ -18,6 +18,7 @@ import { toPayload } from '../bridge/src/errors.js';
 import { COMMANDS } from '../bridge/src/commands/registry.js';
 import { applyEffect, findEffect, loadCodex } from '../bridge/src/fx.js';
 import {
+  auditTrack,
   buildArrangement,
   resolveReferenceFiles,
   transformClip,
@@ -1196,6 +1197,40 @@ export function createMcpServer(client: McpClient): McpServer {
           roles: built.roles,
           placed: built.placed,
           dry_run: built.dryRun,
+        });
+      }),
+  );
+
+  // -------------------------------------------------------------------------
+  // Track audit (AGENTS.md *Auditing a track*)
+  // -------------------------------------------------------------------------
+
+  server.registerTool(
+    'audit',
+    {
+      title: 'Audit the track',
+      description:
+        'Run every measurable step of the track audit on the open Set, read-only: arrangement hygiene, the DJ ' +
+        'intro and outro, rubs, chord checks and orchestral ranges, groove layers (GROOVE.md), the hook map ' +
+        '(HOOKS.md), lead numbers (CAMELPHAT.md), the low end as the notes show it, and the emotional peak ' +
+        '(EMOTION.md). Returns a report for TRACK.md; steps that need a capture or an ear are listed as manual. ' +
+        'Name the primary hook: with several lead parts the hook step will not guess.',
+      inputSchema: {
+        hook: z.string().optional().describe('the primary hook\'s track name'),
+        peak: z.object({ from: z.number().int().min(1), to: z.number().int().min(1) }).optional()
+          .describe('the emotional peak in bars; default the 16 bars with the most layers'),
+        title: z.string().optional(),
+        roles: z.record(z.string()).optional().describe('track name -> role (kick, bass, lead, chords...) where the name does not say'),
+        unpitched: z.array(z.string()).optional().describe('track names to treat as unpitched (noise FX, drum loops)'),
+        instruments: z.record(z.string()).optional().describe('track name -> orchestral instrument (violin, cello, horn...) for range checks'),
+      },
+    },
+    (args) =>
+      guarded(async () => {
+        const { report, markdown, skipped } = await auditTrack(client, args);
+        return text(markdown, {
+          steps: report.steps.map((s) => ({ step: s.step, name: s.name, status: s.status })),
+          skipped,
         });
       }),
   );

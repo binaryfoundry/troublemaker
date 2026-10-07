@@ -369,6 +369,29 @@ checks a part against the instrument's practical sounding range. The guide's ran
 are scientific pitch (violin G3 = MIDI 55), so findings name each note in both Live's
 and scientific octave names.
 
+## Auditing a track
+
+`audit` (CLI and MCP) runs every measurable step of the audit in AGENTS.md on the
+open Set, read-only, from the Arrangement's notes:
+
+```bash
+npm run cli -- audit --hook Lead --peak 97-112 --out audit.md
+```
+
+It checks arrangement hygiene (off-grid and stray clips, Arrangement copies that
+differ from their Session clip), the DJ intro and outro (no pitched notes in the
+first or last 16 bars, a kick on every beat in the first and last 32, changes on
+8- and 16-bar lines, outro order), rubs between parts, chord voicings
+(`checkChords`) and orchestral ranges, the groove hierarchy (`agent/src/groove.ts`:
+which parts are displaced against the beat; GROOVE.md wants one), the hook map
+(`agent/src/hooks.ts`: first appearance, removal, return, nucleus length,
+variation, register against the pads, parts that quote it), CAMELPHAT.md's lead
+numbers (`agent/src/camelphat.ts`), the low end as the notes show it, and the
+emotional peak (`agent/src/emotion.ts`). Steps that need a capture or an ear
+(automation, mix, the measured low end, listening tests) are listed as manual,
+never passed. The report is Markdown for the track's TRACK.md; the exit code is
+0 PASS, 1 REVIEW, 2 FAIL.
+
 ## Production procedure
 
 `NEW-TRACK-DETAILED.md` (end-to-end track construction) and `EDM-PRODUCTION.md`
@@ -454,7 +477,7 @@ Live's shared undo stack.
 ## Testing
 
 ```bash
-npm run test:all     # 501 TypeScript + 133 Python tests, no Ableton required
+npm run test:all     # 534 TypeScript + 133 Python tests, no Ableton required
 npm test             # TypeScript only
 npm run test:python  # Live-side handlers only
 npm run typecheck
@@ -487,8 +510,11 @@ it restores the tempo it probes with.
 ## Limits
 
 See [docs/capabilities.md](docs/capabilities.md) for the full table. The main
-ones: Session view only (no Arrangement editing), MIDI only (no audio clip
-editing or warping), no device loading, and Live Intro caps a Set at 16 tracks.
+ones: Arrangement clips can be placed from the Session and their notes read and
+edited in place, but not moved, resized or given envelopes through the API; MIDI
+only (no audio clip editing or warping); plugins load through the browser, not by
+name (native devices insert by name on Live 12.3+); no export, so `master.capture`
+records the Master in real time instead; and Live Intro caps a Set at 16 tracks.
 
 Live polls the Remote Script roughly every 100 ms, so commands return in
 ~50 ms on average. That suits interactive editing; it is not sample-accurate

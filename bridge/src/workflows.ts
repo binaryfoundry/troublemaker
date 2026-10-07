@@ -24,6 +24,8 @@ import {
   type RoleSource,
 } from '../../agent/src/arrangement.js';
 import { checkStylePlan } from '../../agent/src/artists.js';
+import { auditTimeline, formatAuditReport, type AuditOptions, type AuditReport } from '../../agent/src/audit.js';
+import { buildTimeline, type ArrangementClipData, type Timeline, type TimelineOptions, type TrackData } from '../../agent/src/timeline.js';
 import { inferTrackRole, writePattern } from '../../agent/src/composition.js';
 import {
   checkDrumPattern,
@@ -542,3 +544,102 @@ export async function shortlistLocalSamples(
     }),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Track audit (AGENTS.md *Auditing a track*)
+// ---------------------------------------------------------------------------
+
+interface LiveTrackSummary {
+  track_id: number;
+  name: string;
+  type: string;
+  devices?: Array<{ class_name?: string | null }>;
+  clips?: Array<{ name: string; slot: number; is_midi_clip: boolean }>;
+}
+
+/**
+ * Read every track's Arrangement clips and their notes, and the Session clips
+ * that share a name with them, into a Timeline. Read-only. A track whose
+ * Arrangement cannot be read is skipped and named, not fatal.
+ */
+export async function gatherTimeline(
+  client: LiveClient,
+  options: TimelineOptions = {},
+): Promise<{ timeline: Timeline; tempo: number | null; skipped: string[] }> {
+  const { tracks } = (await client.post('live.get_tracks', { include_devices: true, include_clips: true })) as {
+    tracks: LiveTrackSummary[];
+  };
+  const signature = (await client.post('live.get_time_signature')) as { numerator: number; denominator: number };
+  const tempo = ((await client.post('live.get_tempo')) as { bpm?: number }).bpm ?? null;
+
+  const data: TrackData[] = [];
+  const skipped: string[] = [];
+  let firstError: unknown = null;
+  for (const track of tracks) {
+    let clips: ArrangementClipData[];
+    try {
+      const result = (await client.post('live.get_arrangement_clips', { track_id: track.track_id })) as {
+        clips: Array<Omit<ArrangementClipData, 'arrangement_index'>>;
+      };
+      clips = result.clips.map((c, i) => ({ ...c, arrangement_index: i }));
+    } catch (error) {
+      firstError ??= error;
+      skipped.push(`${track.name} (${error instanceof Error ? error.message : String(error)})`);
+      continue;
+    }
+    for (const clip of clips) {
+      if (!clip.is_midi_clip) continue;
+      const read = (await client.post('live.get_notes', { track_id: track.track_id, arrangement_index: clip.arrangement_index })) as {
+        notes: Note[];
+        start_marker?: number;
+        end_marker?: number;
+        loop_start?: number;
+        loop_end?: number;
+        looping?: boolean;
+      };
+      Object.assign(clip, {
+        notes: read.notes,
+        start_marker: read.start_marker,
+        end_marker: read.end_marker,
+        loop_start: read.loop_start,
+        loop_end: read.loop_end,
+        looping: read.looping,
+      });
+    }
+    const names = new Set(clips.map((c) => c.name));
+    const session: TrackData['session'] = [];
+    for (const s of track.clips ?? []) {
+      if (!s.is_midi_clip || !names.has(s.name)) continue;
+      const read = (await client.post('live.get_notes', { track_id: track.track_id, clip_slot: s.slot })) as { notes: Note[] };
+      session.push({ name: s.name, slot: s.slot, notes: read.notes });
+    }
+    data.push({
+      track_id: track.track_id,
+      name: track.name,
+      devices: (track.devices ?? []).map((d) => d.class_name ?? '').filter(Boolean),
+      clips,
+      session,
+    });
+  }
+  if (!data.length && firstError) throw firstError;
+  const beatsPerBar = (signature.numerator * 4) / signature.denominator;
+  return { timeline: buildTimeline(data, { ...options, beatsPerBar }), tempo, skipped };
+}
+
+export interface AuditRequest extends AuditOptions, TimelineOptions {}
+
+/** Run every measurable step of the track audit on the open Set. Read-only. */
+export async function auditTrack(
+  client: LiveClient,
+  request: AuditRequest = {},
+): Promise<{ report: AuditReport; markdown: string; skipped: string[] }> {
+  const { timeline, tempo, skipped } = await gatherTimeline(client, { roles: request.roles, unpitched: request.unpitched });
+  if (!timeline.bars) {
+    throw new BridgeError('EMPTY_ARRANGEMENT', 'The Arrangement has no clips to audit. Build or place the Arrangement first.');
+  }
+  const report = auditTimeline(timeline, { ...request, tempo: tempo ?? undefined });
+  let markdown = formatAuditReport(report, timeline);
+  if (skipped.length) markdown += `\nTracks not read: ${skipped.join('; ')}.\n`;
+  return { report, markdown, skipped };
+}
+

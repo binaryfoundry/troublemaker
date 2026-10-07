@@ -9,7 +9,7 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { COMMANDS } from './commands/registry.js';
+import { COMMANDS, formatCommandTable } from './commands/registry.js';
 import { postJson } from './http-post.js';
 import { runQc } from '../../qc/src/run.js';
 import { compareFiles, runAb } from '../../qc/src/ab.js';
@@ -20,7 +20,7 @@ import { formatPlan, planArrangement, styleNames } from '../../agent/src/arrange
 import { checkStylePlan } from '../../agent/src/artists.js';
 import { checkDrumPattern, drumGenres, drumGrids, drumPattern, formatGrid, type DrumOptions, type Energy, type Variant } from '../../agent/src/drums.js';
 import { genreSummary, loadReferenceSets, scanLibrary } from '../../qc/src/library.js';
-import { buildArrangement, resolveReferenceFiles, sampleLibraryConfig, shortlistLocalSamples, writeDrums, type ResolvedReferences } from './workflows.js';
+import { auditTrack, buildArrangement, resolveReferenceFiles, sampleLibraryConfig, shortlistLocalSamples, writeDrums, type ResolvedReferences } from './workflows.js';
 import { scanSamples } from '../../qc/src/samples.js';
 import { DEFAULT_ARTIST, tagFile } from '../../qc/src/tag.js';
 import { soundBrief } from '../../agent/src/sound-selection.js';
@@ -92,7 +92,7 @@ Usage:
   ableton-agent devices <track_id>          Devices on a track
   ableton-agent params <track_id> <dev_id>  Parameters of a device
   ableton-agent play | stop                 Transport
-  ableton-agent commands                    The full command catalogue
+  ableton-agent commands [--markdown]       The full command catalogue (--markdown: the table for docs/capabilities.md)
   ableton-agent raw <command> [json]        Any command, with JSON arguments
   ableton-agent selftest                    Round-trip check against Live
 
@@ -143,6 +143,15 @@ Arrangement (agent/knowledge/styles.json):
   ableton-agent arrangement build <style> [--map kick=12,bass=15,...] [--replace] [--dry-run]
       Lay each track's slot-0 loop across the sections its role plays in (Live 11+).
       Roles come from --map, or from track names. --replace clears existing Arrangement clips.
+
+Track audit (AGENTS.md *Auditing a track*; read-only, needs the bridge):
+  ableton-agent audit [--hook <track>] [--peak <from>-<to>] [--title <name>]
+      [--role <track>=<role>]... [--unpitched <track>]... [--instrument <track>=<instrument>]...
+      [--out <file.md>] [--json <file.json>]
+      Every measurable audit step from the Arrangement's notes: hygiene, DJ intro/outro, rubs,
+      harmony and orchestral ranges, groove layers, the hook map, lead numbers, low end and
+      emotion; the capture and listening steps are listed as manual. Markdown for TRACK.md.
+  Exit code: 0 PASS, 1 REVIEW, 2 FAIL.
 
 Bassline analysis:
   ableton-agent bass <file> [--bpm n]               Rhythm, pitches, kick ducking and balance of a drop
@@ -200,7 +209,9 @@ async function main(argv: string[]): Promise<number> {
       return 0;
 
     case 'commands':
-      print(COMMANDS);
+      // --markdown: the table docs/capabilities.md carries between its command-list markers.
+      if (rest.includes('--markdown')) process.stdout.write(`${formatCommandTable()}\n`);
+      else print(COMMANDS);
       return 0;
 
     case 'state': {
@@ -349,6 +360,9 @@ async function main(argv: string[]): Promise<number> {
 
     case 'samples':
       return samples(rest);
+
+    case 'audit':
+      return audit(rest);
 
     case 'bass': {
       const options = [...rest];
@@ -826,6 +840,49 @@ async function arrangement(argv: string[]): Promise<number> {
     built.dryRun ? '[dry run] nothing placed.\n' : `Placed ${built.placed} clips on the Arrangement.\n`,
   );
   return 0;
+}
+
+function takePairs(args: string[], name: string): Record<string, string> {
+  const pairs: Record<string, string> = {};
+  for (const text of takeOption(args, name)) {
+    const at = text.lastIndexOf('=');
+    if (at <= 0) throw new Error(`${name} takes <track>=<value> (got '${text}').`);
+    pairs[text.slice(0, at).trim()] = text.slice(at + 1).trim();
+  }
+  return pairs;
+}
+
+async function audit(argv: string[]): Promise<number> {
+  const args = [...argv];
+  const [hook] = takeOption(args, '--hook');
+  const [peakText] = takeOption(args, '--peak');
+  const [title] = takeOption(args, '--title');
+  const [out] = takeOption(args, '--out');
+  const [json] = takeOption(args, '--json');
+  const roles = takePairs(args, '--role');
+  const instruments = takePairs(args, '--instrument');
+  const unpitched = takeOption(args, '--unpitched');
+  if (args.length) throw new Error(`Unknown audit arguments: ${args.join(' ')}`);
+
+  let peak: { from: number; to: number } | undefined;
+  if (peakText) {
+    const [from, to] = peakText.split('-').map((x) => parseInteger('--peak', x));
+    if (!from || !to || to < from) throw new Error("--peak takes bars as '<from>-<to>', e.g. 65-80.");
+    peak = { from, to };
+  }
+  process.stderr.write('Reading the Arrangement...\n');
+  const { report, markdown } = await auditTrack({ post }, { hook, peak, title, roles, instruments, unpitched });
+  process.stdout.write(markdown);
+  if (out) {
+    writeFileSync(out, markdown);
+    process.stderr.write(`Wrote ${out}\n`);
+  }
+  if (json) {
+    writeFileSync(json, `${JSON.stringify(report, null, 2)}\n`);
+    process.stderr.write(`Wrote ${json}\n`);
+  }
+  const statuses = report.steps.map((step) => step.status);
+  return statuses.includes('FAIL') ? 2 : statuses.includes('REVIEW') ? 1 : 0;
 }
 
 async function captureMaster(

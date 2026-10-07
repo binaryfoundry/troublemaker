@@ -265,3 +265,16 @@ export const BRIDGE_SIDE_COMMANDS = new Set<string>(
 export const MUTATING_COMMANDS = new Set<string>(
   COMMANDS.filter((c) => c.mutates).map((c) => c.name),
 );
+
+/**
+ * The catalogue as a Markdown table, for docs/capabilities.md's command list.
+ * A test compares the two, so the document cannot drift from the registry.
+ */
+export function formatCommandTable(commands: CommandInfo[] = COMMANDS): string {
+  const cell = (text: string) => text.replace(/\|/g, '\\|');
+  return [
+    '| Command | What it does | Changes the Set | Bridge-side |',
+    '| --- | --- | --- | --- |',
+    ...commands.map((c) => `| \`${c.name}\` | ${cell(c.summary)} | ${c.mutates ? 'yes' : ''} | ${c.bridgeSide ? 'yes' : ''} |`),
+  ].join('\n');
+}

@@ -75,7 +75,7 @@ for per-command logging.
 
 ## Adding a command
 
-It must be added in four places, and the test suite enforces the last one:
+It must be added in five places, and the test suite enforces the last two:
 
 1. **Handler** in `remote-script/TroubleMaker/handlers/<area>.py`, registered
    in that module's `COMMANDS` dict.
@@ -85,6 +85,10 @@ It must be added in four places, and the test suite enforces the last one:
    the `mutates` / `bridgeSide` flags.
 4. **Tests** in `bridge/tests/`. `validation.test.ts` fails if a command has
    no catalogue entry.
+5. **The command list** in `docs/capabilities.md`: regenerate it with
+   `npm run cli -- commands --markdown` and paste it between the markers.
+   `validation.test.ts` fails until it matches the registry, and fails if an
+   area under *Not supported* is covered by a registered command.
 
 Bridge-side commands (composites, snapshots) skip step 1 and are dispatched in
 `Bridge.executeBridgeSide`.
@@ -100,7 +104,7 @@ more than one client.
 ## Testing
 
 ```bash
-npm test                      # 501 tests, no Ableton needed
+npm test                      # 534 tests, no Ableton needed
 npm run typecheck
 npm run cli -- selftest       # round trip, needs Live running
 ```
@@ -541,6 +545,14 @@ or by reading the code is not done. Report failures first, score without
 inflation, and record the date, the result and the guides used in the track's
 TRACK.md.
 
+**Start with `audit`** (`npm run cli -- audit --hook <track> [--peak a-b]`, or the
+MCP `audit` tool). It measures every step below that the Arrangement's notes can
+answer - 1-7 and 9 in part - and lists the rest as manual, never as passed. Its
+report is the starting point, not the audit: the manual items, the captures and
+the listening tests still have to be done, and its heuristics (which part is the
+groove layer, where the peak is) are labelled as such. Name the hook and the peak
+rather than letting it guess; with several lead parts it will not guess the hook.
+
 1. **Arrangement hygiene.** `live.get_arrangement_clips` on every track: no clip
    that starts off the bar grid, no stray "ref" clips, and Arrangement copies
    matching their Session clips (compare with `live.get_notes` and
@@ -550,9 +562,11 @@ TRACK.md.
    bars, changes on 8/16-bar lines, the sub in only after the intro's build,
    melodic layers out first, the last 8-16 bars drums only. Use `checkStylePlan`
    for what it encodes, and check the rest by hand.
-3. **Rubs.** Every pitched part against every other, in arrangement time: no
-   semitone or minor-ninth overlap longer than a 32nd unless it is a written,
-   resolving appoggiatura.
+3. **Rubs, harmony and ranges.** Every pitched part against every other, in
+   arrangement time: no semitone or minor-ninth overlap longer than a 32nd unless
+   it is a written, resolving appoggiatura. Chord parts through `checkChords`
+   (CHORDS 8, 68, 69, 76); every orchestral part inside its range (ORCHESTRAL 21,
+   scientific pitch).
 4. **Groove** (GROOVE §26). List every syncopated part, LFO rates included:
    exactly one groove layer.
 5. **Hook** (HOOKS §42, §31, §41). Name the primary hook in one sentence and
@@ -692,18 +706,18 @@ the code enforces it yet — apply it by reading, and treat that as a gap.
 
 | Guide | What it is for | Encoded in |
 |---|---|---|
-| `EMOTION.md` | Emotional intent first: write the *emotional sentence* (§3), plan the arc (§4), change ≥3 levers per emotion (§53), one surprise per section (§54), **protect the peak** (§55), withholding (§56) | not encoded |
+| `EMOTION.md` | Emotional intent first: write the *emotional sentence* (§3), plan the arc (§4), change ≥3 levers per emotion (§53), one surprise per section (§54), **protect the peak** (§55), withholding (§56) | `emotion.ts` (55 peak resources, 56 withholding, 53 levers at section changes), run by `audit`; the sentence, arc and surprises are not encoded |
 | `COMPOSITION.md` | House / deep house / techno end to end; sets the decision order idea → groove → arrangement → sound → balance → … → loudness | `agent/src/arrangement.ts`, `styles.json` |
 | `NEW-TRACK-DETAILED.md` | The end-to-end operational procedure, house / tech-house: the **agent contract** (§1) — every production action states target, location, edit, starting value, expected effect and a pass/fail test — session init (§2), harmony → voicing → extensions (§3-6), chord rhythm and sound (§7-9), kick, bass and ducking (§10-12), drums, velocity and swing (§13-16), hook (§17), space (§19), the 8-bar loop before arrangement (§20), arrangement and the 8-bar change rule (§21-22), transitions and automation (§23-24), mixing order (§25-32), per-element diagnostics (§34-36), seven validation passes (§39), the execution state machine (§40), checkpoint outputs (§41), the no-hand-waving table (§42), nine failure modes (§43), and the one-pass procedure (§45). A **procedure**: where it contradicts another guide, ask (*When guides conflict, ask*) | `agent/prompts/track-construction.md`, `track-construction.json`, `track-construction.ts` (`checkAction` for the six fields, `translateRequest` for §42, the §39 passes, §43 failure modes, §44 minimum track) |
 | `MELODIC-TECHNO.md` | Genre profile: tempo, motif, chord loop, drum and bass templates, arrangement. Uses **Live octave names** (C1 = 36) | `melodic-techno.json`, `styles.json`, `melody.ts` |
 | `HOUSE.md` | House / tech-house build order: groove -> kick/bass -> hook -> arrangement. Riffs rhythmically distinct from the bass, one primary hook, remove something before a drop, sidechained chord stabs, high-pass non-bass parts, balance in mono, quality gates A-F. Written for Wavetable, which Standard lacks: use AF101 or Drift | not encoded |
-| `HOOKS.md` | The hook as the track's identity: five hook types and how to choose one, the primary-hook rule, introduce-remove-return, 80/20 variation, memory and one-finger tests, rhythmic fingerprint, layering and mixing a hook, failure modes, the arrangement map, the audit, a /40 score | not encoded |
+| `HOOKS.md` | The hook as the track's identity: five hook types and how to choose one, the primary-hook rule, introduce-remove-return, 80/20 variation, memory and one-finger tests, rhythmic fingerprint, layering and mixing a hook, failure modes, the arrangement map, the audit, a /40 score | `hooks.ts` (41 map, 11 removal and return, 18 nucleus, 12 variation, register against the pads, quotes), run by `audit`; type choice, scoring and listening tests are not encoded |
 | `MELODY.md` | Writing leads: rhythm before pitch, target 3rds/7ths not roots, question/answer, phrase arcs, **the tonic is a destination** | `checkMelodyShape` in `agent/src/melody.ts` |
 | `EDM-TIPS.md` | The full expert manual: diagnose before touching anything (§2), reference workflow (§4), production order (§5), melody (§6), harmony (§7), polyrhythm and polymeter (§8), synth layering as eleven named techniques (§9), kick/bass low end (§10), arrangement (§11), transitions (§12), the ten-step decision tree (§20), the symptom → action table (§21), stock-device recipes (§22), agent rules for driving Live (§23), pre-final and master checklists (§25-26). Its numbers are labelled `[SOURCE RULE]`, `[STARTING RANGE]` or `[STOP CONDITION]` — a `[STARTING RANGE]` is never a target | `checkMelody` in `agent/src/melody.ts` |
 | `CHORDS.md` | The full expert manual: the five harmonic layers (§1.2), chord construction and scale-to-chord maps (§4-5), functional logic (§6), the progression procedure (§7), the exact voice-leading cost algorithm (§8), inversions (§9), open and rootless voicings (§10), extensions and suspensions (§11-12), tension and release (§13), bass design (§14), melody harmonisation (§16-17), the "change one chord" procedure (§18), twenty hard rules (§59), the Sol State checklist (§60), humanisation without random damage (§63), four- and eight-bar templates (§64-65), the low-interval-limit heuristic (§68), loop-boundary voice leading (§69), pedal tones (§70), inner-voice lines (§71), and the chord simplification pass (§76) | `chord-progressions.json`, `chords.ts` (§68 graded low-interval limit, §69 `loopBoundary`, §76 doubled pitch classes), `voiceLeadingCost` in `music-theory.ts` (§8.3, which `voiceLead` now scores candidates by) |
 | `BASSLINES.md` | Bassline writing. Uses **scientific octave names** (C4 = 60) | `bass-patterns.json`, `basslines.ts` |
 | `DRUMS.md` | Drum grids, variation, swing, fills, anchors | `drum-patterns.json`, `drums.ts` |
-| `GROOVE.md` | Dotted-eighth (3/16) syncopation: one stable anchor (kick, clap, hats), **one** groove layer moving around it, phrase-reset vs free-running pulse, note length shorter than spacing, accents, omissions. "If everything is syncopated, nothing sounds syncopated" | not encoded |
+| `GROOVE.md` | Dotted-eighth (3/16) syncopation: one stable anchor (kick, clap, hats), **one** groove layer moving around it, phrase-reset vs free-running pulse, note length shorter than spacing, accents, omissions. "If everything is syncopated, nothing sounds syncopated" | `groove.ts` (anchor / groove / ornament by onset pattern; one groove layer; a straight kick), run by `audit`; LFO rates are not encoded |
 | `ORCHESTRAL.md` | The full orchestral composer guide (supplied 2026-10-07, replacing a report about a spec): emotion → idea → harmony → voice leading → orchestration → articulation → dynamics → production (§1), never hand-wave (§3), the active-layer budget (§7), motifs and development (§8-9), low-register spacing (§19), practical ranges (§21), section roles and articulations (§22-36), doubling and register (§37-38), tension, climax and subtraction (§45-47), orchestration passes (§48), MIDI dynamics (§51-57), electronic + orchestra (§66-70), diagnosis order (§99), report and definition of done (§106-107). Its ranges are **scientific pitch** (violin G3 = MIDI 55), unstated in the document. Conflicts to ask about: its §67 allows subtle sidechain where *Basslines* says the orchestra is never ducked. Already settled: the key of a new track is always asked (its §98 says decide). A limit, not a conflict: the bridge has no MIDI CC lanes, so its §51-52 CC1/CC11 go through a mapped parameter | `agent/prompts/orchestral.md`, `orchestral.json`, `orchestral.ts` (`checkInstrumentRange`) |
 
 **Artist and style profiles** — each names an artist through a style template
@@ -712,7 +726,7 @@ the code enforces it yet — apply it by reading, and treat that as a gap.
 |---|---|
 | `JON_HOPKINS.md`, `TINLICKER.md` | `artists.json`, `styles.json`, `artists.ts` |
 | `ERIC.md` (Eric Prydz / Pryda progressive house) | `styles.json`, `bass-patterns.json`, `chords.ts` |
-| `CAMELPHAT.md` - measured from the TPS x CamelPhat pack's 120 MIDI files, not written by an expert: lead kinds, rhythm cells, anchor and bounce, voicings, bass shapes | not encoded |
+| `CAMELPHAT.md` - measured from the TPS x CamelPhat pack's 120 MIDI files, not written by an expert: lead kinds, rhythm cells, anchor and bounce, voicings, bass shapes | `camelphat.ts` (`checkLeadNumbers`, section 6's pass table), run by `audit` |
 
 **Sound, synthesis and effects**
 
@@ -728,7 +742,7 @@ the code enforces it yet — apply it by reading, and treat that as a gap.
 
 | Guide | What it is for | Encoded in |
 |---|---|---|
-| `LOW_END.md` | Kick, bass and low end as one system: a reference with a similar low-end design (sec. 3), mono + 120 Hz low-pass analysis (4), kick first (5-6), bass against it (7), diagnose before processing (8), phase and timing (9), sidechain as a tool not the whole fix (10), small deliberate EQ (11), harmonics for translation (12), envelopes (13), back to full context (14), club verification (17), the decision tree (19), anti-patterns (20), report format (22) | not encoded |
+| `LOW_END.md` | Kick, bass and low end as one system: a reference with a similar low-end design (sec. 3), mono + 120 Hz low-pass analysis (4), kick first (5-6), bass against it (7), diagnose before processing (8), phase and timing (9), sidechain as a tool not the whole fix (10), small deliberate EQ (11), harmonics for translation (12), envelopes (13), back to full context (14), club verification (17), the decision tree (19), anti-patterns (20), report format (22) | the MIDI half only, in `audit` (kick/bass overlap, sub notes below ~35 Hz, other parts below 120 Hz); the measured sec. 19 is not encoded |
 | `MIXING.md` | Mix and master policy: references, true-peak ceiling, QC rules, master-chain roles | `agent/src/mastering/`, `bridge/src/mastering/`, `qc/` |
 | `NEW_TRACK.md` | Despite the filename, titled *PROFESSIONAL_TRACK_FINISH*: the finishing pass. Diagnose in order composition → … → mastering, minimum effective change, a 10-category audit scored /100 **without inflation**, and a required *Professional Finish Report* | not encoded |
 | `EDM-PRODUCTION.md` | The full production manual (supplied 2026-10-07, replacing a summary): the capability contract (§1), no hand-waving and one bottleneck at a time (§2), rhythm (§6), the bassline engine and pattern library (§7), kick (§8), techno rumble (§9), theory (§10), sound design and the two-move test (§11), starting without blank-canvas drift (§12), the rule of three, mutation dimensions and energy ledger (§13), mixing (§14), thirteen diagnostic playbooks (§15), the execution loop (§19), the response format (§20), definition of done by stage (§21), anti-patterns (§23). Its numbers are starting ranges (§2.2). Its §7.2 pattern library (offbeat eighths first) conflicts with the rolling default in *Basslines*: ask which the track wants | `agent/prompts/edm-production.md` |

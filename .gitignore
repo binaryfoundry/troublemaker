@@ -13,3 +13,6 @@ analogfoundry/external/
 
 # Patches converted from licensed preset packs stay on this machine
 analogfoundry/presets/converted/
+
+# Editor settings
+.vscode/

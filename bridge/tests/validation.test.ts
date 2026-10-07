@@ -1,8 +1,26 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { describe, expect, it } from 'vitest';
 
 import { ValidationError } from '../src/errors.js';
 import { commandNames, isKnownCommand, validateArgs } from '../src/validation.js';
-import { COMMANDS } from '../src/commands/registry.js';
+import { COMMANDS, formatCommandTable } from '../src/commands/registry.js';
+
+/**
+ * A registered command whose name holds every significant word of `area`
+ * (compared on five-letter stems, so "creation" meets "create"), or null.
+ */
+function coveringCommand(area: string): string | null {
+  const stop = new Set(['track', 'clip', 'live', 'the', 'and']);
+  const stems = (text: string) => text.toLowerCase().split(/[^a-z]+/).filter((w) => w.length >= 3 && !stop.has(w)).map((w) => w.slice(0, 5));
+  const wanted = stems(area);
+  if (!wanted.length) return null;
+  return commandNames.find((name) => {
+    const have = stems(name.replace(/^[a-z]+\./, ''));
+    return wanted.every((w) => have.includes(w));
+  }) ?? null;
+}
 
 describe('command surface', () => {
   it('describes every command it validates', () => {
@@ -16,6 +34,28 @@ describe('command surface', () => {
   it('rejects unknown commands', () => {
     expect(isKnownCommand('live.get_tempo')).toBe(true);
     expect(isKnownCommand('live.execute_arbitrary_code')).toBe(false);
+  });
+
+  // AGENTS.md rule 14. The capability doc once listed return-track creation,
+  // input routing and device deletion as unsupported after all three existed.
+  it('keeps docs/capabilities.md\'s command list identical to the registry', () => {
+    const doc = readFileSync(fileURLToPath(new URL('../../docs/capabilities.md', import.meta.url)), 'utf8').replace(/\r\n/g, '\n');
+    const listed = /<!-- commands:start -->\n([\s\S]*?)\n<!-- commands:end -->/.exec(doc)?.[1];
+    expect(listed, 'docs/capabilities.md has no command-list markers').toBeDefined();
+    expect(listed, 'regenerate it with: npm run cli -- commands --markdown').toBe(formatCommandTable());
+  });
+
+  it('never lists as unsupported an area a registered command covers', () => {
+    const doc = readFileSync(fileURLToPath(new URL('../../docs/capabilities.md', import.meta.url)), 'utf8').replace(/\r\n/g, '\n');
+    const table = doc.slice(doc.indexOf('## Not supported'), doc.indexOf('## Edition and version constraints'));
+    const areas = table.split('\n').filter((l) => l.startsWith('| ') && !/^\| (Area|-)/.test(l)).map((l) => l.split('|')[1]!.trim());
+    expect(areas.length).toBeGreaterThan(10);
+    for (const area of areas) {
+      expect(coveringCommand(area), `"${area}" is under Not supported, but a command covers it`).toBeNull();
+    }
+    // The rows that drifted before, which this check exists to catch.
+    expect(coveringCommand('Return track creation')).toBe('live.create_return_track');
+    expect(coveringCommand('Device deletion')).toBe('live.delete_device');
   });
 });
 

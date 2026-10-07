@@ -188,6 +188,11 @@ def get_notes(ctx, args):
         "length_beats": float(clip.length),
         "loop_start": float(clip.loop_start),
         "loop_end": float(clip.loop_end),
+        # Where playback starts and whether it loops: needed to map an
+        # Arrangement clip's notes onto the timeline.
+        "start_marker": lom.safe(lambda: float(clip.start_marker), 0.0),
+        "end_marker": lom.safe(lambda: float(clip.end_marker), float(clip.length)),
+        "looping": lom.safe(lambda: bool(clip.looping), False),
         "note_count": len(notes),
         "has_note_ids": _extended(clip),
         "notes": notes,

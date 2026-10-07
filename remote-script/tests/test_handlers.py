@@ -816,6 +816,9 @@ class TestArrangementAndReturns(HandlerTestCase):
         notes = self.call("live.get_notes", track_id=self.bass, arrangement_index=0)
         self.assertEqual(notes["note_count"], 8)
         self.assertEqual(notes["arrangement_index"], 0)
+        # what the audit needs to put the notes on the timeline
+        self.assertEqual((notes["start_marker"], notes["looping"]), (0.0, True))
+        self.assertEqual(notes["end_marker"], notes["length_beats"])
         placed = self.song.tracks[1].arrangement_clips[0]
         self.assertEqual(len(placed._envelopes), 1)
         error = self.fail_call("live.get_automation", track_id=self.bass, arrangement_index=0,

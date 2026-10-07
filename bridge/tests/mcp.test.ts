@@ -3,6 +3,9 @@
  * fake Live holding one MIDI clip.
  */
 
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
@@ -116,7 +119,7 @@ describe('MCP server', () => {
   it('lists the curated tools, prompts and resources', async () => {
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name);
-    for (const expected of ['live_status', 'get_project', 'read_clip', 'transform_clip', 'write_part', 'qc', 'ab_trial', 'apply_effect', 'arrangement', 'bridge_command']) {
+    for (const expected of ['live_status', 'get_project', 'read_clip', 'transform_clip', 'write_part', 'qc', 'ab_trial', 'apply_effect', 'arrangement', 'audit', 'bridge_command']) {
       expect(names).toContain(expected);
     }
     const { prompts } = await client.listPrompts();
@@ -266,5 +269,35 @@ describe('MCP server', () => {
     const result = await client.callTool({ name: 'arrangement', arguments: { action: 'plan', style: 'melodic_techno' } });
     expect(result.isError).toBeFalsy();
     expect((result.content as Array<{ text: string }>)[0]!.text).toMatch(/Final Peak/);
+  });
+
+  it('has the tool and prompt counts docs/capabilities.md states', async () => {
+    const doc = readFileSync(fileURLToPath(new URL('../../docs/capabilities.md', import.meta.url)), 'utf8');
+    const [, tools, prompts] = /\| MCP\s*\| (\d+) tools, (\d+) prompts/.exec(doc) ?? [];
+    expect((await client.listTools()).tools).toHaveLength(Number(tools));
+    expect((await client.listPrompts()).prompts).toHaveLength(Number(prompts));
+  });
+
+  it('audits the Arrangement through the real bridge, read-only', async () => {
+    // A kick loop placed on every bar of a 40-bar Arrangement.
+    live.handlers.set('live.get_tracks', () => ({ tracks: [{ track_id: 1, name: 'Kick', type: 'midi', devices: [], clips: [] }] }));
+    live.handlers.set('live.get_arrangement_clips', () => ({
+      track_id: 1,
+      clips: Array.from({ length: 40 }, (_, i) => ({ name: 'Kick', start: i * 4, end: i * 4 + 4, length_beats: 4, is_midi_clip: true })),
+    }));
+    live.handlers.set('live.get_notes', () => ({
+      notes: [0, 1, 2, 3].map((beat) => ({ note_id: beat + 1, pitch: 36, start: beat, duration: 0.25, velocity: 100, mute: false })),
+      start_marker: 0, end_marker: 4, loop_start: 0, loop_end: 4, looping: true,
+    }));
+    const result = await client.callTool({ name: 'audit', arguments: { title: 'Kick only' } });
+    expect(result.isError).toBeFalsy();
+    const [markdown, summary] = (result.content as Array<{ text: string }>).map((c) => c.text);
+    expect(markdown).toMatch(/## Audit .*: Kick only/);
+    expect(markdown).toMatch(/40 bars at 124 BPM/);
+    const steps = (JSON.parse(summary!) as { steps: Array<{ name: string; status: string }> }).steps;
+    expect(steps.find((x) => x.name === 'Arrangement hygiene')!.status).toBe('PASS');
+    expect(steps.find((x) => x.name === 'Automation')!.status).toBe('MANUAL');
+    const writes = live.received.map((r) => r.command).filter((c) => !c.startsWith('live.get_'));
+    expect(writes).toEqual([]);
   });
 });
