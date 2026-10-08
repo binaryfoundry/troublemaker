@@ -28,8 +28,9 @@ reports a success it did not achieve.
 | Undo        | Live undo/redo, plus bridge-side clip snapshots                    |
 | Batching    | transactions, optionally atomic with rollback                      |
 | Dry run     | validate and report any command without applying it                |
-| MCP         | 29 tools, 18 prompts and the knowledge files over stdio (`mcp/server.ts`) |
+| MCP         | 30 tools, 18 prompts and the knowledge files over stdio (`mcp/server.ts`) |
 | Track audit | read-only: every measurable step of AGENTS.md's audit over the Arrangement's notes (`audit` in the CLI and MCP) |
+| Mix balance | each part captured alone over a section, then the fader moves that bring the mix's band tilt to the references' (`balance` in the CLI and MCP; `--apply` writes and verifies them) |
 | Browser     | search drums, sounds, instruments, samples, packs, User Library and user folders; load kits, presets and samples onto a track; list Drum Rack pads |
 | Faders in dB | set volume, pan and sends by their displayed value (`mixer` target) |
 | Arrangement | lay Session clips onto the Arrangement at a beat; list and clear Arrangement clips; read and edit their notes in place, with the markers that place them on the timeline |

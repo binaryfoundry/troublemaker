@@ -19,6 +19,7 @@ import { COMMANDS } from '../bridge/src/commands/registry.js';
 import { applyEffect, findEffect, loadCodex } from '../bridge/src/fx.js';
 import {
   auditTrack,
+  balanceMix,
   buildArrangement,
   resolveReferenceFiles,
   transformClip,
@@ -1042,6 +1043,48 @@ export function createMcpServer(client: McpClient): McpServer {
           (line) => log.push(line),
         );
         return text(result.report, { kept: result.kept, captures: result.captures, checkpoint_id: result.checkpoint_id });
+      }),
+  );
+
+  server.registerTool(
+    'balance',
+    {
+      title: 'Balance the mix against references',
+      description:
+        'Capture each unmuted part alone over a section (master dynamics bypassed; real time, one capture per track), ' +
+        'then solve the fader moves that bring the mix\'s band tilt to the references\' (least squares on band power, ' +
+        'a cost per dB moved, the kick held, moves -8..+6 dB). apply=true writes the moves - skipping automated faders - ' +
+        'and captures the mix to measure what they did. Parts sum in power, so verify; a part at its limit needs fixing at its source.',
+      inputSchema: {
+        bars: z.number().int().min(1).max(64).describe('Section length; 8 bars of the drop is typical'),
+        start_beat: z.number().min(0).optional().describe('Arrangement beat the section starts on'),
+        scene_id: id.optional(),
+        track_ids: z.array(id).optional().describe('Measure only these tracks (default: every unmuted track)'),
+        anchors: z.array(z.string()).optional().describe('Track names that never move (default: tracks named like a kick)'),
+        cost_per_db: z.number().min(0).max(5).optional().describe('Cost per squared dB moved (default 0.15)'),
+        apply: z.boolean().optional(),
+        ...references,
+      },
+    },
+    (args) =>
+      guarded(async () => {
+        const resolved = await resolveReferenceFiles(client, referenceRequest(args));
+        const report = await balanceMix(client, {
+          references: resolved.files,
+          bars: args.bars,
+          startBeat: args.start_beat,
+          sceneId: args.scene_id,
+          trackIds: args.track_ids,
+          anchors: args.anchors,
+          costPerDb: args.cost_per_db,
+          apply: args.apply,
+        });
+        return text([...resolved.describe, '', report.text].join('\n'), {
+          moves: report.result.moves,
+          applied: report.applied,
+          skipped: report.skipped,
+          verification: report.verification,
+        });
       }),
   );
 

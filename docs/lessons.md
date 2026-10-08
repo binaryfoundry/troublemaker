@@ -332,6 +332,7 @@ Retry both a few times before failing.
   master's dynamics bypassed, capture, and read its bands, peak and crest. Then solve for the fader
   moves that bring the mix's tonal shape to the references' (least squares on band power, a cost per
   dB moved, the kick held as the anchor). One solve took every band from up to 6 dB off to within 2.
+  This is now `balance` (CLI and MCP); replayed on the same captures it predicts 5.6 -> 2.1 dB.
 - **One part can eat the headroom.** The growl peaked at -2.4 dBFS on a -20.5 LUFS body (crest 18
   dB); the master limiter was spending its drive on those spikes. A Limiter on the growl's own track
   took about 5 dB off them.

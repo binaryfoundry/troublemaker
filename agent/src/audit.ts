@@ -584,7 +584,7 @@ export function auditTimeline(timeline: Timeline, options: AuditOptions = {}): A
   add({
     step: 10, name: 'Mix', guides: 'MIXING.md; LOW_END.md 14', findings: [], measured: false,
     summary: 'needs captures and QC',
-    manual: ['Soloed balance against the kick with master dynamics bypassed (probe faders down), then `qc` against the reference. Make room before raising a fader. Decide the low end in full context last.'],
+    manual: ['`balance` over the drop: each part alone with master dynamics bypassed, fader moves solved against the references with the kick held; then `qc` against the reference. Make room before raising a fader. Decide the low end in full context last.'],
   });
   add({
     step: 11, name: 'Finish', guides: 'NEW_TRACK.md', findings: [], measured: false,

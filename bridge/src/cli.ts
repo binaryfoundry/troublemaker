@@ -21,7 +21,7 @@ import { formatPlan, planArrangement, styleNames } from '../../agent/src/arrange
 import { checkStylePlan } from '../../agent/src/artists.js';
 import { checkDrumPattern, drumGenres, drumGrids, drumPattern, formatGrid, type DrumOptions, type Energy, type Variant } from '../../agent/src/drums.js';
 import { genreSummary, loadReferenceSets, scanLibrary } from '../../qc/src/library.js';
-import { auditTrack, buildArrangement, resolveReferenceFiles, sampleLibraryConfig, shortlistLocalSamples, writeDrums, type ResolvedReferences } from './workflows.js';
+import { auditTrack, balanceMix, buildArrangement, resolveReferenceFiles, sampleLibraryConfig, shortlistLocalSamples, writeDrums, type ResolvedReferences } from './workflows.js';
 import { scanSamples } from '../../qc/src/samples.js';
 import { DEFAULT_ARTIST, tagFile } from '../../qc/src/tag.js';
 import { soundBrief } from '../../agent/src/sound-selection.js';
@@ -155,6 +155,13 @@ Track audit (AGENTS.md *Auditing a track*; read-only, needs the bridge):
       emotion; the capture and listening steps are listed as manual. Markdown for TRACK.md.
       Pitched audio clips (warped) are analysed for notes; --no-audio skips that.
   Exit code: 0 PASS, 1 REVIEW, 2 FAIL.
+
+Mix balance against the references (needs the bridge; real time, one capture per track):
+  ableton-agent balance --bars <n> [--start-beat <beat> | --scene <id>] --refs <set> | --ref <file>...
+      [--track <id>]... [--anchor <track name>]... [--cost <0.15>] [--apply] [--json <out.json>]
+      Capture each unmuted part alone over the section (master dynamics bypassed), then solve the
+      fader moves that bring the mix's band tilt to the references' (kick held; moves -8..+6 dB).
+      --apply writes the moves (skipping automated faders) and captures the mix to verify them.
 
 Bassline analysis:
   ableton-agent bass <file> [--bpm n]               Rhythm, pitches, kick ducking and balance of a drop
@@ -378,6 +385,9 @@ async function main(argv: string[]): Promise<number> {
 
     case 'audit':
       return audit(rest);
+
+    case 'balance':
+      return balance(rest);
 
     case 'bass': {
       const options = [...rest];
@@ -899,6 +909,43 @@ async function audit(argv: string[]): Promise<number> {
   }
   const statuses = report.steps.map((step) => step.status);
   return statuses.includes('FAIL') ? 2 : statuses.includes('REVIEW') ? 1 : 0;
+}
+
+async function balance(argv: string[]): Promise<number> {
+  const args = [...argv];
+  const resolved = await resolveReferences(args);
+  if (resolved.describe.length) process.stderr.write(`${resolved.describe.join('\n')}\n`);
+  const [bars] = takeOption(args, '--bars');
+  const [startBeat] = takeOption(args, '--start-beat');
+  const [scene] = takeOption(args, '--scene');
+  const trackIds = takeOption(args, '--track').map((t) => parseInteger('--track', t));
+  const anchors = takeOption(args, '--anchor');
+  const [cost] = takeOption(args, '--cost');
+  const [json] = takeOption(args, '--json');
+  const apply = takeFlag(args, '--apply');
+  if (args.length) throw new Error(`Unknown balance arguments: ${args.join(' ')}`);
+  if (!bars) throw new Error("'balance' needs --bars: the length of the section to measure, e.g. --bars 8 over the drop.");
+
+  const report = await balanceMix(
+    { post },
+    {
+      references: resolved.files,
+      bars: parseInteger('--bars', bars),
+      startBeat: startBeat ? parseNumber('--start-beat', startBeat) : undefined,
+      sceneId: scene ? parseInteger('--scene', scene) : undefined,
+      trackIds: trackIds.length ? trackIds : undefined,
+      anchors: anchors.length ? anchors : undefined,
+      costPerDb: cost ? parseNumber('--cost', cost) : undefined,
+      apply,
+    },
+    { log: (line) => process.stderr.write(`${line}\n`) },
+  );
+  process.stdout.write(`${report.text}\n`);
+  if (json) {
+    writeFileSync(json, `${JSON.stringify(report, null, 2)}\n`);
+    process.stderr.write(`Wrote ${json}\n`);
+  }
+  return 0;
 }
 
 async function captureMaster(

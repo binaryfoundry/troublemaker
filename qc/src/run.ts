@@ -44,7 +44,7 @@ export interface QcResult {
 export async function runQc(job: QcJob): Promise<QcResult> {
   const profile = getProfile(job.profile ?? 'techno');
   const options: AnalyzeOptions = { section: job.section, sectionSeconds: job.sectionSeconds };
-  const cacheDir = job.cacheDir ?? join(process.env.TROUBLEMAKER_DATA_DIR ?? '.troublemaker', 'qc-cache');
+  const cacheDir = job.cacheDir ?? defaultCacheDir();
 
   // The target is never cached: it is the thing being changed.
   const analysis = await analyzeFile(resolve(job.target), options);
@@ -77,6 +77,17 @@ export async function runQc(job: QcJob): Promise<QcResult> {
       reference: reference ?? undefined,
     }),
   };
+}
+
+function defaultCacheDir(): string {
+  return join(process.env.TROUBLEMAKER_DATA_DIR ?? '.troublemaker', 'qc-cache');
+}
+
+/** Analyse references as runQc does: each on its own loudest stretch, through the cache. */
+export async function analyzeReferences(paths: string[], cacheDir = defaultCacheDir()): Promise<Analysis[]> {
+  const analyses: Analysis[] = [];
+  for (const path of paths) analyses.push(await cachedAnalysis(resolve(path), {}, cacheDir));
+  return analyses;
 }
 
 async function cachedAnalysis(path: string, options: AnalyzeOptions, cacheDir: string): Promise<Analysis> {

@@ -417,7 +417,7 @@ to point at it mid-build.)
 | 3 Hook | The hook and lead over the loop (*Leads*, steps 1-6) | `HOOKS.md`, `MELODY.md`, `CAMELPHAT.md`, EDM-TIPS §6, NEW-TRACK-DETAILED §17-20 | The 8-bar loop holds for many repeats (NEW-TRACK-DETAILED §20; NEW_TRACK pass 1); `checkLeadNumbers`; hum-back material for the user (HOOKS §13) |
 | 4 Arrangement | Sections, DJ intro and outro, transitions, emotion across sections | `COMPOSITION.md`, HOOKS §9-12 and §41, EMOTION §53-56, *DJ intro and outro*, EDM-TIPS §11-12, NEW-TRACK-DETAILED §21-24 | `audit` steps 1-5 and 9; the HOOKS §41 map in TRACK.md; §41 "after arrangement"; NEW_TRACK pass 2 |
 | 5 Sound | Sound selection, expression, layering by role, special parts (shimmer, orchestra) | `Ableton_Sound_Selection_Expert.md`, *Synthesis*, EDM-TIPS §9, the per-element guides below | NEW_TRACK pass 3; `audit` step 6 |
-| 6 Mix | Static balance, low end, tone, dynamics, depth and width, automation | `MIXING.md`, `LOW_END.md`, NEW_TRACK passes 4-10, NEW-TRACK-DETAILED §25-38, EDM-TIPS §21, `docs/lessons.md` | `audit` steps 7, 8 and 10; §41 "after mix" |
+| 6 Mix | Static balance, low end, tone, dynamics, depth and width, automation | `MIXING.md`, `LOW_END.md`, NEW_TRACK passes 4-10, NEW-TRACK-DETAILED §25-38, EDM-TIPS §21, `docs/lessons.md` | `audit` steps 7, 8 and 10 (`balance` for 10); §41 "after mix" |
 | 7 Master and finish | Master against the club references, translation, the finishing audits | *Mastering*, `MIXING.md`, `MASTERING.md` (process only), NEW_TRACK passes 11-12, §25 and §31 | QC with no FAIL; HOOKS §42 and /40; NEW_TRACK /100 and the Professional Finish Report |
 
 **In every stage:**
@@ -623,9 +623,14 @@ rather than letting it guess; with several lead parts it will not guess the hook
 9. **Emotion** (EMOTION §53-56): three levers per emotional change, one surprise per
    section, the peak protected (highest note, widest, brightest kept for it), and
    something withheld.
-10. **Mix.** Soloed balance against the kick with master dynamics bypassed (keep
-    probe faders down: a bypassed capture can clip), then QC against the
-    reference. Make room before raising a fader. The low end is decided in
+10. **Mix.** `balance` over the drop (`npm run cli -- balance --bars 8
+    --start-beat <beat> --refs <set>`, or the MCP tool): each part captured alone
+    with master dynamics bypassed, and the fader moves that bring the mix's band
+    tilt to the references' solved with the kick held. A part pinned at a move
+    limit needs fixing at its source, not its fader. Apply the moves you accept
+    (`--apply` writes them, skips automated faders and captures the mix to verify),
+    then QC against the reference. A bypassed capture can clip: a part reported
+    as clipped reads low. Make room before raising a fader. The low end is decided in
     full context last (LOW_END 14): a balance that works below 120 Hz can fail
     once the synths and low mids are back.
 11. **Finish** (NEW_TRACK.md): the 10-category audit /100 and the Professional

@@ -40,6 +40,19 @@ import {
 } from '../../agent/src/drums.js';
 import { rankCandidates, rankSamples, type Candidate, type RankedCandidate, type RankedSample, type SoundBrief } from '../../agent/src/sound-selection.js';
 import { scanSamples } from '../../qc/src/samples.js';
+import { analyzeFile } from '../../qc/src/analyze.js';
+import { analyzeReferences } from '../../qc/src/run.js';
+import type { Analysis } from '../../qc/src/types.js';
+import { buildReferenceProfile } from '../../agent/src/mastering/reference.js';
+import {
+  formatBalance,
+  MIN_MOVE_DB,
+  solveBalance,
+  type BalanceOptions,
+  type BalanceResult,
+  type PartLevels,
+} from '../../agent/src/mastering/balance.js';
+import { CAPTURE_TRACK_NAME } from './mastering/capture.js';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
@@ -725,5 +738,288 @@ export async function auditTrack(
   let markdown = formatAuditReport(report, timeline);
   if (skipped.length) markdown += `\nTracks not read: ${skipped.join('; ')}.\n`;
   return { report, markdown, skipped };
+}
+
+// ---------------------------------------------------------------------------
+// Balance: solve fader moves against the references (docs/lessons.md, Black
+// Glass 2026-10-08). Measure every part alone, solve, apply, verify.
+// ---------------------------------------------------------------------------
+
+/**
+ * Master devices that change level non-linearly, bypassed while parts are
+ * measured so each part is read as it enters the master. EQ stays on: it is
+ * linear, and part of the tone the solve is matching.
+ */
+const MASTER_DYNAMICS = ['GlueCompressor', 'Compressor2', 'Limiter', 'Saturator', 'MultibandDynamics', 'DrumBuss', 'Overdrive', 'Pedal', 'Roar'];
+
+/** A capture peaking this close to full scale clipped, and reads low. */
+const CLIP_DBFS = -0.1;
+
+interface MixerTrack {
+  track_id: number;
+  name: string;
+  type: string;
+  muted?: boolean;
+  soloed?: boolean;
+  is_grouped?: boolean;
+  volume?: { display_value?: string | null; automation_state?: string | null };
+  devices?: Array<{ device_id: number; class_name: string | null; is_active?: boolean }>;
+}
+
+interface TrackList {
+  tracks: MixerTrack[];
+  master_track: MixerTrack;
+}
+
+export type AnalyzeCapture = (path: string) => Promise<Analysis>;
+
+export interface PartsRequest {
+  bars: number;
+  /** Arrangement position to capture from; or sceneId. */
+  startBeat?: number;
+  sceneId?: number;
+  /** Measure only these tracks (default: every unmuted track). */
+  trackIds?: number[];
+}
+
+export interface MeasuredPart extends PartLevels {
+  trackId: number;
+  samplePeakDbfs: number;
+  file: string;
+}
+
+/** A part's levels from a capture of it alone. The capture is the section, so the whole file is read. */
+export function partLevels(track: string, analysis: Analysis): PartLevels {
+  const bands = analysis.whole.bands;
+  const reference = bands.find((b) => Number.isFinite(b.midDb) && Number.isFinite(b.midRelativeDb));
+  return {
+    track,
+    lufs: analysis.loudness.integratedLufs,
+    fullDb: reference ? reference.midDb - reference.midRelativeDb : -Infinity,
+    bandDb: Object.fromEntries(bands.map((b) => [b.name, b.midDb])),
+  };
+}
+
+function captureArgs(request: PartsRequest): Record<string, unknown> {
+  if (request.startBeat !== undefined && request.sceneId !== undefined) {
+    throw new BridgeError('INVALID_ARGS', 'Give start_beat or scene_id, not both.');
+  }
+  return {
+    bars: request.bars,
+    ...(request.startBeat !== undefined ? { start_beat: request.startBeat } : {}),
+    ...(request.sceneId !== undefined ? { scene_id: request.sceneId } : {}),
+  };
+}
+
+/**
+ * Run `work` on the mix as it enters the master: the master's dynamics bypassed
+ * and any solo the user left on cleared. Restores both, even on failure.
+ */
+async function withMixPrepared<T>(client: LiveClient, state: TrackList, work: () => Promise<T>): Promise<T> {
+  const master = state.master_track;
+  const dynamics = (master.devices ?? []).filter((d) => d.class_name && MASTER_DYNAMICS.includes(d.class_name) && d.is_active !== false);
+  const soloed = state.tracks.filter((t) => t.soloed);
+  try {
+    for (const d of dynamics) await client.post('live.set_device_active', { track_id: master.track_id, device_id: d.device_id, enabled: false });
+    for (const t of soloed) await client.post('live.set_track_solo', { track_id: t.track_id, enabled: false });
+    return await work();
+  } finally {
+    for (const t of soloed) await client.post('live.set_track_solo', { track_id: t.track_id, enabled: true }).catch(() => undefined);
+    for (const d of dynamics) {
+      await client.post('live.set_device_active', { track_id: master.track_id, device_id: d.device_id, enabled: true }).catch(() => undefined);
+    }
+  }
+}
+
+/**
+ * Capture each part alone over the section, master dynamics bypassed, and read
+ * its bands. Restores every solo and device it touched, even on failure. Takes
+ * real time: one capture per track.
+ */
+export async function measureParts(
+  client: LiveClient,
+  request: PartsRequest,
+  analyze: AnalyzeCapture = (path) => analyzeFile(path),
+  log: (line: string) => void = () => undefined,
+): Promise<{ parts: MeasuredPart[]; left: Array<{ track: string; reason: string }> }> {
+  const state = (await client.post('live.get_tracks', { include_devices: true })) as TrackList;
+  const tracks = state.tracks;
+  const left: Array<{ track: string; reason: string }> = [];
+  // A group track is followed by its members, and soloing it plays them all.
+  const groupHead = (i: number) => !tracks[i]!.is_grouped && Boolean(tracks[i + 1]?.is_grouped);
+  const candidates = tracks.filter((t, i) => {
+    if (t.name === CAPTURE_TRACK_NAME || /\bprobe\b/i.test(t.name)) return false;
+    if (request.trackIds && !request.trackIds.includes(t.track_id)) return false;
+    if (t.muted) {
+      left.push({ track: t.name, reason: 'muted, so not in the mix' });
+      return false;
+    }
+    if (groupHead(i)) {
+      left.push({ track: t.name, reason: 'group track: its members are measured instead' });
+      return false;
+    }
+    return true;
+  });
+  if (!candidates.length) throw new BridgeError('NO_TRACKS', 'No unmuted track to measure.');
+
+  const capture = captureArgs(request);
+  const parts: MeasuredPart[] = [];
+  let current: number | undefined;
+  await withMixPrepared(client, state, async () => {
+    try {
+      for (const t of candidates) {
+        if (current !== undefined) await client.post('live.set_track_solo', { track_id: current, enabled: false });
+        await client.post('live.set_track_solo', { track_id: t.track_id, enabled: true });
+        current = t.track_id;
+        log(`Capturing '${t.name}' alone (${request.bars} bars, real time)...`);
+        const captured = (await client.post('master.capture', capture)) as { file_path: string };
+        const analysis = await analyze(captured.file_path);
+        parts.push({ ...partLevels(t.name, analysis), trackId: t.track_id, samplePeakDbfs: analysis.loudness.samplePeakDbfs, file: captured.file_path });
+      }
+    } finally {
+      if (current !== undefined) await client.post('live.set_track_solo', { track_id: current, enabled: false }).catch(() => undefined);
+    }
+  });
+  return { parts, left };
+}
+
+/** "-6.0 dB" -> -6; "-inf dB" -> -Infinity; anything else -> null. */
+export function parseFaderDb(display: string | null | undefined): number | null {
+  if (!display) return null;
+  if (/-\s*inf/i.test(display)) return -Infinity;
+  const match = /-?\d+(?:\.\d+)?/.exec(display);
+  return match ? Number(match[0]) : null;
+}
+
+export interface FaderMove {
+  trackId: number;
+  track: string;
+  db: number;
+}
+
+export interface AppliedMove extends FaderMove {
+  fromDb: number;
+  toDb: number;
+  /** What the fader displays after the write. */
+  achievedDb: number | null;
+}
+
+/**
+ * Move faders by dB through their own display (faders are not linear in dB).
+ * An automated fader is skipped: writing it would override its automation,
+ * and Back to Arrangement does not undo that (AGENTS.md, Live facts).
+ */
+export async function applyFaderMoves(
+  client: LiveClient,
+  moves: FaderMove[],
+  minMoveDb = MIN_MOVE_DB,
+): Promise<{ applied: AppliedMove[]; skipped: Array<{ track: string; reason: string }> }> {
+  const state = (await client.post('live.get_tracks', { include_devices: false })) as TrackList;
+  const applied: AppliedMove[] = [];
+  const skipped: Array<{ track: string; reason: string }> = [];
+  for (const move of moves) {
+    if (Math.abs(move.db) < minMoveDb) continue;
+    const track = state.tracks.find((t) => t.track_id === move.trackId);
+    if (!track) {
+      skipped.push({ track: move.track, reason: 'no longer in the Set' });
+      continue;
+    }
+    const automation = track.volume?.automation_state;
+    if (automation === 'playing' || automation === 'overridden') {
+      skipped.push({
+        track: move.track,
+        reason: `its fader is automated, and writing it would override the automation: move a Utility Gain on the track by ${move.db} dB instead`,
+      });
+      continue;
+    }
+    const fromDb = parseFaderDb(track.volume?.display_value);
+    if (fromDb === null || !Number.isFinite(fromDb)) {
+      skipped.push({ track: move.track, reason: `cannot read its fader ('${track.volume?.display_value ?? 'none'}')` });
+      continue;
+    }
+    const toDb = Math.round(Math.min(6, fromDb + move.db) * 10) / 10;
+    const result = (await client.post('live.set_device_parameter_display', { track_id: move.trackId, mixer: 'volume', target: toDb })) as {
+      achieved?: number | null;
+    } | null;
+    applied.push({ ...move, fromDb, toDb, achievedDb: typeof result?.achieved === 'number' ? result.achieved : null });
+  }
+  return { applied, skipped };
+}
+
+export interface BalanceRequest extends PartsRequest, BalanceOptions {
+  /** Reference files: a balance is never solved without them. */
+  references: string[];
+  /** Write the moves, then capture the mix and measure what they did. */
+  apply?: boolean;
+}
+
+export interface BalanceReport {
+  result: BalanceResult;
+  parts: MeasuredPart[];
+  /** Parts whose capture clipped: their levels read low. */
+  clipped: string[];
+  applied: AppliedMove[];
+  skipped: Array<{ track: string; reason: string }>;
+  /** The mix captured after applying (master dynamics bypassed): measured tilt per band. */
+  verification: { file: string; tilt: Record<string, number>; worstDb: number; clipped: boolean } | null;
+  text: string;
+}
+
+/** Measure every part, solve the fader moves against the references, and optionally apply and verify them. */
+export async function balanceMix(
+  client: LiveClient,
+  request: BalanceRequest,
+  deps: { analyze?: AnalyzeCapture; analyzeReferences?: (paths: string[]) => Promise<Analysis[]>; log?: (line: string) => void } = {},
+): Promise<BalanceReport> {
+  if (!request.references.length) {
+    throw new BridgeError('NO_REFERENCES', 'A balance is solved against club references; give a reference set or files.');
+  }
+  const analyze = deps.analyze ?? ((path: string) => analyzeFile(path));
+  const log = deps.log ?? (() => undefined);
+  const referenceTilt = buildReferenceProfile(await (deps.analyzeReferences ?? analyzeReferences)(request.references)).bandTilt;
+
+  const { parts, left } = await measureParts(client, request, analyze, log);
+  const result = solveBalance(parts, referenceTilt, request);
+  result.left.unshift(...left);
+  const clipped = parts.filter((p) => p.samplePeakDbfs >= CLIP_DBFS).map((p) => p.track);
+
+  let applied: AppliedMove[] = [];
+  let skipped: Array<{ track: string; reason: string }> = [];
+  let verification: BalanceReport['verification'] = null;
+  if (request.apply) {
+    const byTrack = new Map(parts.map((p) => [p.track, p.trackId]));
+    const moves = result.moves.filter((m) => !m.anchor).map((m) => ({ trackId: byTrack.get(m.track)!, track: m.track, db: m.db }));
+    ({ applied, skipped } = await applyFaderMoves(client, moves));
+    if (applied.length) {
+      log('Capturing the mix with the moves applied...');
+      const state = (await client.post('live.get_tracks', { include_devices: true })) as TrackList;
+      const captured = (await withMixPrepared(client, state, () =>
+        client.post('master.capture', captureArgs(request)),
+      )) as { file_path: string };
+      const analysis = await analyze(captured.file_path);
+      const tilt = Object.fromEntries(analysis.whole.bands.map((b) => [b.name, Math.round(b.midRelativeDb * 10) / 10]));
+      const gaps = result.bands.map((b) => Math.abs((tilt[b.band] ?? NaN) - b.referenceDb)).filter(Number.isFinite);
+      verification = {
+        file: captured.file_path,
+        tilt,
+        worstDb: Math.round(Math.max(...gaps) * 10) / 10,
+        clipped: analysis.loudness.samplePeakDbfs >= CLIP_DBFS,
+      };
+    }
+  }
+
+  const lines = [formatBalance(result, { measuredAfter: verification?.tilt })];
+  if (clipped.length) lines.push('', `Clipped alone, so their levels read low (lower the master's input trim and re-run): ${clipped.join(', ')}`);
+  if (applied.length) {
+    lines.push('', 'Applied (to undo, set each fader back to its first value):');
+    for (const a of applied) lines.push(`  ${a.track}: ${a.fromDb.toFixed(1)} -> ${(a.achievedDb ?? a.toDb).toFixed(1)} dB`);
+  }
+  for (const s of skipped) lines.push(`Not applied: ${s.track} - ${s.reason}`);
+  if (verification) {
+    lines.push('', `Measured after: worst band ${verification.worstDb.toFixed(1)} dB off the references (${verification.file})`);
+    if (verification.clipped) lines.push("The verification capture clipped: lower the master's input trim and measure again.");
+  }
+  lines.push('', 'Next: listen, then `qc` the master against the same references. A part at its limit needs fixing at its source.');
+  return { result, parts, clipped, applied, skipped, verification, text: lines.join('\n') };
 }
 

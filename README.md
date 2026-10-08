@@ -142,6 +142,7 @@ see the same snapshots. Otherwise it starts its own bridge on port 8765.
 | `find_sounds`, `load_sound` | Search Live's browser (Core Library kits such as the 808, presets, samples, your folders) and load onto a track; kits report their pads |
 | `set_mixer`, `set_device_parameter`, `insert_device`, `transport` | Faders in dB, parameters by displayed value or option, native devices, playback |
 | `master_chain`, `master_set`, `capture_master`, `qc`, `ab_trial` | MIXING.md mastering: chain build and presets, reasoned changes, capture, QC against references, A/B at matched loudness |
+| `balance` | Fader moves solved against the references from each part captured alone; applies and verifies them on request |
 | `references`, `analyze_bass` | Reference sets and bass profiles |
 | `effects`, `apply_effect`, `identify_effect` | The EFFECTS.md codex: look up, build, identify by ear |
 | `arrangement` | Plan from a style template, lay Session loops onto the Arrangement |
