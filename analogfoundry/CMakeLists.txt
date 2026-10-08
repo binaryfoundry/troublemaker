@@ -38,6 +38,8 @@ target_link_libraries(dsp_tests PRIVATE af_dsp)
 
 add_executable(model_tests tests/model_tests.cpp)
 target_link_libraries(model_tests PRIVATE af_dsp)
+# The shipped patches some tests hold to their measured claims.
+target_compile_definitions(model_tests PRIVATE AF_PRESETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/presets")
 
 add_executable(hardening_tests tests/hardening_tests.cpp)
 target_link_libraries(hardening_tests PRIVATE af_dsp)

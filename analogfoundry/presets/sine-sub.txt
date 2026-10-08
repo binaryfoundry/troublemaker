@@ -1,0 +1,39 @@
+# Sine sub - the clean sub under a rolling bass (AGENTS.md Basslines), in place of a
+# Drift sine. The sub oscillator is a square, so the sine is oscillator 2 at unison
+# pitch, with oscillator 1 off. Resonance and both drives at 0 keep the ladder
+# linear and the cutoff sits at 20 kHz, so nothing adds harmonics: with the note's
+# own sine removed, what is left is about -230 dB at C1-D2 (model_tests "sine sub").
+# Play the root in the octave the references ask for (D1 or D2 - measure it).
+# Voices 1 and no glide: an overlap does not retrigger, and the pitch steps.
+# Ducking is the track's job, not the patch's: silent on the kick, back within an 8th.
+# Keep unison, stereo, drift and noise off - each would put the sub out of mono or tune.
+analogfoundry101 1
+saw 0
+pulse 0
+sub 0
+noise 0
+tune 0
+cutoff 20000
+resonance 0
+env_cutoff 0
+lfo_cutoff 0
+track 0
+attack 0.002
+decay 0.3
+sustain 1
+release 0.03
+lfo_pitch 0
+glide 0
+stage_drive 0
+input_drive 0
+level 0.8
+unison 1
+drift 0
+osc2_level 1
+osc2_wave 3
+osc2_oct 0
+osc2_semi 0
+osc2_fine 0
+stereo 0
+voices 1
+filter_mode 0

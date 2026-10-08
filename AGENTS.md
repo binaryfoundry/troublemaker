@@ -224,7 +224,7 @@ Set `voices` to the part's maximum simultaneous notes, and no higher:
 |---|---|
 | Bass, lead, acid line, any single-note part | **AnalogFoundry 101**, `voices 1` |
 | Pads, chords, stabs | **AnalogFoundry 101**, `voices` = the most notes at once (up to 8) |
-| A pure sine sub | a Live device. AF101's sub oscillator is a square; it has no sine, and the sub band is the one most closely matched to the references |
+| A pure sine sub | **AnalogFoundry 101**, `presets/sine-sub.txt`. The sub oscillator is a square, so the sine is oscillator 2 with everything that could colour it off; `model_tests` holds it to a pure sine (about -230 dB of anything else). Older tracks' Drift subs are the same sound and can stay |
 | More than 8 simultaneous notes, or a wavetable/FM/sampled timbre | a Live device, and say why |
 
 Keep single-note parts on one voice even though more are available. Overlapping
@@ -258,7 +258,7 @@ table drives the preset format, the host's automation list and the DSP ranges
 
 **What it has (0.5):** three oscillators (saw, pulse, triangle, sine; octave,
 semitone, fine) through one unison stack of up to 7, spread in stereo by `stereo`;
-a square sub, noise; a ladder low-pass, a 24 dB high-pass or a band-pass
+a square sub (a sine sub is oscillator 2's sine: `presets/sine-sub.txt`), noise; a ladder low-pass, a 24 dB high-pass or a band-pass
 (`filter_mode`); amp, filter and a third envelope (a matrix source); two LFOs (five
 waves, retrigger, and tempo sync from 1/32 to 4 bars, locked to the bar while
 Live plays); velocity, key, mod wheel, aftertouch, pitch bend, per-note random; an
@@ -462,7 +462,8 @@ Cathedral are the references - read their Sets, not just their TRACK.md.
 - **Movement lives in the timbre, not the pitch**: a filter LFO with a 3/16
   period so the accents rotate against the bar (GROOVE.md 7B), and filter moves
   written per section.
-- **Sound: a clean sine sub + a hard growl.** Drift sine holding the root, and
+- **Sound: a clean sine sub + a hard growl.** A sine holding the root (AF101's
+  `sine-sub.txt`; older tracks use a Drift sine, which sounds the same), and
   **choose its octave by measurement against the references**, never by rule.
   Cathedral's references wanted its D up at D2; Threshold's CamelPhat references
   wanted D1 (37 Hz closed a 12 dB gap at 40 Hz to under 1 dB), while notes below
@@ -808,7 +809,7 @@ contradicts a number this project measured, say so and ask.
 **The new guides assume devices this machine lacks.** EDM-PRODUCTION.md names
 Operator, Wavetable, Sampler, Echo, Hybrid Reverb and Roar; EDM-TIPS.md names
 Echo, Hybrid Reverb and Sampler; NEW-TRACK-DETAILED.md names Wavetable. Live 12
-Standard has none of them: use AF101 (or Drift for a pure sine sub), Simpler,
+Standard has none of them: use AF101 (`sine-sub.txt` for a pure sine sub), Simpler,
 Delay, Reverb and Saturator, and say which substitute was used.
 
 - **Octave names differ between documents.** BASSLINES.md is read as

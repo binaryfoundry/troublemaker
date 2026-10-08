@@ -18,8 +18,8 @@ this project measured, say so and ask.
 
 The manual names devices this machine does not have: **Operator, Wavetable,
 Sampler, Echo, Hybrid Reverb, Roar**. Do not reach for them. Use
-AnalogFoundry 101 for synthesised parts (see *Synthesis* in `AGENTS.md`), Drift
-for a pure sine sub, Simpler for samples, Delay for Echo, Reverb for Hybrid
+AnalogFoundry 101 for synthesised parts (see *Synthesis* in `AGENTS.md`) and
+its `sine-sub.txt` patch for a pure sine sub, Simpler for samples, Delay for Echo, Reverb for Hybrid
 Reverb, Saturator or Overdrive for Roar. Say which substitute you used.
 
 ## Capability (§1)

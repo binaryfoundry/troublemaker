@@ -1599,6 +1599,42 @@ void release05Tests() {
   }
 }
 
+// The sine sub: oscillator 2's sine with everything that could colour it off.
+// AGENTS.md once sent pure sine subs to Drift because the sub oscillator is a
+// square; this holds the shipped patch to the claim that replaces that rule.
+void sineSubTests() {
+  std::printf("sine sub (presets/sine-sub.txt)\n");
+  std::FILE* f = std::fopen(AF_PRESETS_DIR "/sine-sub.txt", "rb");
+  check(f != nullptr, "presets/sine-sub.txt is readable", 0.0);
+  if (f == nullptr) return;
+  std::string text;
+  char buf[4096];
+  size_t n;
+  while ((n = std::fread(buf, 1, sizeof buf, f)) > 0) text.append(buf, n);
+  std::fclose(f);
+  const af::Voice101Parameters patch = af::loadPreset(text);
+
+  // Fit the note's own sine by least squares; what is left is every harmonic,
+  // alias, DC offset and noise the patch adds. 2 s is 48-147 periods at C1-D2.
+  for (int note : {24, 26, 33, 38}) {
+    const auto x = renderHeld(patch, note, 96000);
+    const double w = 2.0 * af::kPi * af::Voice101::noteToHz(note) / 48000.0;
+    double ss = 0.0, sc = 0.0, cc = 0.0, xs = 0.0, xc = 0.0;
+    for (size_t i = 0; i < x.size(); ++i) {
+      const double s = std::sin(w * i), c = std::cos(w * i);
+      ss += s * s; sc += s * c; cc += c * c; xs += x[i] * s; xc += x[i] * c;
+    }
+    const double det = ss * cc - sc * sc;
+    const double a = (xs * cc - xc * sc) / det, b = (xc * ss - xs * sc) / det;
+    std::vector<double> residual(x.size());
+    for (size_t i = 0; i < x.size(); ++i) residual[i] = x[i] - a * std::sin(w * i) - b * std::cos(w * i);
+    const double impurity = db(rms(residual) / rms(x));
+    check(impurity < -80.0, "sine sub at MIDI " + std::to_string(note) + " is pure (residual < -80 dB)", impurity);
+    check(rms(x) > 0.1, "sine sub at MIDI " + std::to_string(note) + " sounds", rms(x));
+    std::printf("        MIDI %d: residual %.1f dB, level %.1f dBFS rms\n", note, impurity, db(rms(x)));
+  }
+}
+
 int main() {
   std::printf("AnalogFoundry 101 - model tests (M5, M6, M8, M10, unison, expression, note memory, 0.4, 0.5)\n\n");
   calibrationTests();
@@ -1610,6 +1646,7 @@ int main() {
   noteMemoryTests();
   oscillatorMatrixTests();
   release05Tests();
+  sineSubTests();
   std::printf("\n%d checks, %d failures\n", gChecks, gFailures);
   return gFailures == 0 ? 0 : 1;
 }
