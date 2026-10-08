@@ -26,6 +26,9 @@ loud without falling apart.
 | Automate | Filters, sends, envelopes, density, timbre | Sections differ without constant new material |
 | Mix / master | `agent/prompts/mastering.md` | Its gates pass |
 
+One phase at a time: at each exit, stop and let the user listen before starting
+the next (`AGENTS.md` *Producing a track* has the stages and their guides).
+
 ## Composition
 
 1. Reference set first; tempo from the references, not the genre label

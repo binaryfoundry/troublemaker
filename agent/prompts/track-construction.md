@@ -57,6 +57,11 @@ the arrangement**: if the hook or groove does not work there, fix the earliest
 failed layer instead of moving on. A validation failure sends you back to the
 stage that failed, not forward.
 
+**Work in stages, never in one pass** (`AGENTS.md` *Producing a track*): brief,
+harmony, groove, hook, arrangement, sound, mix, master. Read each stage's guides
+before its first edit, pass its gate, write its §41 checkpoint into `TRACK.md`,
+and stop for the user before starting the next. Do not run §45 as one pass.
+
 ## The 8-bar change rule (§22)
 
 At every 8-bar boundary, ask what change the listener receives: an element

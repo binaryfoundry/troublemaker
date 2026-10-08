@@ -392,26 +392,51 @@ have been wrong every time. Then sweep it on Live with `fx apply`.
   in pitch. Caveat: with the transport running, tracks outside the scene
   may play their Arrangement clips if the Set has an Arrangement.
 
-## Producing a track - apply the expert guides, unprompted
+## Producing a track - in stages, not in one shot
 
-Do not wait to be asked. Before writing any element of a track, read its guide
-in full and apply it; read the always-on guides before the first note and again
-when checking the result. Skimming a guide for one idea is not applying it.
-("First Light" syncopated four layers because GROOVE.md was read late, and the
-user had to point at it mid-build.)
+**Build a track one stage at a time, and stop at the end of each stage for the
+user** (the user, 2026-10-08). NEW_TRACK.md §24: "Run these passes separately
+instead of changing everything at once." A stage reads its own guides in full,
+does its work, passes its gate, writes its checkpoint into TRACK.md, and stops:
+say what changed and what to listen to, then wait for the user's go-ahead before
+starting the next. Never run NEW-TRACK-DETAILED §45's one-pass procedure, and do
+not write a later stage's parts early. A stage too big to hear in one sitting
+splits further (drums, then bass).
 
-**Always, on every track:**
+The building order is NEW-TRACK-DETAILED §40's; the finishing order is NEW_TRACK
+§24's passes. Guides are read when their stage comes, not all before the first
+note - but a stage's guides are read before its first edit, not after. ("First
+Light" syncopated four layers because GROOVE.md was read late, and the user had
+to point at it mid-build.)
 
-| Guide | Apply it |
-|---|---|
-| `EMOTION.md` | first: the emotional sentence (§3) and the arc (§4) before any notes; then ≥3 levers per emotion (§53), one surprise per section (§54), protect the peak (§55), withholding (§56) |
-| `COMPOSITION.md` | the decision order (idea → groove → arrangement → sound → balance → … → loudness) and the arrangement |
-| `EDM-TIPS.md` | diagnose before touching anything and solve at the earliest stage (§2), the production order (§5), melody (§6), layering by role (§9), transitions (§12), the symptom → action table (§21); a `[STARTING RANGE]` is never a target |
-| `GROOVE.md` | every rhythmic part: assign anchor / groove / ornament roles (§15) before writing any of them; exactly one groove layer; run the §26 checklist |
-| `HOOKS.md` | choose the hook type and attention hierarchy (§8) before writing it; one primary hook per section (§9); introduce, remove, return (§11); 80/20 variation (§12); the arrangement map (§41) in TRACK.md; the audit (§42) and the /40 score (§31), without inflation, before reporting a track done |
-| `NEW_TRACK.md` | the finishing pass: diagnose in its order, minimum effective change, the 10-category audit scored /100 without inflation, and the Professional Finish Report |
+| Stage | Work | Read in full | Gate, then stop |
+|---|---|---|---|
+| 0 Brief | Ask for the key (*Starting a new track*); tempo; the club references (`qc --refs`); the emotional sentence (EMOTION §3) and arc (§4); the hook type and attention hierarchy (HOOKS §8); the genre or artist profile | `EMOTION.md` §1-4, `HOOKS.md` §1-8, the profile (*Which guide for which job*), NEW-TRACK-DETAILED §0-2 | The brief in TRACK.md, and the user agrees with it |
+| 1 Harmony | Root motion, triads, inversions, top voice, extensions | `CHORDS.md`, NEW-TRACK-DETAILED §3-9 | Root motion convinces with no effects; `checkChords`; the §41 "after harmony" checkpoint |
+| 2 Groove | Anchor / groove / ornament roles first (GROOVE §15), then kick, bass, drums, velocity, swing, ducking | `GROOVE.md`, `DRUMS.md`, *Basslines*, `BASSLINES.md`, `LOW_END.md` §5-10, NEW-TRACK-DETAILED §10-16 | GROOVE §26: exactly one groove layer; §41 "after groove" |
+| 3 Hook | The hook and lead over the loop (*Leads*, steps 1-6) | `HOOKS.md`, `MELODY.md`, `CAMELPHAT.md`, EDM-TIPS §6, NEW-TRACK-DETAILED §17-20 | The 8-bar loop holds for many repeats (NEW-TRACK-DETAILED §20; NEW_TRACK pass 1); `checkLeadNumbers`; hum-back material for the user (HOOKS §13) |
+| 4 Arrangement | Sections, DJ intro and outro, transitions, emotion across sections | `COMPOSITION.md`, HOOKS §9-12 and §41, EMOTION §53-56, *DJ intro and outro*, EDM-TIPS §11-12, NEW-TRACK-DETAILED §21-24 | `audit` steps 1-5 and 9; the HOOKS §41 map in TRACK.md; §41 "after arrangement"; NEW_TRACK pass 2 |
+| 5 Sound | Sound selection, expression, layering by role, special parts (shimmer, orchestra) | `Ableton_Sound_Selection_Expert.md`, *Synthesis*, EDM-TIPS §9, the per-element guides below | NEW_TRACK pass 3; `audit` step 6 |
+| 6 Mix | Static balance, low end, tone, dynamics, depth and width, automation | `MIXING.md`, `LOW_END.md`, NEW_TRACK passes 4-10, NEW-TRACK-DETAILED §25-38, EDM-TIPS §21, `docs/lessons.md` | `audit` steps 7, 8 and 10; §41 "after mix" |
+| 7 Master and finish | Master against the club references, translation, the finishing audits | *Mastering*, `MIXING.md`, `MASTERING.md` (process only), NEW_TRACK passes 11-12, §25 and §31 | QC with no FAIL; HOOKS §42 and /40; NEW_TRACK /100 and the Professional Finish Report |
 
-**Per element, in addition:**
+**In every stage:**
+
+- **The agent contract** (NEW-TRACK-DETAILED §1): every action states target,
+  location, edit, starting value, expected effect and pass/fail test. "Add some
+  groove" is not an instruction. Its §43 failure modes name what this project
+  keeps doing wrong - adding layers instead of fixing composition, solving
+  arrangement with automation, processing in solo, swinging everything.
+- **Diagnose before touching anything, and solve at the earliest stage**
+  (EDM-TIPS §2). A problem a later stage finds in an earlier one - a weak hook
+  heard in the mix - goes back to that stage (NEW-TRACK-DETAILED §40), with the
+  user told, rather than being patched downstream with processing or automation.
+- **An approved stage stays approved.** Change it only when the user reopens it
+  or a later gate sends the work back there, and say which.
+- A `[STARTING RANGE]` or `[AGENT-DEFAULT]` is never a target. Where guides
+  conflict, ask the user - see *When guides conflict, ask*.
+
+**Per element**, in whichever stage writes or shapes it:
 
 | Element | Guide |
 |---|---|
@@ -425,26 +450,11 @@ user had to point at it mid-build.)
 | Choosing a sound | `Ableton_Sound_Selection_Expert.md` |
 | Mix and master | The club references first (`qc --refs <set>`), then `MIXING.md`, `LOW_END.md` (kick and bass first), `MASTERING.md` (secondary, for process), `docs/lessons.md` |
 
-**The order of work and the standard for an instruction:**
-`NEW-TRACK-DETAILED.md` holds the end-to-end procedure — what to build in
-what order, with a pass/fail test at each step. Read its agent contract
-(§1) before the first edit and hold every action to it: target, location,
-edit, starting value, expected effect, pass/fail test. "Add some groove" is
-not an instruction. Its §43 failure modes name what this project keeps doing
-wrong — adding layers instead of fixing composition, solving arrangement with
-automation, processing in solo, swinging everything. Where it contradicts a
-guide above, ask (see *When guides conflict, ask*).
-
-Plus the genre or artist profile the brief names (see *Which guide for which
-job*). Where guides conflict, ask the user - see *When guides conflict, ask*.
-
-**Show the work.** The track's `TRACK.md` lists, for each element, the guides
-applied and the rules taken from them by section number, and the result of
-*Auditing a track* (below). An element with no
-guide listed is not finished. Before reporting a track done, check the result
-against each always-on guide again - GROOVE.md's §26 checklist, HOOKS.md's §42
-audit and NEW_TRACK.md's audit at minimum - and report what failed, not just what
-passed.
+**Show the work.** The track's `TRACK.md` records each stage: the guides applied
+and the rules taken from them by section number, the gate's result, and what the
+user said at the stop. An element with no guide listed is not finished. Before
+reporting a track done, run *Auditing a track* (below) and report what failed,
+not just what passed.
 
 ## Basslines - roll, don't meander
 
