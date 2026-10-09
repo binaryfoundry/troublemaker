@@ -507,3 +507,30 @@ Retry both a few times before failing.
   in the brightness over time either: a render with no LFO at all correlated with the loop
   as well as any wave, because each note's envelope dominates. Read such things from the file
   and say they are unmeasured.
+
+## Rebuilding a track in stages (Threshold v3, 2026-10-09)
+
+- **Simpler loads a sample at -12 dB.** Kick 30 sat 12 dB under every synth until its
+  Simpler Volume went to 0 dB; the first `balance` run held that quiet kick as the anchor
+  and solved everything around it. Measure each part alone in LUFS against the kick before
+  solving, and gain-stage at the source first.
+- **The converted AF101 patches are hot; Live's orchestral racks and the 909 kit are not.**
+  Calibrated to Serum's demo loudness, the lead alone read -6.9 LUFS at fader 0, the
+  strings -26.6 and the 909 clap -28.8 (its kit Gain macro sits at -7.5). Take the synths
+  down at the fader and bring the racks up at their Volume macro (+6 max), then the
+  fader, then an EQ Eight's output.
+- **`balance` fits tone, not hierarchy.** With the kick held, it raised the growl 4 dB and
+  buried the hook 9-10 dB under the rest in the hook's own bands. Hold the hook as an
+  anchor too, then measure the hook against the rest (HOOKS 22) after every solve.
+- **A missing band can be a sample, not a fader.** Air 6.5 dB under the references, with
+  the 909 hats pinned at +6, closed to +2.3 by swapping in pack hats with 7-10 dB more air
+  relative to presence - measured from the WAVs before loading them.
+- **Choke by note length.** Two Simplers in Gate mode, the open hat's note ending at the
+  next closed hat, reproduce a Drum Rack choke the API cannot set.
+- **The limiter hides the peak.** At club loudness the drop, Peak A and Peak B landed
+  within 0.3 LU of each other; protect the peak with notes, width and tone, and check per
+  8 bars on the master, not only on the mix.
+- **A section's clip can quietly undo the arrangement.** Peak A and B reused the plateau's
+  lead clip, darker than the drop's; only the per-section read of the final master showed it.
+- **The CamelPhat and Prydz references disagree on tone** by about 8 dB of infra and 5 dB
+  of mids and top. A master cannot pass both; name which set owns tone in the brief.
