@@ -171,6 +171,29 @@ last bar. 44 % of non-anchor notes fall in the second half of a bar, and 27 %
 in bar 4 of a 4-bar loop (25 % would be even). Some files do answer at the end
 (Melancholia, Tune, Window, Spice's -2 on step 14), but it is not the rule.
 
+## 2.5 The signature leads are long notes (added 2026-10-09)
+
+Everything above is measured from the pack's MIDI files, which are the presets'
+**demo clips**. The pack's own audio says something else. Transcribed to a 16th
+grid, the four *Signature Lead Loops* are:
+
+| Loop | What it plays | Register |
+|---|---|---|
+| 01 (A minor, 125) | A4 two bars, G4 two, F4, A4: one note per two bars, by step, no re-articulation | MIDI 65-69 |
+| 02 (F minor, 122) | C5 three bars, A#4 three bars | MIDI 70-72 |
+| 03 (A minor, 125) | A3 and E3 pulsing, then low notes ringing out | MIDI 45-57 |
+| 04 (G# minor, 122) | an E2 pedal struck every six 16ths, B2 answers | MIDI 40-59 |
+
+So CamelPhat's high leads are **long-note lines** (section 2.1's fifth kind):
+0.3-1 notes a bar, held for one to three bars, moving by step, wide and bright
+(side within 2 dB of mid; `analogfoundry/README.md`). The low ones are pedal
+figures in dotted rhythms. The riff numbers in 2.2-2.4 describe the demo clips,
+and a lead built to them alone was heard as "nothing like CamelPhat" (Threshold
+v4, 2026-10-09); rebuilt as a long-note line in the high register, it was right.
+`checkLeadNumbers` measures a line whose median note is 1.5 beats or longer
+against the long-note family (Blind, Electricity, Serene, Shutter and Loops
+01-02): notes a bar 0.25-1, 60 % of moves within 4 semitones, MIDI 52-72.
+
 **Colour.** Seven files touch the semitone above the anchor (Heaven, Powers,
 Serene, Tunnel; Scale; the basses Losing, Sub). Over a chord rooted on the
 anchor that is a Phrygian b2; over the anchor as the fifth it is a plain b6. Use

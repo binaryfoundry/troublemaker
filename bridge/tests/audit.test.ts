@@ -200,6 +200,17 @@ describe('lead numbers (CAMELPHAT.md 6)', () => {
     expect(failed).toEqual([]);
   });
 
+  it('measures a long-note line against its own family: stepwise, one note every bar or two', () => {
+    // Signature Lead Loop 01's shape: A4, G4, F4, A4, two bars each.
+    const line = [69, 67, 65, 69].map((pitch, i) => ({ pitch, start: 8 * i, duration: 8 }));
+    const checks = checkLeadNumbers(line);
+    expect(checks[0]?.value).toMatch(/long-note line/);
+    expect(checks.filter((c) => !c.pass)).toEqual([]);
+    // The same notes leaping by octaves fail the stepwise rule.
+    const leaping = [57, 69, 57, 69].map((pitch, i) => ({ pitch, start: 8 * i, duration: 8 }));
+    expect(checkLeadNumbers(leaping).filter((c) => !c.pass).map((c) => c.check)).toContain('Stepwise motion');
+  });
+
   it('fails an arpeggio that climbs out of the register on every 16th', () => {
     const arp = steps('xxxxxxxxxxxxxxxx', (bar, i) => 60 + ((i * 7 + bar * 5) % 24), 1, 4, 0.25);
     const failed = checkLeadNumbers(arp).filter((c) => !c.pass).map((c) => c.check);

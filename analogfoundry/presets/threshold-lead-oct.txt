@@ -1,3 +1,5 @@
+# Threshold lead octave v5 (2026-10-09): as the lead - unison 3 -> 7 at 22 cents,
+# cutoff 2600 -> 3900 Hz; in the Set, Chorus-Ensemble 60 % wet, Utility width 160 %.
 # Threshold lead v3, octave layer - the second oscillator an octave up, as the
 # CamelPhat leads stack it. Tune +12, saw only, brighter, fewer voices, the same
 # expression as the main lead so the two move together. Plays only at the peak.
@@ -10,7 +12,7 @@ sub 0
 noise 0
 pw 0.5
 tune 12
-cutoff 2600
+cutoff 3900
 resonance 0.05
 env_cutoff 0.3
 lfo_cutoff 0
@@ -26,8 +28,8 @@ glide 0.07
 stage_drive 0.1
 input_drive 0.1
 level 0.8
-unison 3
-unison_detune 12
+unison 7
+unison_detune 22
 vel_amp 0.3
 vel_cutoff 0.35
 fenv_separate 1

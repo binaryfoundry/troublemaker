@@ -19,6 +19,8 @@ export interface LeadCheck {
 
 const STEPS_332 = new Set([0, 3, 6, 8, 11, 14]);
 const STEPS_DOTTED = new Set([0, 3, 6, 9, 12, 15]);
+/** A line whose median note is this long (beats) is a long-note line (section 2.1). */
+const LONG_NOTE_BEATS = 1.5;
 
 /**
  * `notes` in one time base (a clip's, or arrangement beats). Loops are the
@@ -89,6 +91,31 @@ export function checkLeadNumbers(notes: Note[] | Array<{ pitch: number; start: n
   const dottedLength = dottedLengths.length ? dottedLengths[Math.floor(dottedLengths.length / 2)]! : null;
 
   const pct = (x: number) => `${Math.round(x * 100)} %`;
+
+  // A long-note line (section 2.1; the pack's Signature Lead Loops 01-02 are this
+  // kind) is measured against its own family, not the riff numbers below.
+  const lengths = line.map((n) => n.duration).sort((a, b) => a - b);
+  const medianLength = lengths[Math.floor(lengths.length / 2)]!;
+  if (medianLength >= LONG_NOTE_BEATS) {
+    const bars = Math.max(1, (Math.max(...line.map((n) => n.start + n.duration)) - Math.min(...line.map((n) => n.start))) / beatsPerBar);
+    const perBarLong = starts.length / bars;
+    const intervals = top.slice(1).map((p, i) => Math.abs(p - top[i]!));
+    const stepwise = intervals.length ? intervals.filter((i) => i <= 4).length / intervals.length : 1;
+    return [
+      { check: 'Kind', value: `long-note line (median note ${Math.round(medianLength * 100) / 100} beats)`, pass: true, rule: 'section 2.1; Signature Lead Loops 01-02' },
+      { check: 'Notes a bar', value: (Math.round(perBarLong * 100) / 100).toString(), pass: perBarLong >= 0.25 && perBarLong <= 1, rule: '0.25-1 (pack 0.29-1.0)' },
+      { check: 'Stepwise motion', value: `${pct(stepwise)} of moves within 4 semitones`, pass: stepwise >= 0.6, rule: '>= 60 % (5 of the 6 long-note leads)' },
+      { check: 'Distinct pitches', value: String(counts.size), pass: counts.size <= 6, rule: '<= 6' },
+      { check: 'Range', value: `${high - low} semitones`, pass: high - low <= 12, rule: '<= 12 semitones' },
+      {
+        check: 'Register',
+        value: `lowest MIDI ${low}, highest MIDI ${high}`,
+        pass: low >= 52 && low <= 70 && high >= 60 && high <= 72,
+        rule: 'lowest 52-70, highest 60-72',
+      },
+    ];
+  }
+
   const anchorShare = (counts.get(anchor) ?? 0) / line.length;
   const checks: LeadCheck[] = [
     { check: 'Onsets a bar', value: `${medianOnsets} (median)`, pass: medianOnsets >= 2 && medianOnsets <= 6, rule: '2-6' },

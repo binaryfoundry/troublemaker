@@ -1,3 +1,11 @@
+# Threshold lead v5 (2026-10-09) - matched to CamelPhat's Signature Lead Loops 01-02,
+# measured solo in context: tone within 1.1 dB, width within 0.7 dB (was 13.1 / 8.5).
+#   - from v3: no sub (the loops have none below 250 Hz), cutoff 1600 -> 2400 Hz,
+#     unison 5 -> 7 voices at 22 cents, stereo spread 0.5 -> 1
+#   - in the Set: the Auto Filter after it is off (it held the lead at 1.4-2.5 kHz),
+#     Chorus-Ensemble 60 % wet, Utility width 160 %
+#   - it now plays a long-note line (TRACK.md Lead v5), so the tease's opening is
+#     velocity to cutoff, not the Auto Filter
 # Threshold lead v3 - built to the CamelPhat Serum leads, now with the
 # expression they all use (AF101 0.3):
 #   - saw + pulse + a little sub, five unison voices at 18 cents, a little drive;
@@ -16,11 +24,11 @@
 analogfoundry101 1
 saw 1
 pulse 0.35
-sub 0.3
+sub 0
 noise 0
 pw 0.45
 tune 0
-cutoff 1600
+cutoff 2400
 resonance 0.1
 env_cutoff 0.35
 lfo_cutoff 0
@@ -36,8 +44,8 @@ glide 0.07
 stage_drive 0.2
 input_drive 0.15
 level 0.8
-unison 5
-unison_detune 18
+unison 7
+unison_detune 22
 vel_amp 0.3
 vel_cutoff 0.35
 fenv_separate 1
@@ -48,4 +56,4 @@ fenv_release 0.3
 vib_fade 0.5
 drift 5
 legato_glide 1
-stereo 0.5
+stereo 1
