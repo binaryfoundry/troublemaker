@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { AF101_PARAMS, DST, FILTER_MODE, LFO_DIVISION_BEATS, LFO_WAVE, SRC, WAVE, lfoMode, nearestDivision, packModSlot, placeMatrix, toPresetText, unpackModSlot } from '../../agent/src/presets/af101.js';
 import { convertDiva, parseDiva } from '../../agent/src/presets/diva.js';
-import { convertSerum, decodeSerum, lfoWaveOf, serumSyncBeats } from '../../agent/src/presets/serum.js';
+import { convertSerum, decodeSerum, lfoWaveOf, serumSyncBeats, waveFromFrames } from '../../agent/src/presets/serum.js';
 
 describe('AF101 parameter catalogue', () => {
   it('matches parameterTable() in Preset.h, id for id and range for range', () => {
@@ -273,6 +273,27 @@ describe('Serum -> AF101', () => {
     // macro share 0.6 x 0.5 = 0.3; Serum plays 0.3 of it, against oscillator A's 0.75
     expect(c.patch.noise).toBeCloseTo((0.3 * 0.3) / 0.75, 4);
     expect(c.report.assumptions).toContain('S16');
+  });
+
+  it('reads the frame a wavetable plays and picks the nearest AF101 wave (S5)', () => {
+    const cycle = (f: (t: number) => number) => Float32Array.from({ length: 2048 }, (_, i) => f(i / 2048));
+    const saw = cycle((t) => 1 - 2 * t), square = cycle((t) => (t < 0.5 ? 1 : -1)), sine = cycle((t) => Math.sin(2 * Math.PI * t));
+    const pulse30 = cycle((t) => (t < 0.3 ? 1 : -1));
+    // a 4-frame table: saw, square, sine, 30 % pulse; position 1-256 steps through the frames
+    const table = [saw, square, sine, pulse30];
+    expect(waveFromFrames(table, 1).wave).toBe(WAVE.saw);
+    expect(waveFromFrames(table, 70).wave).toBe(WAVE.pulse);
+    expect(waveFromFrames(table, 70).pw).toBe(0.5);
+    expect(waveFromFrames(table, 140).wave).toBe(WAVE.sine);
+    const p = waveFromFrames(table, 256);
+    expect([p.wave, p.pw]).toEqual([WAVE.pulse, 0.3]);
+    expect(waveFromFrames(table, 1).error).toBeLessThan(0.5);
+    // an embedded table is read from the preset itself, with no reader
+    const c = convertSerum(serumBody({
+      Oscillator0: { plainParams: 'default', WTOsc0: { relativePathToWT: '/User/Mine.wav', embeddedWTData: Array.from(square), plainParams: 'default' } },
+    }), 'LD - Test');
+    expect(c.patch.pulse).toBe(1);
+    expect(c.patch.saw).toBe(0);
   });
 
   it("reads an LFO's drawn shape into AF101's nearest wave (S14)", () => {

@@ -20,7 +20,7 @@ export const SERUM_ASSUMPTIONS: Record<string, string> = {
   S2: 'Values Serum stores as "default" take Serum\'s factory defaults: envelope A 0.5 ms, D 1 s, S 1.0, R 15 ms; oscillator A on at volume 0.75; B, C, noise and sub off unless enabled.',
   S3: 'Unison detune 0-1 is taken as 0-100 cents spread (AF101 caps at 50). Unison stereo 0-100 % becomes AF101\'s stereo spread 0-1 (both pan the stack across the field).',
   S4: 'A mod amount is a percentage of the destination\'s range: on cutoff, of the 11.4-octave normalised range; on fine tune, of +/-100 cents; on volume, of 0-1. The cutoff scale is confirmed against the 13 pack loop pairs: scaling every cutoff route by 0.75 or 0.5, or the macro offsets by 0.5, raised the median band error from 1.9 dB to 2.9-12.4 dB. Velocity routes take their amount as stored; scaling them helped some presets and hurt others, so the remaining gaps are taken to be how each loop was played.',
-  S5: 'Wavetables are chosen by name: analog saw tables (Juno, Model D, Mini, Moog, "Analog/") become AF101\'s saw; "Default Shapes" is read by table position (sine, triangle, saw, square). Basic Mini at position 1 measured as a saw (SY - Patterns against its loop, Synth Loop 09: 3.1 dB band error as a saw, 4.6 as a triangle). The table itself is not loaded - Serum\'s factory tables are not on this machine.',
+  S5: "A wavetable is read from Serum's own tables (Documents/Xfer/Serum 2 Presets/Tables, or AF_SERUM_TABLES) or from the preset when it embeds one: the frame at the preset's position - Serum steps there, frame floor((pos - 1) / 256 x frames), measured on LD - Window - becomes the AF101 wave whose harmonics are nearest (saw, triangle, sine, or a pulse at a width of 0.1-0.5). Across the pack's 98 table oscillators that leaves 2.7 dB of harmonic error, against 6.3 for a saw throughout. AF101 has no wavetables: a softer saw (Juno 106's first frame is 2-7 dB under a saw above the 2nd harmonic) still plays as a saw, and an oscillator more than 6 dB from every AF101 wave is reported. Without the tables a wave is chosen by the table's name.",
   S6: 'Macros are baked at their saved value. A macro that is itself modulated (e.g. the mod wheel -> CUTOFF macro) passes that modulation through to the macro\'s destinations.',
   S7: 'An LFO rate is stored as 100 * knob^4: Hz when free, and when synced a knob position that Serum snaps to a division (229 steps; 1 bar 1.627, 1/2 3.374, 1/32 26.03, 4 bars 0.211, read from Serum 2 presets saved at those rates, serum2vital DebugPresets/13). An unstored rate is the knob\'s middle, 6.25: 1/4 synced, 6.25 Hz free. AF101 syncs from 1/32 to 4 bars; a division outside that is clamped and reported. An LFO with no stored mode retriggers: Serum stores "Free" and "Envelope" when chosen, so the default is Trig.',
   S11: 'Mod sources: 1 is the mod wheel (a Serum 2 preset saved with one route per source, serum2vital DebugPresets/12), so envelopes 1-4 are 2-5. Confirmed in this pack: every pitch-envelope route (3 or 4 -> pitch) lands on a 7-28 ms zero-sustain envelope under this numbering, and on an untouched default one under the old "1-4". The mod wheel maps to AF101\'s mod wheel, which rests at 0, as Serum\'s does.',
@@ -88,6 +88,58 @@ interface Osc {
   stack?: string;
 }
 
+/** A wavetable's frames, 2048 samples each, by its path relative to Serum's Tables folder. */
+export type TableReader = (relativePath: string) => Float32Array[] | undefined;
+
+const HARMONICS = 24;
+/** Harmonics 1..24 of one cycle, in dB relative to the first. */
+function harmonicsDb(cycle: ArrayLike<number>): number[] {
+  const n = cycle.length;
+  const mags: number[] = [];
+  for (let h = 1; h <= HARMONICS; h++) {
+    let re = 0, im = 0;
+    for (let i = 0; i < n; i++) {
+      const a = (2 * Math.PI * h * i) / n;
+      re += cycle[i]! * Math.cos(a);
+      im -= cycle[i]! * Math.sin(a);
+    }
+    mags.push(Math.hypot(re, im));
+  }
+  return mags.map((m) => 20 * Math.log10(m / (mags[0]! || 1e-12) + 1e-9));
+}
+const cycleOf = (f: (t: number) => number) => Array.from({ length: 2048 }, (_, i) => f(i / 2048));
+/** AF101's waves as harmonic profiles; a pulse's width is the patch's `pw`. */
+const BASIC: Array<{ wave: number; pw?: number; name: string; h: number[] }> = [
+  { wave: WAVE.saw, name: 'saw', h: harmonicsDb(cycleOf((t) => 1 - 2 * t)) },
+  { wave: WAVE.triangle, name: 'triangle', h: harmonicsDb(cycleOf((t) => 1 - 4 * Math.abs(t - 0.5))) },
+  { wave: WAVE.sine, name: 'sine', h: harmonicsDb(cycleOf((t) => Math.sin(2 * Math.PI * t))) },
+  ...[0.5, 0.4, 0.3, 0.2, 0.1].map((pw) => ({ wave: WAVE.pulse, pw, name: `pulse ${pw}`, h: harmonicsDb(cycleOf((t) => (t < pw ? 1 : -1))) })),
+];
+/** Mean dB distance of two harmonic profiles, lower harmonics weighted more, partials below -60 dB floored. */
+function profileError(a: number[], b: number[]): number {
+  let total = 0, weights = 0;
+  for (let k = 1; k < HARMONICS; k++) {
+    const w = 1 / Math.sqrt(k + 1);
+    total += w * Math.abs(Math.max(a[k]!, -60) - Math.max(b[k]!, -60));
+    weights += w;
+  }
+  return total / weights;
+}
+
+/**
+ * The AF101 wave nearest the frame Serum plays (S5). Serum steps between frames at a
+ * table position: frame floor((pos - 1) / 256 x frames) - measured on LD - Window, where
+ * that frame alone matched Serum's harmonics better than a crossfade.
+ */
+export function waveFromFrames(frames: Float32Array[], pos: number): { wave: number; pw?: number; how: string; error: number; sawError: number } {
+  const k = Math.min(frames.length - 1, Math.max(0, Math.floor(((pos - 1) / 256) * frames.length)));
+  const h = harmonicsDb(frames[k]!);
+  const ranked = BASIC.map((b) => ({ ...b, error: profileError(h, b.h) })).sort((a, b) => a.error - b.error);
+  const best = ranked[0]!;
+  const sawError = ranked.find((b) => b.name === 'saw')!.error;
+  return { wave: best.wave, ...(best.pw !== undefined ? { pw: best.pw } : {}), error: best.error, sawError, how: `frame ${k + 1} of ${frames.length}, nearest ${best.name} (harmonics ${best.error.toFixed(1)} dB off${best.name === 'saw' ? '' : `; a saw ${sawError.toFixed(1)}`})` };
+}
+
 function waveFromTable(table: string, pos: number): { wave: number; how: string } {
   const t = table.toLowerCase();
   if (/default shapes/.test(t)) {
@@ -141,7 +193,7 @@ export function serumDemoClip(body: any, transposeOctaves = 0): { beats: number;
   return { beats: num(clip.regionEndBeats, 16), events: events + '\n' };
 }
 
-export function convertSerum(body: any, name: string): Conversion {
+export function convertSerum(body: any, name: string, readTable?: TableReader): Conversion {
   const report = emptyReport();
   const patch: Af101Patch = {};
   const slots: MatrixSlot[] = [];
@@ -189,7 +241,18 @@ export function convertSerum(body: any, name: string): Conversion {
     if (!enabled) continue;
     const wt = o[`WTOsc${i}`];
     const pos = num(params(wt).kParamTablePos, 0);
-    const { wave, how } = waveFromTable(wt?.relativePathToWT ?? '', pos);
+    // The real frame when the table is to hand (installed, or embedded in the preset); else the name (S5).
+    const tablePath = String(wt?.relativePathToWT ?? '');
+    const embedded = Array.isArray(wt?.embeddedWTData) && wt.embeddedWTData.length >= 2048
+      ? Array.from({ length: Math.floor(wt.embeddedWTData.length / 2048) }, (_, f) => Float32Array.from(wt.embeddedWTData.slice(f * 2048, (f + 1) * 2048)))
+      : undefined;
+    const frames = embedded ?? (tablePath && readTable ? readTable(tablePath.replace(/^\/+/, '')) : undefined);
+    const fromFrames = frames?.length ? waveFromFrames(frames, pos || 1) : undefined;
+    const { wave, how } = fromFrames
+      ? { wave: fromFrames.wave, how: `${tablePath || 'embedded table'} ${fromFrames.how}` }
+      : waveFromTable(tablePath, pos);
+    if (fromFrames?.pw !== undefined && (i === 0 || patch.pw === undefined)) patch.pw = fromFrames.pw;
+    if (fromFrames && fromFrames.error > 6) report.approximated.push(`Osc ${'ABC'[i]}: no AF101 wave is near its table (${fromFrames.how})`);
     const offset = staticOffset(`Oscillator${i}.kParamVolume`);
     const vol = Math.min(1, Math.max(0, num(p.kParamVolume, 0.75) + offset));
     if (offset) report.mapped.push(`Osc ${'ABC'[i]} volume ${num(p.kParamVolume, 0.75).toFixed(2)} ${offset >= 0 ? '+' : ''}${offset.toFixed(2)} from macros`);

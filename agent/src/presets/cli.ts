@@ -12,12 +12,12 @@
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { basename, extname, join, resolve } from 'node:path';
 
 import { toPresetText } from './af101.js';
 import { convertDiva, DIVA_ASSUMPTIONS, parseDiva } from './diva.js';
-import { convertSerum, decodeSerum, SERUM_ASSUMPTIONS, serumDemoClip } from './serum.js';
+import { convertSerum, decodeSerum, SERUM_ASSUMPTIONS, serumDemoClip, type TableReader } from './serum.js';
 import { reportMarkdown, type Conversion } from './types.js';
 
 const args = process.argv.slice(2);
@@ -43,6 +43,66 @@ for (const p of inputs) {
 // runs hot. Render it with AF101's own offline renderer at three notes and set
 // `level` so the loudest peak sits at -3 dBFS, like the hand-made patches.
 const RENDER = resolve('analogfoundry/build/Release/render_note.exe');
+
+// Serum's wavetables, so the converter can read the frame a preset plays (S5). Serum 2
+// installs them under Documents; AF_SERUM_TABLES points elsewhere. Without them the
+// converter falls back to choosing a wave by the table's name.
+const TABLES = process.env.AF_SERUM_TABLES ?? join(homedir(), 'Documents', 'Xfer', 'Serum 2 Presets', 'Tables');
+
+/** A WAV file's samples, channels mixed to mono (PCM 16/24/32 or 32-bit float). */
+function readWavMono(file: string): Float32Array {
+  const b = readFileSync(file);
+  let pos = 12, fmt = 1, channels = 1, bits = 16;
+  let data: Buffer | undefined;
+  while (pos + 8 <= b.length) {
+    const id = b.toString('latin1', pos, pos + 4), size = b.readUInt32LE(pos + 4);
+    if (id === 'fmt ') {
+      fmt = b.readUInt16LE(pos + 8);
+      channels = b.readUInt16LE(pos + 10);
+      bits = b.readUInt16LE(pos + 22);
+      if (fmt === 0xfffe) fmt = b.readUInt16LE(pos + 32); // WAVE_FORMAT_EXTENSIBLE: the sub-format
+    } else if (id === 'data') data = b.subarray(pos + 8, pos + 8 + size);
+    pos += 8 + size + (size & 1);
+  }
+  if (!data) throw new Error(`${file}: no data chunk`);
+  const bytes = bits / 8, frames = Math.floor(data.length / (bytes * channels));
+  const out = new Float32Array(frames);
+  for (let i = 0; i < frames; i++) {
+    let sum = 0;
+    for (let c = 0; c < channels; c++) {
+      const o = (i * channels + c) * bytes;
+      sum += fmt === 3 ? data.readFloatLE(o) : bits === 16 ? data.readInt16LE(o) / 32768 : bits === 24 ? data.readIntLE(o, 3) / 8388608 : data.readInt32LE(o) / 2147483648;
+    }
+    out[i] = sum / channels;
+  }
+  return out;
+}
+
+const tableCache = new Map<string, Float32Array[] | undefined>();
+const findTable = (dir: string, name: string): string | undefined => {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      const hit = findTable(p, name);
+      if (hit) return hit;
+    } else if (entry.name.toLowerCase() === name.toLowerCase()) return p;
+  }
+  return undefined;
+};
+const readTable: TableReader = (relativePath) => {
+  if (!existsSync(TABLES)) return undefined;
+  if (!tableCache.has(relativePath)) {
+    const direct = join(TABLES, relativePath);
+    const file = existsSync(direct) ? direct : findTable(TABLES, basename(relativePath));
+    let frames: Float32Array[] | undefined;
+    if (file) {
+      const x = readWavMono(file);
+      frames = Array.from({ length: Math.floor(x.length / 2048) }, (_, f) => x.subarray(f * 2048, (f + 1) * 2048));
+    }
+    tableCache.set(relativePath, frames?.length ? frames : undefined);
+  }
+  return tableCache.get(relativePath);
+};
 const TARGET_PEAK_DB = -3;
 function peakDb(presetFile: string, note: number): number {
   const wav = join(tmpdir(), `af101-level-${process.pid}-${note}.wav`);
@@ -74,7 +134,7 @@ for (const file of files) {
     if (ext === '.h2p') c = convertDiva(parseDiva(readFileSync(file, 'latin1')), name);
     else {
       const body = decodeSerum(readFileSync(file));
-      c = convertSerum(body, name);
+      c = convertSerum(body, name, readTable);
       clip = serumDemoClip(body, c.transposeOctaves);
     }
   } catch (e) {

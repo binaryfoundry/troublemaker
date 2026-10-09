@@ -203,7 +203,17 @@ noise between the harmonics, by width, and by level and pitch wobble inside held
 writes a level-matched A/B file alternating every two bars. Against Serum 2 (dry), as
 converted: LD - Horizons 1.7 dB tone, harmonics within 2.7 dB at every stage; LD - Window
 3.3 dB, harmonics 9 dB strong - its "AT Juno 106" table (frame 0 at that position: Serum steps
-frames there) is 2-7 dB softer than AF101's saw above the 2nd harmonic. Movement needs held,
+frames there) is 2-7 dB softer than AF101's saw above the 2nd harmonic.
+
+The converter now reads that frame from Serum's installed tables (S5), not the table's
+name. Across the pack's 98 table oscillators the nearest AF101 wave is 2.7 dB from the real
+frame, against 6.3 for a saw throughout. Pack loops: SY - Dimension 4.0 -> 1.6 dB, SY - Page
+3.6 -> 3.3, the rest unchanged; against Serum 2, Horizons 1.6 dB tone and harmonics 2.5,
+Window 3.2 (its softer saw has no AF101 wave, and is reported). SY - Lines took a square for
+Osc B (Jno frame 1, 21 dB from a saw): tone 2.8 -> 3.2 dB, harmonics 2.0 -> 1.6, loop 2.4 ->
+2.8. Width does not compare yet: AF101 renders these mono, where Serum's dry output reads
+-11 to -22 dB side - Lines from LFOs on per-oscillator pan (AF101 has none), Coast from its
+Utility, Horizons probably from its chorus leaking past the FX mix. Movement needs held,
 single notes: the leads' demo clips have none and chords defeat pitch tracking, so LFO and
 vibrato depth are not yet measured. A whole-file measure read the notes' own rhythm (one
 beat at 124 BPM) as movement and nearly halved the bipolar routes on a false reading; that
