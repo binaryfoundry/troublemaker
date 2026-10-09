@@ -28,6 +28,7 @@ export const SERUM_ASSUMPTIONS: Record<string, string> = {
   S13: "A route is unipolar unless it stores kParamBipolar (82 of the pack's 696 do): a unipolar LFO moves its destination from the base up by the amount. AF101's LFOs swing +/-1, so such a route becomes half the amount in the matrix and, on cutoff or resonance, a base raised by the other half; elsewhere it plays centred on the base. A bipolar route keeps the full amount: whether Serum's bipolar span is +/-amount or +/-amount/2 is not confirmed.",
   S14: "An LFO's drawn shape is read from its points: a triangle (51 of the pack's 75 routed LFOs) plays as AF101's triangle, a ramp as its saw, a curved diamond as its sine; anything else, and Serum's unstored default shape, as a sine. Which way Serum's y axis points is not known, so a ramp's direction and a retriggered LFO's starting phase may be inverted. The shape could not be checked against the loops: the notes' own envelopes swamp an LFO's movement in the brightness.",
   S15: "A filter that stores no type is MG Low 12, Serum 2's default, and MG Low 12/18 play on AF101's ladder taken after 2/3 of its 4 poles (filter_poles). Measured against the pack loops: SY - Desire (no type) 13.8 dB band error at 24 dB and 1.6 at 12; Magician 10.3 -> 6.9, Page (MgL12) 5.1 -> 3.6, Lines (MgL18) 4.6 -> 1.5; Dimension and Patterns (MgL18) moved under 0.4 dB the other way.",
+  S16: "Noise that a macro raises from a zero volume (the pack's WHITE NOISE macros) plays far quieter in Serum than the macro's share of the knob: about 0.3 of it. Measured against Serum 2 rendering the presets dry on the same notes: the noise between the harmonics (3-8 kHz) matched at 0.35 on LD - Horizons and 0.25 on LD - Window, and their tone error fell from 3.9 to about 1.6 dB and 5.8 to about 3.5. SY - Lines read the other way, but its capture may not have been dry (its splitter and distortion stayed in).",
   S10: 'Serum stores no voice count for a polyphonic preset; it plays on AF101\'s full 8 voices.',
   S9: 'Routing slots 0-4 are oscillators A, B, C, noise and sub. An FX bus (racks 2 and 3) is a parallel send: it is converted only when an oscillator AF101 plays feeds it, at an inline wet of x/(1+x), x = send level x bus volume.',
   S8: "Effects become the nearest Live 12 Standard devices with their wet levels; times and sizes are approximate, and a macro on an effect's wet is applied to every effect of that kind (Serum's FX module numbering is not confirmed).",
@@ -58,6 +59,8 @@ const SERUM_SYNC_RUNS: Array<[number, number]> = [
   [13, 128], [29, 64], [46, 32], [62, 16], [78, 8], [94, 4], [111, 2], [127, 1],
   [143, 1 / 2], [160, 1 / 4], [176, 1 / 8], [192, 1 / 16], [208, 1 / 32], [225, 1 / 64],
 ];
+/** How much of a macro's share of the noise volume Serum actually plays (S16). */
+const NOISE_MACRO_SCALE = 0.3;
 /** An unstored LFO rate: the knob's middle (S7). */
 const SERUM_DEFAULT_RATE = 6.25;
 
@@ -268,10 +271,14 @@ export function convertSerum(body: any, name: string): Conversion {
     report.assumptions.push('S12');
   }
   const noise = body.Oscillator3;
-  const noiseVol = noise ? Math.min(1, num(params(noise).kParamVolume, 0.75) + staticOffset('Oscillator3.kParamVolume')) : 0;
+  // Noise a macro raises plays far quieter in Serum than the macro's share of the knob
+  // (S16): measured against Serum 2 itself, about 0.3 of it.
+  const noiseMacro = staticOffset('Oscillator3.kParamVolume');
+  const noiseVol = noise ? Math.min(1, num(params(noise).kParamVolume, 0.75) + NOISE_MACRO_SCALE * noiseMacro) : 0;
   if (noise && params(noise).kParamEnable === 1 && noiseVol > 0) {
     patch.noise = Math.min(1, noiseVol / loudest);
-    report.approximated.push(`noise (${params(noise.NoiseOsc3).kParamNoiseType ?? 'sample'}) -> white noise ${patch.noise.toFixed(2)}`);
+    report.approximated.push(`noise (${params(noise.NoiseOsc3).kParamNoiseType ?? 'sample'}) -> white noise ${patch.noise.toFixed(2)}${noiseMacro ? ` (macro share x${NOISE_MACRO_SCALE}, S16)` : ''}`);
+    if (noiseMacro) report.assumptions.push('S16');
   }
   const sub = body.Oscillator4;
   const subVol = sub ? Math.min(1, num(params(sub).kParamVolume, 0.75) + staticOffset('Oscillator4.kParamVolume')) : 0;

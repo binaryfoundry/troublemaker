@@ -184,6 +184,18 @@ Tested and kept: the cutoff modulation scale (S4) - scaling every cutoff route b
 or 0.5, or the macro offsets by 0.5, made the median worse (1.9 -> 2.9-12.4 dB); and the
 stored velocity amounts - no single scale helps more presets than it hurts.
 
+**Checked against Serum 2 itself (2026-10-09).** With Serum 2 installed (demo), it was hosted
+in Live with the pack presets loaded from Serum's own browser and played the same demo clips
+as AF101's renders, captured alone. Tone error, AF101 against Serum: BS - Coast 1.7 dB,
+LD - Horizons 1.8 (3.9 before S16), LD - Window 3.7 (5.8), SY - Lines 4.9 (2.6). The leads
+were compared with Serum's effects off; level contours match at 0.98-1.00. The finding: noise a
+WHITE NOISE macro raises from zero plays far quieter in Serum than the converter made it -
+matched between the harmonics at 0.35 and 0.25 of it - so it is now converted at 0.3 (S16).
+SY - Lines reads the other way, against both Serum and its loop (1.5 -> 2.4 dB): most likely a
+second, Lines-specific error the louder noise was hiding. Open. Serum's own offline state could
+not be loaded by an offline host, so every Serum render goes through Live and Serum's browser
+(the demo also falls silent after a while and has to be re-added).
+
 Still open, and probably how each loop was played rather than a conversion rule (the
 demo clips automate macros, and a loop's velocities need not be the MIDI's):
 SY - Following (7.0 dB, too bright: halving its filter-envelope or velocity depth

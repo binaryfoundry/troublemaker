@@ -264,6 +264,17 @@ describe('Serum -> AF101', () => {
     expect(withType('H18').patch.filter_poles).toBeUndefined();
   });
 
+  it('plays noise a macro raises at 0.3 of the macro share (S16)', () => {
+    const c = convertSerum(serumBody({
+      Oscillator3: { plainParams: { kParamEnable: 1, kParamVolume: 0 }, NoiseOsc3: { plainParams: 'default' } },
+      Macro1: { name: 'WHITE NOISE', plainParams: { kParamValue: 50 } },
+      ModSlot3: { source: [26, 0], destModuleTypeString: 'Oscillator', destModuleID: 3, destModuleParamName: 'kParamVolume', plainParams: { kParamAmount: 60 } },
+    }), 'LD - Test');
+    // macro share 0.6 x 0.5 = 0.3; Serum plays 0.3 of it, against oscillator A's 0.75
+    expect(c.patch.noise).toBeCloseTo((0.3 * 0.3) / 0.75, 4);
+    expect(c.report.assumptions).toContain('S16');
+  });
+
   it("reads an LFO's drawn shape into AF101's nearest wave (S14)", () => {
     const shape = (xVals: number[], yVals: number[], curveVals: number[]) => ({ curveData: { numPoints: xVals.length - 1, xVals, yVals, curveVals } });
     expect(lfoWaveOf(shape([0, 0.5, 1], [1, 0, 1], [0.5, 0.5, 0.5])).wave).toBe(LFO_WAVE.triangle);

@@ -43,10 +43,10 @@ PAIRS = [
     ("Synth Loop 03 Bmin", "serum", "SY - Dimension", 0, 4.0),
     ("Synth Loop 04 Cmin", "serum", "SY - Following", 0, 7.0),
     ("Synth Loop 05 C ", "serum", "SY - Instead", 0, 2.0),
-    ("Synth Loop 06 Cmin", "serum", "SY - Lines", 0, 1.5),
+    ("Synth Loop 06 Cmin", "serum", "SY - Lines", 0, 2.4),  # 1.5 before S16; see README
     ("Synth Loop 07 A#min", "serum", "SY - Magician", 0, 6.9),
     ("Synth Loop 08 Fmin", "serum", "SY - Page", 0, 3.6),
-    ("Synth Loop 09 Amin", "serum", "SY - Patterns", 0, 1.9),
+    ("Synth Loop 09 Amin", "serum", "SY - Patterns", 0, 1.6),
     ("Synth Loop 10 A#", "serum", "SY - Plans", 0, 1.1),
     ("Synth Loop 11 D#min", "serum", "SY - Smear", 8, 1.6),
     ("Bass Loop 12 D#min", "serum", "BS - Coast", 0, 0.7),
