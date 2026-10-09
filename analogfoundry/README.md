@@ -196,6 +196,19 @@ second, Lines-specific error the louder noise was hiding. Open. Serum's own offl
 not be loaded by an offline host, so every Serum render goes through Live and Serum's browser
 (the demo also falls silent after a while and has to be re-added).
 
+**A finer check: `tools/synth_compare.py`.** Six long-term bands catch a balance error
+and nothing finer, so this compares two renders of the same notes in 31 third-octave
+bands, frame by frame (23 ms), per note (harmonics 1-16 at start, middle and end), by
+noise between the harmonics, by width, and by level and pitch wobble inside held notes, and
+writes a level-matched A/B file alternating every two bars. Against Serum 2 (dry), as
+converted: LD - Horizons 1.7 dB tone, harmonics within 2.7 dB at every stage; LD - Window
+3.3 dB, harmonics 9 dB strong - its "AT Juno 106" table (frame 0 at that position: Serum steps
+frames there) is 2-7 dB softer than AF101's saw above the 2nd harmonic. Movement needs held,
+single notes: the leads' demo clips have none and chords defeat pitch tracking, so LFO and
+vibrato depth are not yet measured. A whole-file measure read the notes' own rhythm (one
+beat at 124 BPM) as movement and nearly halved the bipolar routes on a false reading; that
+change was reverted.
+
 Still open, and probably how each loop was played rather than a conversion rule (the
 demo clips automate macros, and a loop's velocities need not be the MIDI's):
 SY - Following (7.0 dB, too bright: halving its filter-envelope or velocity depth
