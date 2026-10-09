@@ -50,6 +50,7 @@ place, so check for errors rather than for a `.vst3` file. In an existing clone,
 | — | Note memory and MIDI panic (0.3.1) | Last-note priority as before, but up to 16 held notes are remembered: releasing the newest returns, legato, to the newest note still held (it used to release the voice). Releasing an older note changes nothing that sounds. **CC 123** (all notes off) releases everything through the release stage; **CC 120** (all sound off) silences on the next sample. Reference renders byte-identical to 0.3.0; 13 checks |
 | — | Oscillators and modulation (0.4) | **Oscillators 2 and 3**: saw, pulse, triangle or sine, each with level, octave, semitone and fine tune, through the shared unison stack. **LFO 2**, waveforms for both LFOs (sine, triangle, saw, square, sample-and-hold) and retrigger. **Pitch bend** (range 0-24 st), **mod wheel**, **aftertouch**. An **8-slot modulation matrix**: 9 sources (both envelopes, both LFOs, velocity, key, wheel, pressure, per-note random) to 16 destinations (cutoff, pitch, each oscillator's pitch and level, pulse width, resonance, amp, noise, sub, LFO rates, fine). Off by default, and reference renders are **byte-identical** to 0.3.1. Measured: each osc-2 wave within 0.5 dB of the saw's level; octave, semitone and fine tune to 0.5 Hz; bend to its range; velocity -> amp x1.5 = +3.5 dB; envelope -> pitch drops an octave to the note; LFO-2 square -> pitch exactly two semitones apart; sample-and-hold steps and repeats; note random differs per note and repeats per run; every feature at its extreme stays finite. 23 checks. Worst case (3 oscillators x 7-voice unison, all 8 slots) **22.7x realtime** |
 | — | Sync, stereo, polyphony (0.5) | **Tempo-synced LFOs**: each LFO's mode packs wave, retrigger and one of 13 divisions (1/32 to 4 bars, with triplets and dotted), read from the host's tempo and bar position. While the transport plays a synced LFO is **locked to the bar**: a note started one cycle later sounds the same (difference < 1 %), half a cycle later the other way; retriggered, it starts with the note. Measured 1/4 at 120 = 2.0 Hz, at 150 = 2.5 Hz, 1/8 at 120 = 4 Hz. **Stereo**: unison voices panned equal-power across the field (`stereo` 0-1); spread 1 takes the channel correlation below 0.8 and holds each channel's level within 1.5 dB; spread 0, or unison off, is mono bit for bit. **Polyphony**: `voices` 1-8; one voice is the monophonic 101 **bit for bit** (legato, glide, note memory), more give each note its own voice and steal the oldest; a three-note chord sounds each note within 3 dB, 30 dB above the gaps. **Envelope 3**, a free ADSR as a matrix source. **Filter modes**: the ladder low-pass, a 24 dB high-pass (the fundamental down 40 dB) and a 2-pole band-pass (unity at the cutoff, the fundamental down 15 dB). Reference renders **byte-identical** to 0.4 after the filter fix. 23 checks. An editor shows every parameter in words and the matrix as "LFO 1 -> Cutoff +35 %" |
+| — | Pan (0.7) | Pans in the matrix, with **no new parameter**: oscillators 1-3 and the noise panned by LFO 1, LFO 2 or a constant (a fixed position), and the whole voice by any source. They use the slot codes 0.6 ignored (source 0, or destination 0), so every 0.6 slot value means what it did, and a 0.6 instance in a saved Set gains them without being replaced. An oscillator pan runs the stereo filter path (equal power, centre at unity, as unison spreads); the voice pan is applied after the VCA; with no pan route the voice is the 0.6 path, bit for bit (`model_tests`). The sub stays in the middle. Why: the Serum pack's oscillators carry 18 pan routes and 6 fixed pans over 13 presets, and AF101 rendered them all mono. Measured against Serum 2 on SY - Lines' held note: Serum's balance swings +/-4.9 dB, AF101's +/-4.2 (it was mono); average width -15.2 dB side against Serum's -12.5, the rest being the LFO's shape (S14). Caveat: an editor slot left with a source and an amount but no destination was silent in 0.6 and is now a voice pan |
 | — | Low-pass slope (0.6) | `filter_poles`: the ladder's output taken after 2, 3 or 4 of its poles, **12, 18 or 24 dB per octave**; resonance still feeds back from the fourth stage, as in a multimode ladder. Default 4, **bit-identical to 0.5**, and appended as parameter 64 so saved Sets keep their ids. In Live 12.4.6 (2026-10-09): Log.txt shows v0.6.0 loaded, Live lists all 64 parameters with Filter Slope last, and the bridge sets it by display (12 and 18 dB read back exactly). Measured: 2 and 3 poles fall 12 and 18 dB per octave (within 2 dB) two octaves above cutoff (`dsp_tests`). Why: 36 of the 60 Serum pack presets use MG Low 12 or 18, and at 24 dB they rendered up to 46 dB too dark above 5 kHz against the pack's loops |
 
 ## CPU
@@ -173,6 +174,13 @@ For the four Serum pairs measured first, the before -> now band errors were Coas
 4.2 -> 0.7, Lines 11.7 -> 4.6, Following 12.5 -> 7.0 and Patterns (against its real
 loop) -> 2.1 dB.
 
+**Pan (0.7).** Width in a converted Serum patch came from unison only, so the 13 pack
+presets that pan an oscillator rendered mono (SY - Lines measured -40 dB side, Serum
+-12.5). The pans go through the matrix rather than new parameters (AF101 is at Live's 64),
+in route codes 0.6 never used. Serum's oscillator pans convert as S19: the knob and
+macros as a constant pan, LFO routes with 100 % moving from the centre to one side - the
+span that matched Serum's measured swing (+/-4.2 dB against +/-4.9; twice it gave +/-8.7).
+
 **Filter slope (0.6).** Serum's MG Low 12 and 18 (22 presets store MgL18, and the 14
 that store no type use MG Low 12, Serum 2's default) play on AF101's ladder taken
 after two or three of its four poles: `filter_poles`, appended as parameter 64 so
@@ -238,10 +246,10 @@ converter:
 
 Still open from it: Window's tone (6.7 dB; its Juno saw table, and an LFO of Serum's
 chaotic Rossler type that AF101 lacks; its pitch can't be measured, since AF101's render
-reads 20 cents of tracker wobble with no pitch modulation at all); Horizons' noise between
-the harmonics, 9 dB above Serum's on these low notes against 1 dB on its demo clip (Serum's
-noise may track the key); Coast's filter closing half as far over a held note; width
-(AF101 renders mono: no per-oscillator pan). Pack loops after S17 and S18: Lines 2.6,
+reads 20 cents of tracker wobble with no pitch modulation at all); Coast's filter closing
+half as far over a held note. (Horizons' noise between the harmonics read 9 dB over
+Serum's before S18: that was its doubled vibrato smearing the harmonics, and it reads
+-2.6 dB with the pitch routes weighted.) Width is now 0.7's pans, below. Pack loops after S17 and S18: Lines 2.6,
 Kinetic 1.4, Smear 1.4, Following 6.8; Plans 1.1 -> 1.3 and Magician 6.9 -> 7.1, inside the
 margin. Movement needs held,
 single notes: the leads' demo clips have none and chords defeat pitch tracking, so LFO and

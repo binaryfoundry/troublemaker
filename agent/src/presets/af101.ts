@@ -14,7 +14,7 @@ export interface Af101Param {
 }
 
 /** The largest packed matrix slot: (kSrcCount - 1) * 17 + 16 routes, amount +1. */
-const MOD_SLOT_MAX = 3740186;
+export const MOD_SLOT_MAX = 3740186;
 
 const P = (id: string, min: number, max: number, def: number): Af101Param => ({ id, min, max, def });
 
@@ -71,11 +71,15 @@ export const LFO_WAVE = { sine: 0, triangle: 1, saw: 2, square: 3, sampleHold: 4
 export const SRC = {
   none: 0, ampEnv: 1, filterEnv: 2, lfo1: 3, lfo2: 4, velocity: 5, key: 6, modWheel: 7, aftertouch: 8, noteRandom: 9,
   env3: 10,
+  /** 0.7: always 1, for a fixed offset such as a pan position. Only the pans take it. */
+  constant: 11,
 } as const;
 /** Matrix destinations (Voice101.h ModDest) and what amount 1 means for each. */
 export const DST = {
   none: 0, cutoff: 1, pitch: 2, osc1Pitch: 3, osc2Pitch: 4, osc3Pitch: 5, pulseWidth: 6, resonance: 7, amp: 8,
   osc1Level: 9, osc2Level: 10, osc3Level: 11, noiseLevel: 12, subLevel: 13, lfo1Rate: 14, lfo2Rate: 15, fine: 16,
+  /** 0.7: pans, -1 left to 1 right from the centre (amount 1 = one side). Oscillator and noise pans take LFO 1, LFO 2 or the constant; the voice pan any source. */
+  osc1Pan: 17, osc2Pan: 18, osc3Pan: 19, noisePan: 20, pan: 21,
 } as const;
 /** Amount 1 with a source at 1 moves cutoff 5 octaves, pitch 24 st, fine 100 ct, LFO rate 4 octaves. */
 export const MOD_SCALE = { cutoffOctaves: 5, pitchSemitones: 24, fineCents: 100, lfoRateOctaves: 4 } as const;
@@ -101,25 +105,51 @@ export function clampParam(id: string, value: number): number {
   return Math.min(p.max, Math.max(p.min, value));
 }
 
-/** One matrix slot as one parameter value, exactly as Voice101.h packModSlot does. */
+/**
+ * The routes 0.4 ignored carry 0.7's pans (Voice101.h kExtraRoutes): source 0 with
+ * destination d is EXTRA_ROUTES[d]; destination 0 with a source is that source -> pan.
+ */
+const EXTRA_ROUTES: Array<[number, number]> = [
+  [SRC.none, DST.none],
+  [SRC.lfo1, DST.osc1Pan], [SRC.lfo1, DST.osc2Pan], [SRC.lfo1, DST.osc3Pan], [SRC.lfo1, DST.noisePan],
+  [SRC.lfo2, DST.osc1Pan], [SRC.lfo2, DST.osc2Pan], [SRC.lfo2, DST.osc3Pan], [SRC.lfo2, DST.noisePan],
+  [SRC.constant, DST.osc1Pan], [SRC.constant, DST.osc2Pan], [SRC.constant, DST.osc3Pan], [SRC.constant, DST.noisePan],
+  [SRC.constant, DST.pan],
+];
+/** The route code for a pair, or -1 when a slot cannot hold it (Voice101.h modRoute). */
+function modRoute(src: number, dst: number): number {
+  if (src <= SRC.none || dst <= DST.none) return src === SRC.none && dst === DST.none ? 0 : -1;
+  if (src <= SRC.env3 && dst <= DST.fine) return src * 17 + dst;
+  if (src <= SRC.env3 && dst === DST.pan) return src * 17;
+  return EXTRA_ROUTES.findIndex(([s, d], i) => i > 0 && s === src && d === dst);
+}
+export const modRouteExists = (src: number, dst: number): boolean => modRoute(src, dst) >= 0;
+
+/** One matrix slot as one parameter value, exactly as Voice101.h packModSlot does. A pair with no route packs empty. */
 export function packModSlot(src: number, dst: number, amt: number): number {
   const a = Math.max(-1, Math.min(1, amt));
-  return (src * 17 + dst) * 20001 + Math.round((a + 1) * 10000);
+  const route = modRoute(src, dst);
+  if (route < 0) return 10000;
+  return route * 20001 + Math.round((a + 1) * 10000);
 }
 export function unpackModSlot(v: number): { src: number; dst: number; amt: number } {
   const x = Math.round(Math.max(0, Math.min(MOD_SLOT_MAX, v)));
   const route = Math.floor(x / 20001);
-  return { src: Math.floor(route / 17), dst: route % 17, amt: (x % 20001) / 10000 - 1 };
+  let src = Math.floor(route / 17), dst = route % 17;
+  if (src === SRC.none) [src, dst] = EXTRA_ROUTES[dst] ?? [SRC.none, DST.none];
+  else if (dst === DST.none) dst = DST.pan;
+  return { src, dst, amt: (x % 20001) / 10000 - 1 };
 }
 
-/** Fill the 8 matrix slots, strongest first. Returns what was placed and what did not fit. */
-export function placeMatrix(patch: Af101Patch, slots: MatrixSlot[]): { placed: MatrixSlot[]; overflow: MatrixSlot[] } {
-  const kept = slots.filter((s) => s.amt !== 0).sort((a, b) => Math.abs(b.amt) - Math.abs(a.amt));
+/** Fill the 8 matrix slots, strongest first. Returns what was placed, what did not fit, and pairs no slot can hold. */
+export function placeMatrix(patch: Af101Patch, slots: MatrixSlot[]): { placed: MatrixSlot[]; overflow: MatrixSlot[]; unroutable: MatrixSlot[] } {
+  const kept = slots.filter((s) => s.amt !== 0 && modRouteExists(s.src, s.dst)).sort((a, b) => Math.abs(b.amt) - Math.abs(a.amt));
+  const unroutable = slots.filter((s) => s.amt !== 0 && !modRouteExists(s.src, s.dst));
   const placed = kept.slice(0, 8).map((s, i) => {
     patch[`mod${i + 1}`] = packModSlot(s.src, s.dst, s.amt);
     return { ...s, amt: unpackModSlot(patch[`mod${i + 1}`] ?? 0).amt };
   });
-  return { placed, overflow: kept.slice(8) };
+  return { placed, overflow: kept.slice(8), unroutable };
 }
 
 /** The AF101 preset text format: `name value` per line; omitted names keep their default. */

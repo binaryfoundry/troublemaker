@@ -21,11 +21,12 @@ inline constexpr const char* kLfoWaves[] = {"Sine", "Triangle", "Saw", "Square",
 inline constexpr const char* kDivisionNames[] = {"",     "1/32", "1/16T", "1/16", "1/8T",  "1/16D", "1/8",
                                                 "1/4T", "1/8D", "1/4",   "1/2",  "1 bar", "2 bars", "4 bars"};
 inline constexpr const char* kSources[] = {"None", "Amp Env", "Filter Env", "LFO 1",       "LFO 2", "Velocity",
-                                           "Key",  "Mod Wheel", "Aftertouch", "Note Random", "Env 3"};
+                                           "Key",  "Mod Wheel", "Aftertouch", "Note Random", "Env 3", "Constant"};
 inline constexpr const char* kDests[] = {"None",        "Cutoff",      "Pitch",       "Osc 1 Pitch", "Osc 2 Pitch",
                                          "Osc 3 Pitch", "Pulse Width", "Resonance",   "Amp",         "Osc 1 Level",
                                          "Osc 2 Level", "Osc 3 Level", "Noise Level", "Sub Level",   "LFO 1 Rate",
-                                         "LFO 2 Rate",  "Fine"};
+                                         "LFO 2 Rate",  "Fine",        "Osc 1 Pan",   "Osc 2 Pan",   "Osc 3 Pan",
+                                         "Noise Pan",   "Pan"};
 inline constexpr const char* kFilterModes[] = {"Low-pass", "High-pass", "Band-pass"};
 inline constexpr const char* kFilterSlopes[] = {"12 dB", "18 dB", "24 dB"};
 

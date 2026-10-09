@@ -31,6 +31,7 @@ export const SERUM_ASSUMPTIONS: Record<string, string> = {
   S16: "Noise that a macro raises from a zero volume (the pack's WHITE NOISE macros) plays far quieter in Serum than the macro's share of the knob: about 0.3 of it. Measured against Serum 2 rendering the presets dry on the same notes: the noise between the harmonics (3-8 kHz) matched at 0.35 on LD - Horizons and 0.25 on LD - Window, and their tone error fell from 3.9 to about 1.6 dB and 5.8 to about 3.5. SY - Lines read the other way, but its capture may not have been dry (its splitter and distortion stayed in).",
   S17: "Serum's amp envelope is squared: a stored sustain of 0.671 shows as -6.9 dB in its own panel, 20 log10(0.671^2), and its decay and release reach their ends at the stored times, where AF101's are exponential to 99 %. So the sustain is squared and decay and release are 1.8 x the stored time. Measured against Serum 2, dry, on four presets' test clips (held notes, a release into a rest, a chord's tail): sustain level 3.6 -> 0.4 dB off on LD - Horizons; release 3.3-10.2 -> 0.2-2.0 dB off on all four, with 1.8 the best of 1.0-2.4 for each. Attack and the modulation envelopes are unchanged (unmeasured); where AF101's amp envelope also drives the cutoff (no separate filter envelope) the cutoff follows the converted times and sustain.",
   S18: "AF101 has one pitch for all its oscillators, so a fine-tune route to one Serum oscillator counts by that oscillator's share of the audible level: routes to two oscillators average by level rather than add. Measured against Serum 2, dry, on held notes: LD - Horizons' pitch wobble 16.5 cents when added, 7.2 weighted, Serum 7.1; SY - Lines 10.8 added, 2.8 weighted, Serum 6.6. LD - Window could not be read: AF101's render shows 20 cents of tracker wobble with no pitch modulation at all, and its LFO is a Rossler, which AF101 lacks.",
+  S19: "An oscillator's pan lands on AF101 0.7's pan for the slot that oscillator plays in (osc 1-3, or the noise); the sub stays in the middle. Serum's pan knob runs -100..100, taken as AF101's -1..1, and a route's 100 % moves it from the centre to one side, as a fine-tune route's 100 % moves 100 cents. Measured against Serum 2, dry, on SY - Lines' held note (its LFO on Osc A's pan): Serum's balance swings to +/-4.9 dB; AF101 +/-4.2 at this span, +/-8.7 at twice it. Its average width is still 2.3 dB narrower (-15.0 against -12.7 dB side), from the LFO's shape: Serum's sits near the extremes far longer than the sine it converts to (S14). A fixed pan - the knob, macros, a unipolar LFO's centre - rides the constant source. AF101's oscillator pans take LFO 1, LFO 2 or the constant; a pan route from any other source is dropped and reported.",
   S10: 'Serum stores no voice count for a polyphonic preset; it plays on AF101\'s full 8 voices.',
   S9: 'Routing slots 0-4 are oscillators A, B, C, noise and sub. An FX bus (racks 2 and 3) is a parallel send: it is converted only when an oscillator AF101 plays feeds it, at an inline wet of x/(1+x), x = send level x bus volume.',
   S8: "Effects become the nearest Live 12 Standard devices with their wet levels; times and sizes are approximate, and a macro on an effect's wet is applied to every effect of that kind (Serum's FX module numbering is not confirmed).",
@@ -92,6 +93,9 @@ interface Osc {
 
 /** A wavetable's frames, 2048 samples each, by its path relative to Serum's Tables folder. */
 export type TableReader = (relativePath: string) => Float32Array[] | undefined;
+
+/** A pan route's 100 % moves the pan from the centre to one side, as fine tune's moves 100 cents (S19). */
+const PAN_RANGE = 1;
 
 /** Serum's amp decay and release against AF101's exponential ones (S17). */
 const SERUM_AMP_TIME_SCALE = 1.8;
@@ -521,7 +525,8 @@ export function convertSerum(body: any, name: string, readTable?: TableReader): 
     let depth = a;
     if ((s === SRC.lfo1 || s === SRC.lfo2) && !bipolar) {
       depth = a / 2;
-      if (dest === 'VoiceFilter0.kParamFreq' || dest === 'VoiceFilter0.kParamReso') applyStatic(dest, a / 2, `${why}: unipolar LFO, its centre`);
+      if (dest === 'VoiceFilter0.kParamFreq' || dest === 'VoiceFilter0.kParamReso' || /^Oscillator[0-4]\.kParamPan$/.test(dest))
+        applyStatic(dest, a / 2, `${why}: unipolar LFO, its centre`);
       else if (dynamicDest(dest, a)) report.approximated.push(`${why}: a unipolar LFO, played centred on the base`);
       report.assumptions.push('S13');
     }
@@ -557,12 +562,31 @@ export function convertSerum(body: any, name: string, readTable?: TableReader): 
       if (i === 4) return { dst: DST.subLevel, amt: a };
       return undefined;
     }
+    if (/^Oscillator[0-4]\.kParamPan$/.test(dest)) {
+      const d = panDest(Number(dest[10]));
+      return d === undefined ? undefined : { dst: d, amt: a * PAN_RANGE };
+    }
     if (/^LFO\d\.kParamRate$/.test(dest)) {
       const k = lfoSlot.get(Number(dest[3]));
       return k === undefined ? undefined : { dst: k === 0 ? DST.lfo1Rate : DST.lfo2Rate, amt: a };
     }
     return undefined;
   };
+  // Which AF101 pan a Serum oscillator lands on (S19): its slot, or the noise. The
+  // sub stays in the middle.
+  const panDest = (i: number): number | undefined => {
+    const k = slotsFor.findIndex((o) => o.index === i);
+    if (k >= 0) return k === 0 ? DST.osc2Pan : DST.osc3Pan;
+    if (main && i === main.index) return DST.osc1Pan;
+    if (i === 3) return DST.noisePan;
+    return undefined;
+  };
+  const panBase = new Map<number, number>();
+  for (const i of [0, 1, 2, 3]) {
+    const pan = num(params(body[`Oscillator${i}`]).kParamPan, 0) / 100;
+    const d = pan !== 0 ? panDest(i) : undefined;
+    if (d !== undefined) panBase.set(d, pan);
+  }
   const applyStatic = (dest: string, v: number, why: string) => {
     if (dest === 'VoiceFilter0.kParamFreq') {
       staticCutoffOct += v * OCT_RANGE;
@@ -576,6 +600,16 @@ export function convertSerum(body: any, name: string, readTable?: TableReader): 
       return;
     }
     if (/^Oscillator[0-4]\.kParamVolume$/.test(dest)) return; // applied to the levels above
+    if (/^Oscillator[0-4]\.kParamPan$/.test(dest)) {
+      const d = panDest(Number(dest[10]));
+      if (d === undefined) {
+        report.dropped.push(`${why}: ${dest} (that oscillator has no AF101 pan)`);
+        return;
+      }
+      panBase.set(d, (panBase.get(d) ?? 0) + v * PAN_RANGE);
+      report.mapped.push(`${why}: pan ${v >= 0 ? '+' : ''}${(v * 100).toFixed(0)} % (S19)`);
+      return;
+    }
     if (/^RoutingSlot\d\.kParamFXBus\dLevel$/.test(dest)) return; // applied to the FX buses below
     if (dest === 'VoiceFilter0.kParamReso') {
       patch.resonance = Math.min(1, Math.max(0, (patch.resonance ?? 0) + v));
@@ -607,8 +641,18 @@ export function convertSerum(body: any, name: string, readTable?: TableReader): 
     patch.filter_mode = filterKind === 'high' ? FILTER_MODE.highpass : FILTER_MODE.bandpass;
     report.approximated.push(`${filterKind}-pass filter at ${filterHz.toFixed(0)} Hz -> AF101 ${filterKind === 'high' ? '24 dB high-pass' : 'band-pass'} (its cutoff modulation kept)`);
   }
-  const { placed, overflow } = placeMatrix(patch, slots);
+  // A fixed pan (its knob, macros, a unipolar LFO's centre) rides the constant source (S19).
+  const PAN_NAMES: Record<number, string> = { [DST.osc1Pan]: 'osc 1', [DST.osc2Pan]: 'osc 2', [DST.osc3Pan]: 'osc 3', [DST.noisePan]: 'noise' };
+  for (const [dst, pan] of panBase) {
+    const p = Math.max(-1, Math.min(1, pan));
+    if (Math.abs(p) < 0.005) continue;
+    slots.push({ src: SRC.constant, dst, amt: p, why: `${PAN_NAMES[dst]} panned ${(p * 100).toFixed(0)} % (S19)` });
+    report.assumptions.push('S19');
+  }
+  if (slots.some((s) => s.dst >= DST.osc1Pan && s.dst <= DST.noisePan && s.src !== SRC.constant)) report.assumptions.push('S19');
+  const { placed, overflow, unroutable } = placeMatrix(patch, slots);
   for (const s of overflow) report.dropped.push(`${s.why} (matrix full)`);
+  for (const s of unroutable) report.dropped.push(`${s.why} (AF101's matrix has no route for that pair)`);
 
   // --- Effects (S8)
   const played = new Set<number>(audible.map((o) => o.index));

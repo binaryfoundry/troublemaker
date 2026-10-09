@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { AF101_PARAMS, DST, FILTER_MODE, LFO_DIVISION_BEATS, LFO_WAVE, SRC, WAVE, lfoMode, nearestDivision, packModSlot, placeMatrix, toPresetText, unpackModSlot } from '../../agent/src/presets/af101.js';
+import { AF101_PARAMS, DST, FILTER_MODE, LFO_DIVISION_BEATS, LFO_WAVE, SRC, WAVE, lfoMode, MOD_SLOT_MAX, modRouteExists, nearestDivision, packModSlot, placeMatrix, toPresetText, unpackModSlot } from '../../agent/src/presets/af101.js';
 import { convertDiva, parseDiva } from '../../agent/src/presets/diva.js';
 import { convertSerum, decodeSerum, lfoWaveOf, serumSyncBeats, waveFromFrames } from '../../agent/src/presets/serum.js';
 
@@ -284,6 +284,41 @@ describe('Serum -> AF101', () => {
     expect(c.patch.env3_release).toBeCloseTo(0.3, 6);
     expect(c.matrix.some((s) => s.src === SRC.env3 && s.dst === DST.cutoff)).toBe(true);
     expect(c.matrix.some((s) => s.src === SRC.ampEnv)).toBe(false);
+  });
+
+  it("lands an oscillator's pan on AF101's pan for its slot, fixed or from an LFO (S19)", () => {
+    const panRoute = (osc: number, amount: number) => ({
+      source: [6, 0], destModuleTypeString: 'Oscillator', destModuleID: osc, destModuleParamName: 'kParamPan',
+      plainParams: { kParamAmount: amount, kParamBipolar: 1 },
+    });
+    // PL - Scale: Osc A at -27, Osc B at +29 (B plays in AF101's osc 2).
+    const fixed = convertSerum(serumBody({
+      Oscillator0: { plainParams: { kParamPan: -27.196410298347473 }, WTOsc0: { relativePathToWT: 'S2 Tables/Analog/AT Juno 106.wav', plainParams: 'default' } },
+      Oscillator1: { plainParams: { kParamEnable: 1, kParamOctave: 1, kParamVolume: 0.375, kParamPan: 28.728067874908447 }, WTOsc1: { relativePathToWT: '/Analog/Basic Mini.wav', plainParams: 'default' } },
+    }), 'PL - Test');
+    expect(fixed.matrix.find((s) => s.src === SRC.constant && s.dst === DST.osc1Pan)!.amt).toBeCloseTo(-0.272, 3);
+    expect(fixed.matrix.find((s) => s.src === SRC.constant && s.dst === DST.osc2Pan)!.amt).toBeCloseTo(0.287, 3);
+    expect(fixed.report.assumptions).toContain('S19');
+    // A bipolar LFO route's 100 % swings from the centre to each side.
+    const moving = convertSerum(serumBody({ ModSlot3: panRoute(0, 100), LFO0: { plainParams: { kParamMode: 'Free' } } }), 'SY - Test');
+    expect(moving.matrix.find((s) => s.src === SRC.lfo1 && s.dst === DST.osc1Pan)!.amt).toBeCloseTo(1, 4);
+    // Velocity has no route to an oscillator's pan: dropped and said so.
+    const velocity = convertSerum(serumBody({ ModSlot3: { ...panRoute(0, 50), source: [16, 0] } }), 'SY - Test');
+    expect(velocity.matrix.some((s) => s.dst === DST.osc1Pan)).toBe(false);
+    expect(velocity.report.dropped.some((d) => /no route for that pair/.test(d))).toBe(true);
+  });
+
+  it('packs the 0.7 pans in the routes 0.4 ignored, leaving every 0.4 value as it was', () => {
+    expect(packModSlot(SRC.lfo1, DST.cutoff, 0.35)).toBe((3 * 17 + 1) * 20001 + 13500);
+    for (const [src, dst] of [[SRC.lfo1, DST.osc1Pan], [SRC.lfo2, DST.noisePan], [SRC.constant, DST.osc3Pan], [SRC.constant, DST.pan], [SRC.velocity, DST.pan], [SRC.env3, DST.pan]] as const) {
+      expect(modRouteExists(src, dst)).toBe(true);
+      expect(unpackModSlot(packModSlot(src, dst, -0.4))).toEqual({ src, dst, amt: -0.4 });
+      expect(packModSlot(src, dst, 1)).toBeLessThanOrEqual(MOD_SLOT_MAX);
+    }
+    expect(modRouteExists(SRC.velocity, DST.osc1Pan)).toBe(false);
+    expect(modRouteExists(SRC.constant, DST.cutoff)).toBe(false);
+    expect(packModSlot(SRC.velocity, DST.osc1Pan, 0.5)).toBe(10000);
+    expect(unpackModSlot(10000)).toEqual({ src: SRC.none, dst: DST.none, amt: 0 });
   });
 
   it("weights a fine-tune route by its oscillator's share of the level (S18)", () => {

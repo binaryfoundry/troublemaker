@@ -199,8 +199,17 @@ class AnalogFoundryUI : public UI {
         return true;
       }
       const int step = right ? -1 : 1;
-      if (local >= destX() - 18.0f) m.dest = (m.dest + step + af::kDstCount) % af::kDstCount;
-      else m.source = (m.source + step + af::kSrcCount) % af::kSrcCount;
+      const bool destField = local >= destX() - 18.0f;
+      // A slot holds a source and a destination together, and some pairs have no
+      // route (the pans take LFO 1, LFO 2 or the constant): fill the other half of
+      // an empty slot, then step past pairs a slot cannot hold.
+      if (destField && m.source == af::kSrcNone) m.source = af::kSrcLfo1;
+      if (!destField && m.dest == af::kDstNone) m.dest = af::kDstCutoff;
+      for (int n = 0; n < af::kSrcCount * af::kDstCount; ++n) {
+        if (destField) m.dest = (m.dest + step + af::kDstCount) % af::kDstCount;
+        else m.source = (m.source + step + af::kSrcCount) % af::kSrcCount;
+        if (af::modRouteExists(m.source, m.dest) && m.source != af::kSrcNone) break;
+      }
       // A route just made audible starts at +50 %, so the click is heard.
       if (m.amount == 0.0 && m.source != af::kSrcNone && m.dest != af::kDstNone) m.amount = 0.5;
       set(index, static_cast<float>(af::packModSlot(m.source, m.dest, m.amount)), true);

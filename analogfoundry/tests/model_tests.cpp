@@ -1296,8 +1296,11 @@ void oscillatorMatrixTests() {
   {
     bool ok = true;
     double worst = 0.0;
+    int routes = 0;
     for (int src = 0; src < af::kSrcCount; ++src)
-      for (int dst = 0; dst < af::kDstCount; ++dst)
+      for (int dst = 0; dst < af::kDstCount; ++dst) {
+        if (!af::modRouteExists(src, dst)) continue;
+        ++routes;
         for (double amt : {-1.0, -0.4999, -0.0083, 0.0, 0.0001, 0.3333, 1.0}) {
           const float normalised = static_cast<float>(af::packModSlot(src, dst, amt) / af::kModSlotMax);
           const af::ModSlot back = af::unpackModSlot(static_cast<double>(normalised) * af::kModSlotMax);
@@ -1305,7 +1308,67 @@ void oscillatorMatrixTests() {
           worst = std::fmax(worst, err);
           if (back.source != src || back.dest != dst || err > 0.00005) ok = false;
         }
+      }
     check(ok, "a packed matrix slot survives a 32-bit normalised host value", worst);
+    // 0.4's 160 routes, 10 voice pans and 13 extra routes (the pans' other sources).
+    check(routes == 1 + 160 + 10 + 13, "every route the layout holds round-trips", routes);
+    // 0.7 changed no 0.4 value: source 3 (LFO 1) -> 1 (cutoff) at +0.35 is still the same integer.
+    check(af::packModSlot(af::kSrcLfo1, af::kDstCutoff, 0.35) == (3 * 17 + 1) * 20001.0 + 13500.0,
+          "a 0.4 route packs to the value it always had", af::packModSlot(af::kSrcLfo1, af::kDstCutoff, 0.35));
+    check(af::packModSlot(af::kSrcVelocity, af::kDstOsc1Pan, 0.5) == af::kModSlotEmpty,
+          "a pair with no route packs as an empty slot", af::packModSlot(af::kSrcVelocity, af::kDstOsc1Pan, 0.5));
+  }
+
+  // Pan in the matrix (0.7). No pan route: the 0.6 path, both sides equal. A constant
+  // pan on oscillator 1 against a centred oscillator 2 makes width; panned hard, one
+  // side holds only oscillator 2. An LFO on the voice pan moves the balance.
+  {
+    af::Voice101Parameters q = openSaw();
+    q.osc2Level = 0.5; q.osc2Octave = 1.0;
+    auto sides = [](af::Voice101Parameters p, double& side, double& mid, double& leftShare) {
+      af::Voice101 v;
+      v.setSampleRate(48000.0);
+      v.setParameters(p);
+      v.noteOn(57, 1.0);
+      double ss = 0.0, mm = 0.0, ll = 0.0, rr = 0.0;
+      for (int i = 0; i < 48000; ++i) {
+        double l, r;
+        v.processStereo(l, r);
+        if (i < 4800) continue;
+        ss += (l - r) * (l - r);
+        mm += (l + r) * (l + r);
+        ll += l * l;
+        rr += r * r;
+      }
+      side = ss;
+      mid = mm;
+      leftShare = ll / (ll + rr);
+    };
+    double side, mid, share;
+    sides(q, side, mid, share);
+    check(side == 0.0, "no pan route: both sides identical", side);
+
+    af::Voice101Parameters wide = q;
+    af::setModSlot(wide, 0, af::kSrcConstant, af::kDstOsc1Pan, -0.5);
+    check(af::getModSlot(wide, 0).source == af::kSrcConstant && af::getModSlot(wide, 0).dest == af::kDstOsc1Pan,
+          "a constant -> osc 1 pan route reads back", af::getModSlot(wide, 0).dest);
+    sides(wide, side, mid, share);
+    const double sideDb = 10.0 * std::log10(side / mid);
+    check(sideDb > -20.0 && sideDb < -3.0, "osc 1 half left against a centred osc 2: side -20..-3 dB of mid", sideDb);
+    check(share > 0.55, "and the left side is louder", share);
+
+    af::Voice101Parameters hard = q;
+    hard.osc2Level = 0.0;
+    af::setModSlot(hard, 0, af::kSrcConstant, af::kDstOsc1Pan, 1.0);
+    sides(hard, side, mid, share);
+    check(share < 1e-6, "osc 1 alone panned hard right: nothing on the left", share);
+
+    af::Voice101Parameters moving = q;
+    moving.lfoRateHz = 2.0;
+    af::setModSlot(moving, 0, af::kSrcLfo1, af::kDstPan, 1.0);
+    check(af::getModSlot(moving, 0).dest == af::kDstPan, "an LFO 1 -> pan route reads back", af::getModSlot(moving, 0).dest);
+    sides(moving, side, mid, share);
+    check(side > 0.05 * mid, "an LFO on the voice pan moves it", side / mid);
   }
 
   // Everything at once, at the extremes, stays finite.

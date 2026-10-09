@@ -216,8 +216,9 @@ export function convertDiva(d: DivaPreset, name: string): Conversion {
     report.mapped.push(`${s.why} semitones -> env_cutoff ${patch.env_cutoff.toFixed(3)}`);
     slots.splice(slots.indexOf(s), 1);
   }
-  const { placed, overflow } = placeMatrix(patch, slots);
+  const { placed, overflow, unroutable } = placeMatrix(patch, slots);
   for (const s of overflow) report.dropped.push(`${s.why} (matrix full)`);
+  for (const s of unroutable) report.dropped.push(`${s.why} (AF101's matrix has no route for that pair)`);
 
   // --- Voice control (D7)
   const V = S('VCC');

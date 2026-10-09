@@ -15,6 +15,10 @@
 // stack panned across a second filter path), a third envelope as a matrix source,
 // and high-pass and band-pass filter modes. Polyphony lives in Synth101.h.
 //
+// 0.7: pan in the matrix (all off by default, and off is the 0.6 path, bit for
+// bit): each oscillator and the noise panned by LFO 1, LFO 2 or a constant, and the
+// whole voice by any source. A panned oscillator runs the stereo filter path.
+//
 // Optional oscillators and modulation (0.4, not on the 101, off by default): two
 // more oscillators (saw, pulse, triangle or sine, each with octave, semitone and
 // fine tune) sharing the unison stack; a second LFO; LFO waveforms and retrigger;
@@ -177,10 +181,35 @@ inline double Voice101Parameters::* const kModSlots[8] = {
     &Voice101Parameters::mod5, &Voice101Parameters::mod6, &Voice101Parameters::mod7, &Voice101Parameters::mod8,
 };
 
+/// Modulation sources. Envelopes (amp, filter and the third, kSrcModEnv),
+/// velocity, wheel and pressure are 0..1; LFOs, key and the per-note random value
+/// are -1..1; the constant (0.7) is 1, for a fixed offset such as a pan position.
+enum ModSource {
+  kSrcNone = 0, kSrcAmpEnv, kSrcFilterEnv, kSrcLfo1, kSrcLfo2, kSrcVelocity,
+  kSrcKey, kSrcModWheel, kSrcAftertouch, kSrcNoteRandom, kSrcModEnv, kSrcConstant, kSrcCount
+};
+
+/// Modulation destinations. Amount 1 with a source at 1 moves each by: cutoff
+/// 5 octaves; pitch 24 semitones; fine 100 cents; pulse width 0.45; resonance,
+/// levels 1 (added, clamped); amp x2 (multiplied, clamped 0..2); LFO rate 4 octaves;
+/// a pan (0.7) from the centre to one side (added, clamped -1..1).
+enum ModDest {
+  kDstNone = 0, kDstCutoff, kDstPitch, kDstOsc1Pitch, kDstOsc2Pitch, kDstOsc3Pitch,
+  kDstPulseWidth, kDstResonance, kDstAmp, kDstOsc1Level, kDstOsc2Level, kDstOsc3Level,
+  kDstNoiseLevel, kDstSubLevel, kDstLfo1Rate, kDstLfo2Rate, kDstFine,
+  kDstOsc1Pan, kDstOsc2Pan, kDstOsc3Pan, kDstNoisePan, kDstPan, kDstCount
+};
+
 /// One matrix slot as a single parameter value:
-///   (source * 17 + destination) * 20001 + round((amount + 1) * 10000)
-/// Amount resolution is 1/10000; the largest value, 3,740,186, survives a host's
-/// 32-bit normalised parameter (it rounds back to the same integer).
+///   (route) * 20001 + round((amount + 1) * 10000)
+/// where route is source * 17 + destination for the 0.4 routes (sources 1-10,
+/// destinations 1-16). Amount resolution is 1/10000; the largest value, 3,740,186,
+/// survives a host's 32-bit normalised parameter (it rounds back to the same integer).
+///
+/// 0.7 adds the pans without changing that layout, because Live stores a slot by
+/// its value: a new destination number or a wider range would move every saved
+/// slot. They use the routes 0.4 ignored. Destination 0 with a source is that
+/// source -> Pan; source 0 with destination d is kExtraRoutes[d].
 struct ModSlot {
   int source;
   int dest;
@@ -188,36 +217,60 @@ struct ModSlot {
 };
 constexpr double kModSlotEmpty = 10000.0;
 constexpr double kModSlotMax = 3740186.0;  // (10 * 17 + 16) * 20001 + 20000
+constexpr int kRouteBase = 17;
+constexpr int kLegacySources = 11;  // kSrcNone..kSrcModEnv
+constexpr int kLegacyDests = 17;    // kDstNone..kDstFine
+struct ExtraRoute {
+  int source;
+  int dest;
+};
+inline constexpr ExtraRoute kExtraRoutes[] = {
+    {kSrcNone, kDstNone},
+    {kSrcLfo1, kDstOsc1Pan},     {kSrcLfo1, kDstOsc2Pan},     {kSrcLfo1, kDstOsc3Pan},     {kSrcLfo1, kDstNoisePan},
+    {kSrcLfo2, kDstOsc1Pan},     {kSrcLfo2, kDstOsc2Pan},     {kSrcLfo2, kDstOsc3Pan},     {kSrcLfo2, kDstNoisePan},
+    {kSrcConstant, kDstOsc1Pan}, {kSrcConstant, kDstOsc2Pan}, {kSrcConstant, kDstOsc3Pan}, {kSrcConstant, kDstNoisePan},
+    {kSrcConstant, kDstPan},
+};
+constexpr int kExtraRouteCount = sizeof(kExtraRoutes) / sizeof(kExtraRoutes[0]);
+static_assert(kExtraRouteCount <= kLegacyDests, "the extra routes use source 0's destination codes");
+
+/// The route code for a source and destination, or -1 when the pair has none.
+inline int modRoute(int source, int dest) noexcept {
+  if (source <= kSrcNone || dest <= kDstNone) return source == kSrcNone && dest == kDstNone ? 0 : -1;
+  if (source < kLegacySources && dest < kLegacyDests) return source * kRouteBase + dest;
+  if (source < kLegacySources && dest == kDstPan) return source * kRouteBase;
+  for (int d = 1; d < kExtraRouteCount; ++d)
+    if (kExtraRoutes[d].source == source && kExtraRoutes[d].dest == dest) return d;
+  return -1;
+}
+/// Whether a slot can hold this pair (the editor skips the ones it cannot).
+inline bool modRouteExists(int source, int dest) noexcept { return modRoute(source, dest) >= 0; }
+
+/// A pair with no route packs as an empty slot.
 inline double packModSlot(int source, int dest, double amount) noexcept {
   const double a = amount < -1.0 ? -1.0 : (amount > 1.0 ? 1.0 : amount);
-  return (source * 17.0 + dest) * 20001.0 + std::round((a + 1.0) * 10000.0);
+  const int route = modRoute(source, dest);
+  if (route < 0) return kModSlotEmpty;
+  return route * 20001.0 + std::round((a + 1.0) * 10000.0);
 }
 inline ModSlot unpackModSlot(double value) noexcept {
   const long v = std::lround(value < 0.0 ? 0.0 : (value > kModSlotMax ? kModSlotMax : value));
   const long route = v / 20001;
-  return {static_cast<int>(route / 17), static_cast<int>(route % 17), (v % 20001) / 10000.0 - 1.0};
+  int source = static_cast<int>(route / kRouteBase), dest = static_cast<int>(route % kRouteBase);
+  if (source == kSrcNone) {
+    const ExtraRoute e = dest < kExtraRouteCount ? kExtraRoutes[dest] : ExtraRoute{kSrcNone, kDstNone};
+    source = e.source;
+    dest = e.dest;
+  } else if (dest == kDstNone) {
+    dest = kDstPan;
+  }
+  return {source, dest, (v % 20001) / 10000.0 - 1.0};
 }
 inline void setModSlot(Voice101Parameters& p, int slot, int source, int dest, double amount) noexcept {
   p.*(kModSlots[slot]) = packModSlot(source, dest, amount);
 }
 inline ModSlot getModSlot(const Voice101Parameters& p, int slot) noexcept { return unpackModSlot(p.*(kModSlots[slot])); }
 
-/// Modulation sources. Envelopes (amp, filter and the third, kSrcModEnv),
-/// velocity, wheel and pressure are 0..1; LFOs, key and the per-note random value
-/// are -1..1.
-enum ModSource {
-  kSrcNone = 0, kSrcAmpEnv, kSrcFilterEnv, kSrcLfo1, kSrcLfo2, kSrcVelocity,
-  kSrcKey, kSrcModWheel, kSrcAftertouch, kSrcNoteRandom, kSrcModEnv, kSrcCount
-};
-
-/// Modulation destinations. Amount 1 with a source at 1 moves each by: cutoff
-/// 5 octaves; pitch 24 semitones; fine 100 cents; pulse width 0.45; resonance,
-/// levels 1 (added, clamped); amp x2 (multiplied, clamped 0..2); LFO rate 4 octaves.
-enum ModDest {
-  kDstNone = 0, kDstCutoff, kDstPitch, kDstOsc1Pitch, kDstOsc2Pitch, kDstOsc3Pitch,
-  kDstPulseWidth, kDstResonance, kDstAmp, kDstOsc1Level, kDstOsc2Level, kDstOsc3Level,
-  kDstNoiseLevel, kDstSubLevel, kDstLfo1Rate, kDstLfo2Rate, kDstFine, kDstCount
-};
 
 class Voice101 {
  public:
@@ -284,7 +337,7 @@ class Voice101 {
     modEnvelope_.setRelease(p.env3Release);
     lfoMode_[0] = decodeLfoMode(p.lfo1Wave);
     lfoMode_[1] = decodeLfoMode(p.lfo2Wave);
-    stereo_ = p.stereoSpread > 0.0 && unisonExtra_ > 0;
+    stereo_ = (p.stereoSpread > 0.0 && unisonExtra_ > 0) || oscPanned_;
     filterMode_ = static_cast<int>(clamp(std::lround(p.filterMode), 0, 2));
     amplitudeEnvelope_.setAttack(p.attack);
     amplitudeEnvelope_.setDecay(p.decay);
@@ -482,14 +535,20 @@ class Voice101 {
     return l;
   }
 
-  /// Produce one stereo sample. With stereo spread 0 (or no unison) both sides
-  /// are process(), bit for bit.
+  /// Produce one stereo sample. With stereo spread 0 (or no unison) and no pan
+  /// in the matrix, both sides are process(), bit for bit.
   void processStereo(double& left, double& right) noexcept {
     if (!stereo_) {
       left = right = process();
-      return;
+    } else {
+      render(true, left, right);
     }
-    render(true, left, right);
+    if (voicePanned_) {
+      double gl, gr;
+      panGains(voicePan_, gl, gr);
+      left *= gl;
+      right *= gr;
+    }
   }
 
  private:
@@ -549,9 +608,20 @@ class Voice101 {
       source[kSrcAftertouch] = aftertouch_;
       source[kSrcNoteRandom] = noteRandom_;
       source[kSrcModEnv] = env3;
+      source[kSrcConstant] = 1.0;
       for (int i = 0; i < matrixSlots_; ++i) mod[slotDest_[i]] += source[slotSource_[i]] * slotAmount_[i];
       lfoRateMod_[0] = mod[kDstLfo1Rate];
       lfoRateMod_[1] = mod[kDstLfo2Rate];
+      voicePan_ = mod[kDstPan];
+    }
+    // Per-oscillator pans (0.7): equal power, centre unity, as the unison stack pans.
+    double osc1L = 1.0, osc1R = 1.0, noiseL = 1.0, noiseR = 1.0;
+    double extraL[2] = {1.0, 1.0}, extraR[2] = {1.0, 1.0};
+    if (stereo && oscPanned_) {
+      panGains(mod[kDstOsc1Pan], osc1L, osc1R);
+      panGains(mod[kDstNoisePan], noiseL, noiseR);
+      panGains(mod[kDstOsc2Pan], extraL[0], extraR[0]);
+      panGains(mod[kDstOsc3Pan], extraL[1], extraR[1]);
     }
 
     // --- Pitch: glide, range switch, fine tune, LFO
@@ -655,12 +725,24 @@ class Voice101 {
         pulseL += pv * panL_[i];
         pulseR += pv * panR_[i];
       }
-      const double centre = oscillator_.subOctaveDown() * subLevel * OscillatorCalibration::subGain() +
-                            noise_.next() * noiseLevel * OscillatorCalibration::noiseGain();
-      mixed = sawL * unisonGain_ * sawLevel * OscillatorCalibration::sawGain() +
-              pulseL * unisonGain_ * pulseLevel * OscillatorCalibration::pulseGain() + centre;
-      mixedR = sawR * unisonGain_ * sawLevel * OscillatorCalibration::sawGain() +
-               pulseR * unisonGain_ * pulseLevel * OscillatorCalibration::pulseGain() + centre;
+      if (oscPanned_) {
+        // The sub stays in the middle; oscillator 1's stack and the noise take their pans.
+        const double sub = oscillator_.subOctaveDown() * subLevel * OscillatorCalibration::subGain();
+        const double noise = noise_.next() * noiseLevel * OscillatorCalibration::noiseGain();
+        mixed = (sawL * unisonGain_ * sawLevel * OscillatorCalibration::sawGain() +
+                 pulseL * unisonGain_ * pulseLevel * OscillatorCalibration::pulseGain()) * osc1L +
+                sub + noise * noiseL;
+        mixedR = (sawR * unisonGain_ * sawLevel * OscillatorCalibration::sawGain() +
+                  pulseR * unisonGain_ * pulseLevel * OscillatorCalibration::pulseGain()) * osc1R +
+                 sub + noise * noiseR;
+      } else {
+        const double centre = oscillator_.subOctaveDown() * subLevel * OscillatorCalibration::subGain() +
+                              noise_.next() * noiseLevel * OscillatorCalibration::noiseGain();
+        mixed = sawL * unisonGain_ * sawLevel * OscillatorCalibration::sawGain() +
+                pulseL * unisonGain_ * pulseLevel * OscillatorCalibration::pulseGain() + centre;
+        mixedR = sawR * unisonGain_ * sawLevel * OscillatorCalibration::sawGain() +
+                 pulseR * unisonGain_ * pulseLevel * OscillatorCalibration::pulseGain() + centre;
+      }
     }
     for (int k = 0; k < 2; ++k) {
       if (!extraUsed_[k]) continue;
@@ -674,8 +756,8 @@ class Voice101 {
       } else {
         double l, r;
         renderExtraStereo(extra_[k], extraWave_[k], f, l, r);
-        mixed += level * l;
-        mixedR += level * r;
+        mixed += level * l * extraL[k];
+        mixedR += level * r * extraR[k];
       }
     }
     const double circuitNoise = variationEngine_.tickNoise();
@@ -760,6 +842,14 @@ class Voice101 {
  private:
   static double clamp(double v, double lo, double hi) noexcept { return v < lo ? lo : (v > hi ? hi : v); }
 
+  /// A pan position, -1 left to 1 right, as equal-power gains with the centre at
+  /// unity on both sides (the law the unison stack uses).
+  static void panGains(double pan, double& left, double& right) noexcept {
+    const double angle = (clamp(pan, -1.0, 1.0) + 1.0) * (kPi / 4.0);
+    left = std::sqrt(2.0) * std::cos(angle);
+    right = std::sqrt(2.0) * std::sin(angle);
+  }
+
   /// One LFO sample. Wave 0 is the original sine, computed exactly as before.
   double lfoValue(double wave, double phase, bool wrapped, double& hold) noexcept {
     const int w = static_cast<int>(wave + 0.5);
@@ -841,6 +931,8 @@ class Voice101 {
     matrixSlots_ = 0;
     resonanceModulated_ = false;
     lfo2Used_ = false;
+    oscPanned_ = voicePanned_ = false;
+    voicePan_ = 0.0;
     for (int i = 0; i < 8; ++i) {
       const ModSlot slot = getModSlot(params_, i);
       const long src = slot.source, dst = slot.dest;
@@ -852,6 +944,8 @@ class Voice101 {
       slotAmount_[matrixSlots_] = amount;
       if (dst == kDstResonance) resonanceModulated_ = true;
       if (src == kSrcLfo2) lfo2Used_ = true;
+      if (dst == kDstOsc1Pan || dst == kDstOsc2Pan || dst == kDstOsc3Pan || dst == kDstNoisePan) oscPanned_ = true;
+      if (dst == kDstPan) voicePanned_ = true;
       ++matrixSlots_;
     }
     if (!resonanceModulated_) filter_.setResonance(params_.resonance);
@@ -909,6 +1003,9 @@ class Voice101 {
   StateVariableFilter svf_[4]{};  ///< high/band-pass: two sections per side
   double panL_[kMaxUnisonExtra]{}, panR_[kMaxUnisonExtra]{};
   bool stereo_ = false;
+  bool oscPanned_ = false;    ///< an oscillator or the noise has a pan route: the stereo path runs
+  bool voicePanned_ = false;  ///< the whole voice has a pan route, applied after the VCA
+  double voicePan_ = 0.0;
   int filterMode_ = 0;
   LfoMode lfoMode_[2] = {{0, false, 0}, {0, false, 0}};
   double bpm_ = 120.0, beatPosition_ = 0.0;
