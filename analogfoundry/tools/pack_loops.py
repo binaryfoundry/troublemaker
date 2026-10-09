@@ -41,17 +41,17 @@ ROOT = os.path.dirname(os.path.dirname(HERE))
 PAIRS = [
     ("Synth Loop 02 Fmin", "serum", "SY - Desire", 0, 1.6),
     ("Synth Loop 03 Bmin", "serum", "SY - Dimension", 0, 1.6),
-    ("Synth Loop 04 Cmin", "serum", "SY - Following", 0, 7.0),
+    ("Synth Loop 04 Cmin", "serum", "SY - Following", 0, 6.8),
     ("Synth Loop 05 C ", "serum", "SY - Instead", 0, 2.0),
-    ("Synth Loop 06 Cmin", "serum", "SY - Lines", 0, 2.8),  # 1.5 before S16, 2.4 before real tables; see README
+    ("Synth Loop 06 Cmin", "serum", "SY - Lines", 0, 2.6),  # 1.5 before S16, 2.4 before real tables; see README
     ("Synth Loop 07 A#min", "serum", "SY - Magician", 0, 6.9),
     ("Synth Loop 08 Fmin", "serum", "SY - Page", 0, 3.3),
     ("Synth Loop 09 Amin", "serum", "SY - Patterns", 0, 1.6),
     ("Synth Loop 10 A#", "serum", "SY - Plans", 0, 1.1),
-    ("Synth Loop 11 D#min", "serum", "SY - Smear", 8, 1.6),
+    ("Synth Loop 11 D#min", "serum", "SY - Smear", 8, 1.4),
     ("Bass Loop 12 D#min", "serum", "BS - Coast", 0, 0.7),
     ("Bass Loop 18 Emin", "serum", "BS - Listener", 0, 1.2),
-    ("Bass Loop 20 D#", "serum", "BS - Kinetic", 0, 2.1),
+    ("Bass Loop 20 D#", "serum", "BS - Kinetic", 0, 1.4),
     ("Synth Loop 12 Amin", "diva", "SY - Milk", 0, 1.8),
     ("Synth Loop 13 Amin", "diva", "SY - Black", 0, 0.9),
     ("Synth Loop 15 Amin", "diva", "SY - Impactful", 0, 1.7),

@@ -221,7 +221,9 @@ describe('Serum -> AF101', () => {
     });
     const c = convertSerum(serumBody({ ModSlot0: route(1), ModSlot1: route(2), ModSlot2: route(3), ModSlot3: route(16, 1) }), 'LD - Test');
     expect(c.matrix).toContainEqual(expect.objectContaining({ src: SRC.modWheel, dst: DST.cutoff }));
-    expect(c.matrix).toContainEqual(expect.objectContaining({ src: SRC.ampEnv, dst: DST.cutoff }));
+    // Envelope 1 (source 2) is the amp envelope; its route reads a linear copy on env 3 (S17).
+    expect(c.matrix).toContainEqual(expect.objectContaining({ src: SRC.env3, dst: DST.cutoff }));
+    expect(c.patch.env3_sustain).toBeCloseTo(0.8);
     // Envelope 2 (source 3) is the body's Env1, the short one, and becomes the filter envelope.
     expect(c.patch.fenv_decay).toBeCloseTo(0.2);
     expect(c.patch.fenv_sustain).toBe(0);
@@ -262,6 +264,37 @@ describe('Serum -> AF101', () => {
     expect(withType('MgL12').patch.filter_poles).toBe(2);
     expect(withType().patch.filter_poles).toBe(2);
     expect(withType('H18').patch.filter_poles).toBeUndefined();
+  });
+
+  it("squares the amp envelope's sustain and stretches its decay and release (S17)", () => {
+    // BS - Coast: a stored 0.671 reads -6.9 dB in Serum 2's ENV 1.
+    const c = convertSerum(serumBody({ Env0: { plainParams: { kParamSustain: 0.6711554527282715, kParamRelease: 0.3 } } }), 'BS - Test');
+    expect(20 * Math.log10(c.patch.sustain!)).toBeCloseTo(-6.9, 1);
+    expect(c.patch.release).toBeCloseTo(0.54, 6);
+    expect(c.patch.decay).toBeCloseTo(1.8, 6); // Serum's default 1 s
+    expect(c.report.assumptions).toContain('S17');
+  });
+
+  it("gives Env 1's routes a linear copy of it, not the squared amp (S17)", () => {
+    const envRoute = { source: [2, 0], destModuleTypeString: 'VoiceFilter', destModuleID: 0, destModuleParamName: 'kParamFreq', plainParams: { kParamAmount: 33 } };
+    // Env 2 already holds the filter envelope, so the copy goes to env 3.
+    const c = convertSerum(serumBody({ ModSlot4: envRoute }), 'SY - Test');
+    expect(c.patch.sustain).toBeCloseTo(0.64, 6);
+    expect(c.patch.env3_sustain).toBeCloseTo(0.8, 6);
+    expect(c.patch.env3_release).toBeCloseTo(0.3, 6);
+    expect(c.matrix.some((s) => s.src === SRC.env3 && s.dst === DST.cutoff)).toBe(true);
+    expect(c.matrix.some((s) => s.src === SRC.ampEnv)).toBe(false);
+  });
+
+  it("weights a fine-tune route by its oscillator's share of the level (S18)", () => {
+    const fine = (osc: number) => ({
+      source: [6, 0], destModuleTypeString: 'Oscillator', destModuleID: osc, destModuleParamName: 'kParamFine',
+      plainParams: { kParamAmount: 30, kParamBipolar: 1 },
+    });
+    // Osc A at the default 0.75 and Osc B at 0.375: B is a third of the level.
+    const c = convertSerum(serumBody({ ModSlot3: fine(1), LFO0: { plainParams: { kParamMode: 'Free' } } }), 'LD - Test');
+    expect(c.matrix.find((s) => s.src === SRC.lfo1 && s.dst === DST.fine)!.amt).toBeCloseTo(0.1, 4);
+    expect(c.report.assumptions).toContain('S18');
   });
 
   it('plays noise a macro raises at 0.3 of the macro share (S16)', () => {

@@ -104,7 +104,7 @@ more than one client.
 ## Testing
 
 ```bash
-npm test                      # 587 tests, no Ableton needed
+npm test                      # 593 tests, no Ableton needed
 npm run typecheck
 npm run cli -- selftest       # round trip, needs Live running
 ```

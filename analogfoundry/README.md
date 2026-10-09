@@ -213,7 +213,37 @@ Window 3.2 (its softer saw has no AF101 wave, and is reported). SY - Lines took 
 Osc B (Jno frame 1, 21 dB from a saw): tone 2.8 -> 3.2 dB, harmonics 2.0 -> 1.6, loop 2.4 ->
 2.8. Width does not compare yet: AF101 renders these mono, where Serum's dry output reads
 -11 to -22 dB side - Lines from LFOs on per-oscillator pan (AF101 has none), Coast from its
-Utility, Horizons probably from its chorus leaking past the FX mix. Movement needs held,
+Utility, Horizons probably from its chorus leaking past the FX mix.
+
+**Envelopes, velocity and pitch movement: a test clip.** The demo clips have no lone held
+notes, so four presets (BS - Coast, SY - Lines, LD - Horizons, LD - Window) played a test
+clip in Serum 2: two notes held for two bars, a velocity ramp (40, 70, 100, 127), eight
+16ths and a held chord. Serum's effects have to be **removed** for a dry capture (the ×
+beside each in the FX list): these presets' macros modulate the effects' MIX knobs, so a
+knob turned fully left still lets the effect through. What it found, all now in the
+converter:
+
+- Serum's amp envelope is squared and its segments end at their stored times (S17).
+  Its own panel shows a stored sustain of 0.671 as -6.9 dB. Squared sustain and decay and
+  release x 1.8 bring the held level within 0.1-1.4 dB (Horizons was 4.9 off) and the
+  release within 0.5 dB on three presets (was 3.3-10.2); 1.8 was the best scale of 1.0-2.4
+  for every one. A route from Env 1 reads the envelope itself, not the squared amp, so it
+  gets a linear copy in a free envelope slot: without it SY - Lines' cutoff closed with the
+  sustain and its loop went from 2.8 to 4.4 dB.
+- A fine-tune route counts by its oscillator's share of the level, since AF101 has one
+  pitch (S18). Horizons' pitch wobble on held notes: 16.5 cents added, 7.2 weighted,
+  Serum 7.1.
+- Velocity to brightness already matched (within 0.1 octave on three presets; Coast's
+  lowest velocity is 0.5 octave too dark).
+
+Still open from it: Window's tone (6.7 dB; its Juno saw table, and an LFO of Serum's
+chaotic Rossler type that AF101 lacks; its pitch can't be measured, since AF101's render
+reads 20 cents of tracker wobble with no pitch modulation at all); Horizons' noise between
+the harmonics, 9 dB above Serum's on these low notes against 1 dB on its demo clip (Serum's
+noise may track the key); Coast's filter closing half as far over a held note; width
+(AF101 renders mono: no per-oscillator pan). Pack loops after S17 and S18: Lines 2.6,
+Kinetic 1.4, Smear 1.4, Following 6.8; Plans 1.1 -> 1.3 and Magician 6.9 -> 7.1, inside the
+margin. Movement needs held,
 single notes: the leads' demo clips have none and chords defeat pitch tracking, so LFO and
 vibrato depth are not yet measured. A whole-file measure read the notes' own rhythm (one
 beat at 124 BPM) as movement and nearly halved the bipolar routes on a false reading; that

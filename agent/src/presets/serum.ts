@@ -29,6 +29,8 @@ export const SERUM_ASSUMPTIONS: Record<string, string> = {
   S14: "An LFO's drawn shape is read from its points: a triangle (51 of the pack's 75 routed LFOs) plays as AF101's triangle, a ramp as its saw, a curved diamond as its sine; anything else, and Serum's unstored default shape, as a sine. Which way Serum's y axis points is not known, so a ramp's direction and a retriggered LFO's starting phase may be inverted. The shape could not be checked against the loops: the notes' own envelopes swamp an LFO's movement in the brightness.",
   S15: "A filter that stores no type is MG Low 12, Serum 2's default, and MG Low 12/18 play on AF101's ladder taken after 2/3 of its 4 poles (filter_poles). Measured against the pack loops: SY - Desire (no type) 13.8 dB band error at 24 dB and 1.6 at 12; Magician 10.3 -> 6.9, Page (MgL12) 5.1 -> 3.6, Lines (MgL18) 4.6 -> 1.5; Dimension and Patterns (MgL18) moved under 0.4 dB the other way.",
   S16: "Noise that a macro raises from a zero volume (the pack's WHITE NOISE macros) plays far quieter in Serum than the macro's share of the knob: about 0.3 of it. Measured against Serum 2 rendering the presets dry on the same notes: the noise between the harmonics (3-8 kHz) matched at 0.35 on LD - Horizons and 0.25 on LD - Window, and their tone error fell from 3.9 to about 1.6 dB and 5.8 to about 3.5. SY - Lines read the other way, but its capture may not have been dry (its splitter and distortion stayed in).",
+  S17: "Serum's amp envelope is squared: a stored sustain of 0.671 shows as -6.9 dB in its own panel, 20 log10(0.671^2), and its decay and release reach their ends at the stored times, where AF101's are exponential to 99 %. So the sustain is squared and decay and release are 1.8 x the stored time. Measured against Serum 2, dry, on four presets' test clips (held notes, a release into a rest, a chord's tail): sustain level 3.6 -> 0.4 dB off on LD - Horizons; release 3.3-10.2 -> 0.2-2.0 dB off on all four, with 1.8 the best of 1.0-2.4 for each. Attack and the modulation envelopes are unchanged (unmeasured); where AF101's amp envelope also drives the cutoff (no separate filter envelope) the cutoff follows the converted times and sustain.",
+  S18: "AF101 has one pitch for all its oscillators, so a fine-tune route to one Serum oscillator counts by that oscillator's share of the audible level: routes to two oscillators average by level rather than add. Measured against Serum 2, dry, on held notes: LD - Horizons' pitch wobble 16.5 cents when added, 7.2 weighted, Serum 7.1; SY - Lines 10.8 added, 2.8 weighted, Serum 6.6. LD - Window could not be read: AF101's render shows 20 cents of tracker wobble with no pitch modulation at all, and its LFO is a Rossler, which AF101 lacks.",
   S10: 'Serum stores no voice count for a polyphonic preset; it plays on AF101\'s full 8 voices.',
   S9: 'Routing slots 0-4 are oscillators A, B, C, noise and sub. An FX bus (racks 2 and 3) is a parallel send: it is converted only when an oscillator AF101 plays feeds it, at an inline wet of x/(1+x), x = send level x bus volume.',
   S8: "Effects become the nearest Live 12 Standard devices with their wet levels; times and sizes are approximate, and a macro on an effect's wet is applied to every effect of that kind (Serum's FX module numbering is not confirmed).",
@@ -90,6 +92,9 @@ interface Osc {
 
 /** A wavetable's frames, 2048 samples each, by its path relative to Serum's Tables folder. */
 export type TableReader = (relativePath: string) => Float32Array[] | undefined;
+
+/** Serum's amp decay and release against AF101's exponential ones (S17). */
+const SERUM_AMP_TIME_SCALE = 1.8;
 
 const HARMONICS = 24;
 /** Harmonics 1..24 of one cycle, in dB relative to the first. */
@@ -377,8 +382,14 @@ export function convertSerum(body: any, name: string, readTable?: TableReader): 
 
   // --- Envelopes
   const amp = envOf(body.Env0);
-  Object.assign(patch, { attack: amp.attack, decay: amp.decay, sustain: amp.sustain, release: amp.release });
-  report.mapped.push(`amp env A ${amp.attack.toFixed(3)} D ${amp.decay.toFixed(3)} S ${amp.sustain.toFixed(2)} R ${amp.release.toFixed(3)} s`);
+  // Serum's amp envelope is squared and its segments end at their times; AF101's are
+  // exponential to 99 %. Squared sustain, decay and release x 1.8 (S17).
+  const ampSustain = amp.sustain * amp.sustain;
+  const ampDecay = amp.decay * SERUM_AMP_TIME_SCALE;
+  const ampRelease = amp.release * SERUM_AMP_TIME_SCALE;
+  Object.assign(patch, { attack: amp.attack, decay: ampDecay, sustain: ampSustain, release: ampRelease });
+  report.mapped.push(`amp env A ${amp.attack.toFixed(3)} D ${amp.decay.toFixed(3)} -> ${ampDecay.toFixed(3)} S ${amp.sustain.toFixed(2)} -> ${ampSustain.toFixed(2)} R ${amp.release.toFixed(3)} -> ${ampRelease.toFixed(3)} s`);
+  report.assumptions.push('S17');
 
   // --- Globals
   const g = params(body.Global0);
@@ -444,9 +455,27 @@ export function convertSerum(body: any, name: string, readTable?: TableReader): 
     report.mapped.push(`Env ${env3Src - 1} -> AF101 env 3 (A ${e.attack.toFixed(3)} D ${e.decay.toFixed(3)} S ${e.sustain.toFixed(2)} R ${e.release.toFixed(3)})`);
   }
   for (const s of others.slice(1)) report.dropped.push(`Env ${s - 1} (AF101 has an amp, a filter and a third envelope)`);
+  // A route from Env 1 reads the envelope itself, not the squared, slowed amp (S17):
+  // it gets a linear copy in a free envelope slot.
+  let ampCopy: number | undefined;
+  const ampRoutes = routes.filter((r) => r.src === ENV_SRC_FIRST);
+  if (ampRoutes.length) {
+    const e = envOf(body.Env0);
+    if (!filterEnvSrc && ampRoutes.some((r) => r.dest === 'VoiceFilter0.kParamFreq')) {
+      Object.assign(patch, { fenv_separate: 1, fenv_attack: e.attack, fenv_decay: e.decay, fenv_sustain: e.sustain, fenv_release: e.release });
+      ampCopy = SRC.filterEnv;
+      report.mapped.push(`Env 1's routes -> AF101 filter envelope, a linear copy of Env 1 (S17)`);
+    } else if (!env3Src) {
+      Object.assign(patch, { env3_attack: e.attack, env3_decay: e.decay, env3_sustain: e.sustain, env3_release: e.release });
+      ampCopy = SRC.env3;
+      report.mapped.push(`Env 1's routes -> AF101 env 3, a linear copy of Env 1 (S17)`);
+    } else {
+      report.approximated.push(`Env 1's routes read AF101's amp envelope, squared and slowed (S17): no envelope slot is free`);
+    }
+  }
   const sourceOf = (src: number): number | undefined => {
     if (src === MOD_WHEEL) return SRC.modWheel;
-    if (src === ENV_SRC_FIRST) return SRC.ampEnv;
+    if (src === ENV_SRC_FIRST) return ampCopy ?? SRC.ampEnv;
     if (src === filterEnvSrc) return SRC.filterEnv;
     if (src === env3Src) return SRC.env3;
     if (src >= 6 && src <= 15 && lfoSlot.has(src - 6)) return lfoSlot.get(src - 6) === 0 ? SRC.lfo1 : SRC.lfo2;
@@ -508,8 +537,16 @@ export function convertSerum(body: any, name: string, readTable?: TableReader): 
     if (dest === 'VoiceFilter0.kParamFreq') return { dst: DST.cutoff, amt: (a * OCT_RANGE) / MOD_SCALE.cutoffOctaves };
     if (dest === 'VoiceFilter0.kParamReso') return { dst: DST.resonance, amt: a };
     if (/^Oscillator[0-2]\.kParamFine$/.test(dest)) {
-      if (audible.length > 1) report.approximated.push(`fine-tune modulation of Osc ${'ABC'[Number(dest[10])]} applies to every AF101 oscillator`);
-      return { dst: DST.fine, amt: a };
+      // AF101 has one pitch: each oscillator's route counts by its share of the level (S18).
+      const i = Number(dest[10]);
+      const total = audible.reduce((t, o) => t + o.volume, 0);
+      const share = total > 0 ? (audible.find((o) => o.index === i)?.volume ?? 0) / total : 0;
+      if (share === 0) return undefined;
+      if (share < 1) {
+        report.approximated.push(`fine-tune modulation of Osc ${'ABC'[i]} applies to every AF101 oscillator, at its ${(share * 100).toFixed(0)} % share of the level (S18)`);
+        report.assumptions.push('S18');
+      }
+      return { dst: DST.fine, amt: a * share };
     }
     if (/^Oscillator[0-4]\.kParamVolume$/.test(dest)) {
       const i = Number(dest[10]);
