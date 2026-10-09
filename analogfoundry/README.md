@@ -180,13 +180,20 @@ every saved Set keeps its ids. Against the loops it brought SY - Desire from 13.
 1.6 dB, Lines 4.6 to 1.5, Page 5.1 to 3.6 and Magician 10.3 to 6.9; Dimension and
 Patterns moved under 0.4 dB the other way.
 
-Still open: SY - Following (7.0 dB, 8-20 dB bright above 800 Hz: not its wavetables
-or noise), SY - Magician (its wavetable, PWM Inception, and table-position LFOs),
-Diva's BS - Life, BS - Tops and SY - Using (deep, short filter envelopes; no single
-envelope-time scale fits all three), wavetables other than the analog saws, the
-bipolar route span (S13) and the default envelope times (S2). Basic Mini at position
-1 measured as a saw. A loop includes the synth's effects, so these numbers are for
-tone, not a null test.
+Tested and kept: the cutoff modulation scale (S4) - scaling every cutoff route by 0.75
+or 0.5, or the macro offsets by 0.5, made the median worse (1.9 -> 2.9-12.4 dB); and the
+stored velocity amounts - no single scale helps more presets than it hurts.
+
+Still open, and probably how each loop was played rather than a conversion rule (the
+demo clips automate macros, and a loop's velocities need not be the MIDI's):
+SY - Following (7.0 dB, too bright: halving its filter-envelope or velocity depth
+fixes it, but that breaks Coast and Lines), SY - Magician (6.9 dB, too dark: dropping
+its negative velocity route gives 2.1), and Diva's BS - Life, BS - Tops and SY - Using
+(deep, short filter envelopes; no single envelope-time scale fits all three). Not
+measurable with these loops: wavetables other than the analog saws, LFO shapes (S14),
+the bipolar route span (S13) and the default envelope times (S2). Basic Mini at
+position 1 measured as a saw. A loop includes the synth's effects, so these numbers are
+for tone, not a null test.
 
 ## Using it without the plugin
 
