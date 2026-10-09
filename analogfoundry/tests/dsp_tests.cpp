@@ -222,6 +222,16 @@ void filterTests() {
   check(slopeDb > 15.0, "slope steeper than 15 dB/octave (4-pole)", slopeDb);
   std::printf("        measured slope: %.1f dB/octave\n", slopeDb);
 
+  // Taking the output after fewer poles: 6 dB per octave per pole, two octaves out.
+  for (int poles : {2, 3}) {
+    filter.setOutputPoles(poles);
+    const double one = toneThrough(4000.0, 1000.0);
+    const double two = toneThrough(8000.0, 1000.0);
+    const double db = 20.0 * std::log10(one / std::fmax(two, 1e-12));
+    check(std::fabs(db - 6.0 * poles) < 2.0, std::to_string(poles) + "-pole tap falls about " + std::to_string(6 * poles) + " dB/octave", db);
+  }
+  filter.setOutputPoles(4);
+
   // Resonance must add level at the cutoff, not merely exist as a parameter.
   auto peakAtCutoff = [&](double res) {
     filter.reset();

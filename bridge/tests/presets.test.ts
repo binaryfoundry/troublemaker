@@ -1,9 +1,9 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { AF101_PARAMS, DST, FILTER_MODE, LFO_DIVISION_BEATS, LFO_WAVE, SRC, lfoMode, nearestDivision, packModSlot, placeMatrix, toPresetText, unpackModSlot } from '../../agent/src/presets/af101.js';
+import { AF101_PARAMS, DST, FILTER_MODE, LFO_DIVISION_BEATS, LFO_WAVE, SRC, WAVE, lfoMode, nearestDivision, packModSlot, placeMatrix, toPresetText, unpackModSlot } from '../../agent/src/presets/af101.js';
 import { convertDiva, parseDiva } from '../../agent/src/presets/diva.js';
-import { convertSerum, decodeSerum } from '../../agent/src/presets/serum.js';
+import { convertSerum, decodeSerum, lfoWaveOf, serumSyncBeats } from '../../agent/src/presets/serum.js';
 
 describe('AF101 parameter catalogue', () => {
   it('matches parameterTable() in Preset.h, id for id and range for range', () => {
@@ -11,7 +11,7 @@ describe('AF101 parameter catalogue', () => {
     const rows = [...header.matchAll(/\{"([a-z0-9_]+)", "[^"]+", "[^"]*", (-?[\d.]+), (-?[\d.]+), (-?[\d.]+)/g)].map((m) => ({
       id: m[1], min: +m[2]!, max: +m[3]!, def: +m[4]!,
     }));
-    expect(rows.length).toBe(63); // Live lists a plugin's parameters only up to 64
+    expect(rows.length).toBe(64); // Live lists a plugin's parameters only up to 64
     expect(AF101_PARAMS).toEqual(rows);
   });
 
@@ -134,8 +134,8 @@ describe('Diva -> AF101', () => {
     expect(c.patch.vel_amp).toBeCloseTo(0.4);
   });
 
-  it('reads the cutoff as a note number and the envelope depth in semitones', () => {
-    expect(c.patch.cutoff).toBeCloseTo(440, 6);
+  it('reads the cutoff as a note number an octave below MIDI and the envelope depth in semitones (D2)', () => {
+    expect(c.patch.cutoff).toBeCloseTo(220, 6); // Freq 69, measured against the pack loops
     expect(c.patch.resonance).toBeCloseTo(0.2);
     expect(c.patch.track).toBeCloseTo(0.5);
     expect(c.patch.env_cutoff).toBeCloseTo(1 / 6, 6); // 12 st = 1 octave of AF101's 6
@@ -166,7 +166,7 @@ function serumBody(overrides: Record<string, unknown> = {}) {
     Global0: { plainParams: { kParamMonoToggle: 1, kParamPortamentoTime: 0.02 } },
     ModSlot0: { source: [25, 0], destModuleTypeString: 'VoiceFilter', destModuleID: 0, destModuleParamName: 'kParamFreq', plainParams: { kParamAmount: 40 } },
     ModSlot1: { source: [16, 0], destModuleTypeString: 'VoiceFilter', destModuleID: 0, destModuleParamName: 'kParamFreq', plainParams: { kParamAmount: 31 } },
-    ModSlot2: { source: [2, 0], destModuleTypeString: 'VoiceFilter', destModuleID: 0, destModuleParamName: 'kParamFreq', plainParams: { kParamAmount: 21 } },
+    ModSlot2: { source: [3, 0], destModuleTypeString: 'VoiceFilter', destModuleID: 0, destModuleParamName: 'kParamFreq', plainParams: { kParamAmount: 21 } },
     ModSlot3: { source: [99, 0], destModuleTypeString: 'VoiceFilter', destModuleID: 0, destModuleParamName: 'kParamFreq', plainParams: { kParamAmount: 10 } },
     FXRack0: { FX: [{ FXChorus: { plainParams: { kParamWet: 40 } } }] },
     FXRack1: { FX: [{ FXDelay: { plainParams: { kParamWet: 100 } } }] },
@@ -182,7 +182,7 @@ describe('Serum -> AF101', () => {
     expect(c.patch.saw).toBe(1);
     expect(c.patch.osc2_level).toBeCloseTo(0.5); // 0.375 against A's default 0.75
     expect(c.patch.osc2_oct).toBe(1);
-    expect(c.patch.osc2_wave).toBe(0);
+    expect(c.patch.osc2_wave).toBe(WAVE.saw); // Basic Mini at position 1 measured as a saw (S5)
   });
 
   it('bakes the CUTOFF macro into the cutoff and keeps the envelope and velocity routes (S1, S6)', () => {
@@ -215,6 +215,88 @@ describe('Serum -> AF101', () => {
     expect(bp.patch.filter_mode).toBe(FILTER_MODE.bandpass);
   });
 
+  it('reads Serum 2 source 1 as the mod wheel and envelopes 1-4 as sources 2-5 (S11)', () => {
+    const route = (src: number, aux = 0) => ({
+      source: [src, aux], destModuleTypeString: 'VoiceFilter', destModuleID: 0, destModuleParamName: 'kParamFreq', plainParams: { kParamAmount: 20 },
+    });
+    const c = convertSerum(serumBody({ ModSlot0: route(1), ModSlot1: route(2), ModSlot2: route(3), ModSlot3: route(16, 1) }), 'LD - Test');
+    expect(c.matrix).toContainEqual(expect.objectContaining({ src: SRC.modWheel, dst: DST.cutoff }));
+    expect(c.matrix).toContainEqual(expect.objectContaining({ src: SRC.ampEnv, dst: DST.cutoff }));
+    // Envelope 2 (source 3) is the body's Env1, the short one, and becomes the filter envelope.
+    expect(c.patch.fenv_decay).toBeCloseTo(0.2);
+    expect(c.patch.fenv_sustain).toBe(0);
+    expect(c.patch.env_cutoff).toBeGreaterThan(0);
+    // A route scaled by the mod wheel is silent while the wheel rests at 0.
+    expect(c.matrix.some((s) => s.src === SRC.velocity)).toBe(false);
+    expect(c.report.dropped.some((d) => /mod wheel, which rests at 0/.test(d))).toBe(true);
+  });
+
+  it('reads a synced LFO rate as the division Serum snaps it to (S7)', () => {
+    // Serum 2 presets saved at known rates (serum2vital DebugPresets/13).
+    expect(serumSyncBeats(0.2108496543592536)).toBe(16); // 4 bars
+    expect(serumSyncBeats(1.6269264358721542)).toBe(4); // 1 bar
+    expect(serumSyncBeats(3.3735944697480575)).toBe(2); // 1/2
+    expect(serumSyncBeats(6.25)).toBe(1); // the default, 1/4
+    expect(serumSyncBeats(26.030822973954468)).toBe(0.125); // 1/32
+    const lfoRoute = {
+      source: [6, 0], destModuleTypeString: 'VoiceFilter', destModuleID: 0, destModuleParamName: 'kParamFreq',
+      plainParams: { kParamAmount: 20, kParamBipolar: 1 },
+    };
+    const synced = convertSerum(serumBody({ ModSlot3: lfoRoute, LFO0: { plainParams: { kParamMode: 'Free', kParamRate: 26.030822973954468 } } }), 'LD - Test');
+    expect(synced.patch.lfo1_wave).toBe(lfoMode(LFO_WAVE.sine, false, nearestDivision(0.125)));
+    // No stored mode is Trig, which retriggers; no stored rate is 1/4.
+    const trig = convertSerum(serumBody({ ModSlot3: lfoRoute, LFO0: { plainParams: {} } }), 'LD - Test');
+    expect(trig.patch.lfo1_wave).toBe(lfoMode(LFO_WAVE.sine, true, nearestDivision(1)));
+    // 1/64 is faster than AF101 syncs: clamped to 1/32 and reported.
+    const fast = convertSerum(serumBody({ ModSlot3: lfoRoute, LFO0: { plainParams: { kParamMode: 'Free', kParamRate: 38.11172097735195 } } }), 'LD - Test');
+    expect(fast.patch.lfo1_wave).toBe(lfoMode(LFO_WAVE.sine, false, nearestDivision(0.125)));
+    expect(fast.report.approximated.some((a) => /synced at 1\/64/.test(a))).toBe(true);
+  });
+
+  it("plays MG Low 12 and 18 on the ladder's 2- and 3-pole taps; no stored type is MG Low 12 (S15)", () => {
+    const withType = (t?: string) =>
+      convertSerum(serumBody({ VoiceFilter0: { plainParams: { kParamEnable: 1, kParamFreq: 0.5, ...(t ? { kParamType: t } : {}) } } }), 'SY - Test');
+    expect(withType('MgL24').patch.filter_poles).toBeUndefined();
+    expect(withType('LadderMg').patch.filter_poles).toBeUndefined();
+    expect(withType('MgL18').patch.filter_poles).toBe(3);
+    expect(withType('MgL12').patch.filter_poles).toBe(2);
+    expect(withType().patch.filter_poles).toBe(2);
+    expect(withType('H18').patch.filter_poles).toBeUndefined();
+  });
+
+  it("reads an LFO's drawn shape into AF101's nearest wave (S14)", () => {
+    const shape = (xVals: number[], yVals: number[], curveVals: number[]) => ({ curveData: { numPoints: xVals.length - 1, xVals, yVals, curveVals } });
+    expect(lfoWaveOf(shape([0, 0.5, 1], [1, 0, 1], [0.5, 0.5, 0.5])).wave).toBe(LFO_WAVE.triangle);
+    expect(lfoWaveOf(shape([0, 0, 1], [1, 0, 1], [0.5, 0.5, 0.5])).wave).toBe(LFO_WAVE.saw);
+    expect(lfoWaveOf(shape([0, 0.25, 0.5, 0.75, 1, 1], [0.5, 0, 0.5, 1, 0.5, 0], [0.3, 0.7, 0.3, 0.7, 0.5, 0.5])).wave).toBe(LFO_WAVE.sine);
+    expect(lfoWaveOf({ plainParams: 'default' }).how).toMatch(/default shape/);
+  });
+
+  it('plays a unipolar LFO route as half the amount around a raised base (S13)', () => {
+    const route = (bipolar: boolean) => ({
+      source: [6, 0], destModuleTypeString: 'VoiceFilter', destModuleID: 0, destModuleParamName: 'kParamFreq',
+      plainParams: { kParamAmount: 20, ...(bipolar ? { kParamBipolar: 1 } : {}) },
+    });
+    const lfo = { plainParams: { kParamMode: 'Free' } };
+    const uni = convertSerum(serumBody({ ModSlot3: route(false), LFO0: lfo }), 'LD - Test');
+    const bi = convertSerum(serumBody({ ModSlot3: route(true), LFO0: lfo }), 'LD - Test');
+    const depth = (c: typeof uni) => c.matrix.find((s) => s.src === SRC.lfo1)!.amt;
+    expect(depth(bi)).toBeCloseTo((0.2 * OCT) / 5, 4);
+    expect(depth(uni)).toBeCloseTo((0.1 * OCT) / 5, 4);
+    expect(uni.patch.cutoff! / bi.patch.cutoff!).toBeCloseTo(Math.pow(2, 0.1 * OCT), 3);
+  });
+
+  it('plays an octave unison stack as an oscillator an octave up (S12)', () => {
+    const c = convertSerum(serumBody({
+      Oscillator0: { plainParams: { kParamUnison: 6, kParamUnisonStack: 'kOctave2' }, WTOsc0: { relativePathToWT: '/Analog/Jno.wav', plainParams: 'default' } },
+    }), 'SY - Test');
+    expect(c.patch.unison).toBe(6);
+    expect(c.patch.osc3_oct).toBe(1);
+    expect(c.patch.osc3_wave).toBe(WAVE.saw);
+    expect(c.patch.osc3_level).toBe(1);
+    expect(c.report.approximated.some((a) => /kOctave2 -> osc 3 an octave up/.test(a))).toBe(true);
+  });
+
   it('plays a polyphonic preset on 8 voices, and a mono one on 1', () => {
     const c = convertSerum(serumBody({ Global0: { plainParams: {} } }), 'SY - Pad');
     expect(c.polyphonic).toBe(true);
@@ -244,6 +326,41 @@ describe.skipIf(!existsSync(PACK))('Serum 2 file decoding (needs the pack on thi
       const body = decodeSerum(readFileSync(`${PACK}/${f}`));
       expect(body.Oscillator0).toBeDefined();
       expect(() => convertSerum(body, f)).not.toThrow();
+    }
+  });
+
+  it('puts every pitch-envelope route on a short, zero-sustain envelope (S11)', () => {
+    // Under the old numbering (envelopes 1-4) all 14 read an untouched default envelope.
+    let routes = 0;
+    for (const f of readdirSync(PACK).filter((x) => x.endsWith('.SerumPreset'))) {
+      const body = decodeSerum(readFileSync(`${PACK}/${f}`));
+      for (const m of Object.keys(body).filter((k) => /^ModSlot\d+$/.test(k)).map((k) => body[k])) {
+        if (m?.destModuleParamName !== 'kParamCoarsePit' || m.source[0] < 2 || m.source[0] > 5) continue;
+        const env = body[`Env${m.source[0] - 2}`].plainParams;
+        expect(env.kParamDecay).toBeLessThan(0.05);
+        expect(env.kParamSustain).toBe(0);
+        routes++;
+      }
+    }
+    expect(routes).toBe(14);
+  });
+
+  it('writes patches AF101 loads as written: known ids, in range, matrix slots that survive Live', () => {
+    const byId = new Map(AF101_PARAMS.map((p) => [p.id, p]));
+    const max = byId.get('mod1')!.max;
+    for (const f of readdirSync(PACK).filter((x) => x.endsWith('.SerumPreset'))) {
+      const c = convertSerum(decodeSerum(readFileSync(`${PACK}/${f}`)), f);
+      for (const [id, v] of Object.entries(c.patch)) {
+        const p = byId.get(id);
+        expect(p, `${f}: ${id}`).toBeDefined();
+        expect(v, `${f}: ${id}`).toBeGreaterThanOrEqual(p!.min);
+        expect(v, `${f}: ${id}`).toBeLessThanOrEqual(p!.max);
+      }
+      for (const s of c.matrix) {
+        // Live hands a plugin its values as 32-bit normalised floats.
+        const v = packModSlot(s.src, s.dst, s.amt);
+        expect(Math.round(Math.fround(v / max) * max), `${f}: ${s.why}`).toBe(v);
+      }
     }
   });
 });

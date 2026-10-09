@@ -11,6 +11,8 @@
 //
 // Writes 24-bit stereo (dual mono) at 48 kHz unless told otherwise.
 
+#include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -35,7 +37,30 @@ struct Args {
   af::Voice101Parameters p{};
   std::vector<int> chord;   ///< extra notes played with `note` (needs --voices > 1)
   double bpm = 0.0;         ///< > 0: the transport plays at this tempo from beat 0
+  double modWheel = 0.0;    ///< 0..1, held for the whole render
+  std::string events;       ///< a note list to play instead of --note (needs --bpm)
 };
+
+/// One note of an --events file: start and length in beats, MIDI note, velocity 0..1.
+struct NoteEvent {
+  double beat, length;
+  int note;
+  double velocity;
+};
+
+/// Reads "beat length note velocity" lines; '#' starts a comment.
+bool readEvents(const std::string& path, std::vector<NoteEvent>& events) {
+  std::FILE* f = std::fopen(path.c_str(), "r");
+  if (f == nullptr) return false;
+  char line[256];
+  while (std::fgets(line, sizeof(line), f) != nullptr) {
+    if (line[0] == '#') continue;
+    NoteEvent e{};
+    if (std::sscanf(line, "%lf %lf %d %lf", &e.beat, &e.length, &e.note, &e.velocity) == 4) events.push_back(e);
+  }
+  std::fclose(f);
+  return true;
+}
 
 bool matches(const char* a, const char* b) { return std::strcmp(a, b) == 0; }
 
@@ -111,6 +136,10 @@ void usage() {
       "  --voices N        1 = mono 101 (default), 2..8 = polyphonic\n"
       "  --stereo S        stereo unison spread 0..1 (needs --unison > 1)\n"
       "  --bpm B           play the transport at B from beat 0 (synced LFOs follow it)\n"
+      "  --events FILE     play a note list instead of --note: one \"beat length note velocity\"\n"
+      "                    per line (beats at --bpm, velocity 0..1); --seconds is the total length\n"
+      "  --mod-wheel W     hold the mod wheel at W 0..1 (default 0)\n"
+      "  --poles N         low-pass slope: 2, 3 or 4 poles = 12, 18 or 24 dB/octave (default 4)\n"
       "  --unison N        unison voices 1..7 (off by default)\n"
       "  --detune CENTS    unison detune: the outermost voices sit at +/- this\n"
       "  --level L         output level\n");
@@ -174,6 +203,9 @@ int main(int argc, char** argv) {
     else if (matches(k, "--stereo")) a.p.stereoSpread = value();
     else if (matches(k, "--voices")) a.p.voices = value();
     else if (matches(k, "--bpm")) a.bpm = value();
+    else if (matches(k, "--mod-wheel")) a.modWheel = value();
+    else if (matches(k, "--poles")) a.p.filterPoles = value();
+    else if (matches(k, "--events")) { if (i + 1 >= argc) { usage(); return 2; } a.events = argv[++i]; }
     else if (matches(k, "--chord")) {
       if (i + 1 >= argc) { usage(); return 2; }
       std::string list = argv[++i];
@@ -192,24 +224,63 @@ int main(int argc, char** argv) {
   }
   if (a.noteSeconds < 0.0) a.noteSeconds = a.seconds * 0.6;
 
+  std::vector<NoteEvent> events;
+  if (!a.events.empty()) {
+    if (a.bpm <= 0.0) {
+      std::fprintf(stderr, "ERROR: --events needs --bpm\n");
+      return 2;
+    }
+    if (!readEvents(a.events, events)) {
+      std::fprintf(stderr, "ERROR: could not read %s\n", a.events.c_str());
+      return 1;
+    }
+  }
+
   af::Synth101 voice;
   voice.setSampleRate(a.sampleRate);
   voice.setParameters(a.p);
   voice.reset();
   if (a.bpm > 0.0) voice.setTransport(a.bpm, 0.0, true);
-  voice.noteOn(a.note, a.velocity);
-  for (int n : a.chord) voice.noteOn(n, a.velocity);
+  voice.setModWheel(a.modWheel);
 
   const long total = static_cast<long>(a.seconds * a.sampleRate);
-  const long gate = static_cast<long>(a.noteSeconds * a.sampleRate);
+  // Each event becomes a note-on and a note-off at a sample; offs sort before ons
+  // at the same sample, so a repeated note retriggers rather than being cut.
+  struct Edge {
+    long sample;
+    bool on;
+    int note;
+    double velocity;
+  };
+  std::vector<Edge> edges;
+  if (events.empty()) {
+    const long gate = static_cast<long>(a.noteSeconds * a.sampleRate);
+    edges.push_back({0, true, a.note, a.velocity});
+    for (int n : a.chord) edges.push_back({0, true, n, a.velocity});
+    edges.push_back({gate, false, a.note, 0.0});
+    for (int n : a.chord) edges.push_back({gate, false, n, 0.0});
+  } else {
+    const double samplesPerBeat = a.sampleRate * 60.0 / a.bpm;
+    for (const NoteEvent& e : events) {
+      const long on = static_cast<long>(e.beat * samplesPerBeat + 0.5);
+      const long off = static_cast<long>((e.beat + e.length) * samplesPerBeat + 0.5);
+      edges.push_back({on, true, e.note, e.velocity});
+      edges.push_back({off, false, e.note, 0.0});
+    }
+  }
+  std::stable_sort(edges.begin(), edges.end(), [](const Edge& x, const Edge& y) {
+    return x.sample != y.sample ? x.sample < y.sample : (!x.on && y.on);
+  });
+
   std::vector<double> out, outR;
   out.reserve(static_cast<size_t>(total));
   outR.reserve(static_cast<size_t>(total));
   double peak = 0.0;
+  size_t next = 0;
   for (long i = 0; i < total; ++i) {
-    if (i == gate) {
-      voice.noteOff(a.note);
-      for (int n : a.chord) voice.noteOff(n);
+    for (; next < edges.size() && edges[next].sample <= i; ++next) {
+      if (edges[next].on) voice.noteOn(edges[next].note, edges[next].velocity);
+      else voice.noteOff(edges[next].note);
     }
     double l, r;
     voice.processStereo(l, r);

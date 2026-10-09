@@ -43,7 +43,7 @@ class AnalogFoundry101 : public Plugin {
   const char* getMaker() const override { return "AnalogFoundry"; }
   const char* getHomePage() const override { return DISTRHO_PLUGIN_URI; }
   const char* getLicense() const override { return "ISC"; }
-  uint32_t getVersion() const override { return d_version(0, 5, 0); }  // 0.5: tempo sync, stereo, polyphony, env 3, filter modes
+  uint32_t getVersion() const override { return d_version(0, 6, 0); }  // 0.6: low-pass slope (0.5: tempo sync, stereo, polyphony, env 3, filter modes)
 
   /// Stable across releases: changing it makes hosts lose existing projects.
   int64_t getUniqueId() const override { return d_cconst('A', 'F', '1', '1'); }
@@ -74,6 +74,7 @@ class AnalogFoundry101 : public Plugin {
     if (id == "osc2_wave" || id == "osc3_wave") setChoices(parameter, L::kOscWaves, 4);
     else if (id == "lfo1_wave" || id == "lfo2_wave") setLfoModes(parameter);
     else if (id == "filter_mode") setChoices(parameter, L::kFilterModes, 3);
+    else if (id == "filter_poles") setChoices(parameter, L::kFilterSlopes, 3, 2.0f);
     parameter.name = d.name;
     parameter.symbol = d.id;
     parameter.unit = d.unit;
@@ -215,14 +216,14 @@ class AnalogFoundry101 : public Plugin {
     parameter.enumValues.values = values;
   }
 
-  static void setChoices(Parameter& parameter, const char* const* labels, uint8_t count) {
+  static void setChoices(Parameter& parameter, const char* const* labels, uint8_t count, float first = 0.0f) {
     parameter.hints |= kParameterIsInteger;
     parameter.enumValues.count = count;
     parameter.enumValues.restrictedMode = true;
     auto* values = new ParameterEnumerationValue[count];
     for (uint8_t i = 0; i < count; ++i) {
       values[i].label = labels[i];
-      values[i].value = static_cast<float>(i);
+      values[i].value = first + static_cast<float>(i);
     }
     parameter.enumValues.values = values;
   }

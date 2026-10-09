@@ -5,8 +5,9 @@
  *
  * For each preset writes <name>.txt (an AF101 preset, loadable with
  * `render_note --preset` or applied to the plugin by parameter), <name>.chain.json
- * (the Live devices to put after it) and <name>.md (what was mapped, approximated
- * and dropped, and the assumptions). The default output folder is git-ignored:
+ * (the Live devices to put after it), <name>.md (what was mapped, approximated
+ * and dropped, and the assumptions) and, for Serum, <name>.clip.txt (the preset's
+ * demo clip for `render_note --events`). The default output folder is git-ignored:
  * converted patches are derived from licensed packs and stay on this machine.
  */
 import { execFileSync } from 'node:child_process';
@@ -16,7 +17,7 @@ import { basename, extname, join, resolve } from 'node:path';
 
 import { toPresetText } from './af101.js';
 import { convertDiva, DIVA_ASSUMPTIONS, parseDiva } from './diva.js';
-import { convertSerum, decodeSerum, SERUM_ASSUMPTIONS } from './serum.js';
+import { convertSerum, decodeSerum, SERUM_ASSUMPTIONS, serumDemoClip } from './serum.js';
 import { reportMarkdown, type Conversion } from './types.js';
 
 const args = process.argv.slice(2);
@@ -68,8 +69,14 @@ for (const file of files) {
   if (ext !== '.serumpreset' && ext !== '.h2p') continue;
   const name = basename(file, extname(file));
   let c: Conversion;
+  let clip: ReturnType<typeof serumDemoClip>;
   try {
-    c = ext === '.h2p' ? convertDiva(parseDiva(readFileSync(file, 'latin1')), name) : convertSerum(decodeSerum(readFileSync(file)), name);
+    if (ext === '.h2p') c = convertDiva(parseDiva(readFileSync(file, 'latin1')), name);
+    else {
+      const body = decodeSerum(readFileSync(file));
+      c = convertSerum(body, name);
+      clip = serumDemoClip(body, c.transposeOctaves);
+    }
   } catch (e) {
     console.error(`${name}: ${(e as Error).message}`);
     continue;
@@ -86,6 +93,10 @@ for (const file of files) {
   writeFileSync(join(dir, `${name}.txt`), toPresetText(c.patch, header));
   writeFileSync(join(dir, `${name}.chain.json`), JSON.stringify(c.chain, null, 2) + '\n');
   writeFileSync(join(dir, `${name}.md`), reportMarkdown(c, c.source === 'serum' ? SERUM_ASSUMPTIONS : DIVA_ASSUMPTIONS));
+  if (clip) {
+    const head = `# ${name}: the preset's demo clip, ${clip.beats} beats. render_note --preset "${name}.txt" --events "${name}.clip.txt" --bpm B\n`;
+    writeFileSync(join(dir, `${name}.clip.txt`), head + clip.events);
+  }
   rows.push(`| ${c.source} | ${name} | ${c.polyphonic ? 'poly' : 'mono'} | ${c.report.mapped.length} | ${c.report.approximated.length} | ${c.report.dropped.length} | ${c.matrix.length} | ${c.chain.map((d) => d.device).join(', ')} |`);
   done++;
 }

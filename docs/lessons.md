@@ -434,3 +434,39 @@ Retry both a few times before failing.
 - **Back to Arrangement lands a tick later**: straight after the call
   `session_overrides_arrangement` can still read true.
 
+## Checking the Serum and Diva conversions without either synth (2026-10-09)
+
+- **A sample pack's loops are the synth's own renders.** Rendering a preset's demo MIDI
+  through AF101 (`render_note --events`) and comparing it with the loop the synth made from
+  the same MIDI turned "the timbre is unverified" into a band error per preset, for 13
+  Serum and 8 Diva presets (`analogfoundry/tools/pack_loops.py`).
+- **Match a loop by exact pitch, not pitch class and rhythm.** Chroma plus onsets put Synth
+  Loop 13 on Serum's SY - Patterns. A semitone spectrogram against each clip's notes and
+  harmonics showed it is Diva's SY - Black (0.84 against 0.71), and two conversion rules
+  fitted to it were backwards: the unison octave stack goes up, not down, and Basic Mini's
+  first frame is a saw, not a triangle. Fit a rule only after the pair is pinned down, and
+  keep it only when every pair it touches agrees.
+- **One improving preset can hide the real cause.** SY - Following got closer with a triangle
+  in place of Basic Mini only because that hid excess brightness coming from elsewhere.
+  Test a variant on the preset where the part plays alone.
+- **Find ground truth for every guessed id.** The Serum mod-source codes had been read off the
+  pack's usage and were off by one: source 1 is the mod wheel, so the leads' "amp envelope
+  -> cutoff" was the mod wheel and every envelope route read the next envelope's shape.
+  A fixture saved with one route per source settled it, and the pack confirmed it: every
+  pitch-envelope route lands on a 7-28 ms envelope under the right numbering, and on an
+  untouched default one under the wrong one. CAMELPHAT.md 6b was measured on the wrong
+  numbering and has been corrected, and with it the *Leads* advice in AGENTS.md.
+- **A stored value is evidence about the default.** Serum stores only values that differ
+  from its default, so the synced LFO rates the converter thought absent were there all
+  along (100 * knob^4, a knob position Serum snaps to a division), and "Free" being stored
+  397 times means the unstored mode is the other one, Trig. An unstored filter type is MG
+  Low 12, not 24: SY - Desire rendered 46 dB too dark above 5 kHz at 24 dB and within 1.6 dB
+  band error at 12. But a value converted from Serum 1 is stored when it differs in the last
+  bit, so it says little about the default.
+- **A consistent offset across presets is a unit error.** Six of eight Diva presets fitted
+  best with the cutoff one octave lower, at Freq values from 62 to 104: the knob is a note
+  number an octave below MIDI's, not a note number.
+- **Some things a long-term spectrum cannot see.** An LFO's shape on the cutoff did not show
+  in the brightness over time either: a render with no LFO at all correlated with the loop
+  as well as any wave, because each note's envelope dominates. Read such things from the file
+  and say they are unmeasured.

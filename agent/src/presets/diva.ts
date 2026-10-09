@@ -13,7 +13,7 @@ import { categoryOf, emptyReport, type ChainDevice, type Conversion } from './ty
 
 export const DIVA_ASSUMPTIONS: Record<string, string> = {
   D1: "Envelope times are 0-100 knobs read as t = 12 s x (knob/100)^4 (25 = 47 ms, 50 = 0.75 s, 75 = 3.8 s). The curve is not in the file: it was fitted to the same producer's Serum presets, which store seconds (median releases: leads 0.28 s, plucks 0.08 s, pads 0.33 s), against these presets' knob medians. A log curve over the knob range gave 16-36 ms releases - clicks.",
-  D2: 'Filter cutoff is a note number (60 = 262 Hz, 113.5 = 5.8 kHz), as u-he synths scale it.',
+  D2: "Filter cutoff is a note number an octave below MIDI's (Freq 72 = 262 Hz, 113.5 = 2.9 kHz). Measured against the pack loops Diva played from 8 presets' demo MIDI: as MIDI notes, 6 of them rendered 10-23 dB too bright above 2 kHz, and an octave lower took them to 0.9-1.8 dB band error (mean of all 8: 5.8 -> 3.1 dB). The high-pass uses the same scale, unmeasured.",
   D3: 'A modulation depth on cutoff is in semitones; on pitch, in semitones.',
   D4: 'ENV1 drives the amplifier and ENV2 the filter: across the pack ENV2 is routed to cutoff with sustain 0 in 28 of 29 leads and plucks, and pads keep sustain on ENV1.',
   D5: 'Oscillator models: 0 Triple VCO (Vol/Tune/Shape per oscillator; Shape 5 = saw, above toward pulse, below toward triangle), 1 and 3 Dual VCO (wave switches, OscMix crossfading 0 = osc 1 to 100 = osc 2), 2 DCO (Saw/Pulse switches, Vol3 = sub, Noise), 4 Digital (wave types unknown: saw).',
@@ -54,7 +54,8 @@ const n = (v: string | undefined, d = 0): number => {
   return Number.isFinite(x) ? x : d;
 };
 const seconds = (knob: number) => Math.max(0.0005, 12 * Math.pow(Math.min(100, Math.max(0, knob)) / 100, 4));
-const noteHz = (x: number) => 440 * Math.pow(2, (x - 69) / 12);
+/** A Diva filter frequency knob in Hz: a note number an octave below MIDI's (D2). */
+const noteHz = (x: number) => 440 * Math.pow(2, (x - 12 - 69) / 12);
 /** The AF101 sync division for 1/4 (D8). */
 const QUARTER_NOTE = 9;
 

@@ -90,6 +90,12 @@ class Filter101 {
   }
   double inputNonlinearity() const noexcept { return inputDrive_; }
 
+  /// Which stage the output is taken from: 2, 3 or 4 poles (12, 18 or 24 dB per
+  /// octave). Resonance feedback always comes from the fourth stage, as in a
+  /// multimode ladder, so 4 is the 101 bit for bit.
+  void setOutputPoles(int poles) noexcept { outputPoles_ = poles < 1 ? 1 : (poles > 4 ? 4 : poles); }
+  int outputPoles() const noexcept { return outputPoles_; }
+
   /// Per-instance stage spread, from component tolerance. 0 = matched.
   void setStageSpread(const double spread[4]) noexcept {
     for (int i = 0; i < 4; ++i) stageSpread_[i] = spread[i];
@@ -159,6 +165,7 @@ class Filter101 {
     // Nonlinearity in the feedback path: always on.
     double u = drive - feedbackAmount_ * softClip(feedbackMemory_);
 
+    double out = 0.0;
     for (int i = 0; i < 4; ++i) {
       const double v = (u - state_[i]) * gain_[i];
       double y = v + state_[i];
@@ -167,9 +174,10 @@ class Filter101 {
         y = y * (1.0 - stageDrive_) + softClip(y) * stageDrive_;
       }
       u = y;
+      if (i + 1 == outputPoles_) out = u;
     }
     feedbackMemory_ = u;
-    return u;
+    return out;
   }
 
   static constexpr double kPiLocal = 3.14159265358979323846;
@@ -185,6 +193,7 @@ class Filter101 {
   double feedbackAmount_ = 0.0;
   double stageDrive_ = 0.0;
   double inputDrive_ = 0.0;
+  int outputPoles_ = 4;
   double gain_[4] = {0.0, 0.0, 0.0, 0.0};
   double stageSpread_[4] = {0.0, 0.0, 0.0, 0.0};
   double state_[4] = {0.0, 0.0, 0.0, 0.0};

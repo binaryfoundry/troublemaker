@@ -27,6 +27,7 @@ inline constexpr const char* kDests[] = {"None",        "Cutoff",      "Pitch", 
                                          "Osc 2 Level", "Osc 3 Level", "Noise Level", "Sub Level",   "LFO 1 Rate",
                                          "LFO 2 Rate",  "Fine"};
 inline constexpr const char* kFilterModes[] = {"Low-pass", "High-pass", "Band-pass"};
+inline constexpr const char* kFilterSlopes[] = {"12 dB", "18 dB", "24 dB"};
 
 static_assert(sizeof(kSources) / sizeof(kSources[0]) == kSrcCount, "a matrix source without a name");
 static_assert(sizeof(kDests) / sizeof(kDests[0]) == kDstCount, "a matrix destination without a name");
@@ -63,6 +64,10 @@ inline std::string value(const char* id, const char* unit, double v) {
   if (is(id, "filter_mode")) {
     const long m = std::lround(v);
     return kFilterModes[m < 0 ? 0 : (m > 2 ? 2 : m)];
+  }
+  if (is(id, "filter_poles")) {
+    const long p = std::lround(v);
+    return kFilterSlopes[(p < 2 ? 2 : (p > 4 ? 4 : p)) - 2];
   }
   if (is(id, "fenv_separate") || is(id, "legato_glide")) return v >= 0.5 ? "On" : "Off";
   if (std::strncmp(id, "mod", 3) == 0 && std::strlen(id) == 4) return modSlot(v);

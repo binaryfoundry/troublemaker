@@ -132,6 +132,9 @@ struct Voice101Parameters {
   double voices = 1.0;        ///< 1..8, read by Synth101: 1 is the monophonic 101
   double env3Attack = 0.002, env3Decay = 0.3, env3Sustain = 0.0, env3Release = 0.1;  ///< a matrix source
   double filterMode = 0.0;    ///< 0 the ladder low-pass, 1 high-pass (24 dB), 2 band-pass
+
+  // 0.6.
+  double filterPoles = 4.0;   ///< the low-pass ladder's output tap: 2, 3 or 4 poles (12/18/24 dB per octave)
 };
 
 /// Tempo-sync divisions, in beats (quarter notes).
@@ -273,6 +276,8 @@ class Voice101 {
     filterR_.setResonance(p.resonance);
     filterR_.setStageNonlinearity(p.filterStageDrive);
     filterR_.setInputNonlinearity(p.filterInputDrive);
+    filter_.setOutputPoles(static_cast<int>(std::lround(p.filterPoles)));
+    filterR_.setOutputPoles(static_cast<int>(std::lround(p.filterPoles)));
     modEnvelope_.setAttack(p.env3Attack);
     modEnvelope_.setDecay(p.env3Decay);
     modEnvelope_.setSustain(p.env3Sustain);

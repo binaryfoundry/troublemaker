@@ -37,6 +37,8 @@ export const AF101_PARAMS: Af101Param[] = [
   // 0.5: stereo, polyphony, a third envelope (a matrix source) and filter modes.
   P('stereo', 0, 1, 0), P('voices', 1, 8, 1), P('env3_attack', 0, 10, 0.002), P('env3_decay', 0, 10, 0.3),
   P('env3_sustain', 0, 1, 0), P('env3_release', 0, 10, 0.1), P('filter_mode', 0, 2, 0),
+  // 0.6: the low-pass slope, 2/3/4 poles = 12/18/24 dB per octave.
+  P('filter_poles', 2, 4, 4),
 ];
 
 /** filter_mode values. */

@@ -115,6 +115,9 @@ inline const std::vector<ParameterDescriptor>& parameterTable() {
       {"env3_sustain", "Env 3 Sustain", "", 0.0, 1.0, 0.0, &Voice101Parameters::env3Sustain},
       {"env3_release", "Env 3 Release", "s", 0.0, 10.0, 0.1, &Voice101Parameters::env3Release},
       {"filter_mode", "Filter Mode", "", 0.0, 2.0, 0.0, &Voice101Parameters::filterMode},
+      // 0.6: the low-pass ladder's slope. 24 dB is the 0.5 path. 64 parameters, Live's
+      // limit: the next one has to replace or pack an existing one.
+      {"filter_poles", "Filter Slope", "", 2.0, 4.0, 4.0, &Voice101Parameters::filterPoles},
   };
   return table;
 }

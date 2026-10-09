@@ -256,10 +256,10 @@ table drives the preset format, the host's automation list and the DSP ranges
 — so those three can never disagree. Add a parameter in one place:
 `parameterTable()` in `src/model/Preset.h`.
 
-**What it has (0.5):** three oscillators (saw, pulse, triangle, sine; octave,
+**What it has (0.6):** three oscillators (saw, pulse, triangle, sine; octave,
 semitone, fine) through one unison stack of up to 7, spread in stereo by `stereo`;
-a square sub (a sine sub is oscillator 2's sine: `presets/sine-sub.txt`), noise; a ladder low-pass, a 24 dB high-pass or a band-pass
-(`filter_mode`); amp, filter and a third envelope (a matrix source); two LFOs (five
+a square sub (a sine sub is oscillator 2's sine: `presets/sine-sub.txt`), noise; a ladder low-pass at 12, 18 or 24 dB per octave (`filter_poles`, 0.6), a 24 dB
+high-pass or a band-pass (`filter_mode`); amp, filter and a third envelope (a matrix source); two LFOs (five
 waves, retrigger, and tempo sync from 1/32 to 4 bars, locked to the bar while
 Live plays); velocity, key, mod wheel, aftertouch, pitch bend, per-note random; an
 8-slot modulation matrix; vibrato fade-in, drift, legato-only glide, note memory;
@@ -274,14 +274,18 @@ and sync division into one parameter, `wave + 5*retrigger + 10*division`
 
 **Serum and Diva presets convert** with `npm run convert-preset` (see
 `analogfoundry/README.md`). Read the report before using a patch: it says what was
-approximated or dropped and which unit assumptions apply. The **timbre is
-unverified** (neither synth is installed here), so audition a converted patch
-before trusting it, and record what changed if you adjust it. Converted patches
+approximated or dropped and which unit assumptions apply. Neither synth is
+installed here; both conversions are checked against the 21 CamelPhat pack loops
+that Serum and Diva played from their presets' demo MIDI (`analogfoundry/README.md`).
+Run `python analogfoundry/tools/pack_loops.py` after any change to `serum.ts` or
+`diva.ts`: it fails if a pair gets worse, and a change that does not improve the pairs
+it touches is not kept. Audition a converted patch before trusting it, and record
+what changed if you adjust it. Converted patches
 are derived from licensed packs: they live in the git-ignored
 `analogfoundry/presets/converted/` and are never committed. A restored AF101 in an
 older Set keeps its old parameter list: delete it and load a fresh instance to get
-the current one's (*Live facts*). 0.5 has 63 parameters, one under Live's 64: a
-new parameter has to replace or pack an old one.
+the current one's (*Live facts*). 0.6 has 64 parameters, Live's limit: a new
+parameter has to replace or pack an old one.
 
 **Changing the DSP:** build and run the tests
 (`ctest -C Release` in `analogfoundry/build`), and measure before and after.
@@ -539,11 +543,15 @@ this order. Work in the same order:**
   shares one filter per side; add an octave layer with a second instance, and
   Chorus-Ensemble when the width should move.
 - **Expressive, not static.** A patch that plays every note the same sounds
-  stock (Threshold's lead, twice). Use AF101 0.3's expression, as the CamelPhat
-  Serum leads do (`CAMELPHAT.md` 6b): velocity to cutoff, a separate filter
-  envelope that closes while the amp sustains, vibrato that fades in on held
-  notes, a few cents of drift, glide on slurs only. Write velocities that follow
-  the phrase, and automate the cutoff across each 4-bar phrase.
+  stock (Threshold's lead, twice). Use AF101's expression as the CamelPhat
+  Serum leads do (`CAMELPHAT.md` 6b, 18 leads): velocity to cutoff (16), the amp
+  envelope on the cutoff so the tone opens and closes with each note (10; AF101's
+  `env_cutoff` with `fenv_separate` off), an LFO on fine tune for drift or vibrato
+  (14), vibrato that fades in on held notes, glide on slurs only, and the mod wheel
+  on the cutoff to open it by hand (12; matrix source 7). A separate filter
+  envelope that closes while the amp sustains is in only 2 of 18: use it when a
+  part asks for it, not by default. Write velocities that follow the phrase, and
+  automate the cutoff across each 4-bar phrase.
 - **Low - unless the pad lives there.** Write the line around MIDI 50-65 and let
   the octave layer carry the top, not an octave or two above it on one thin
   oscillator. But check the register against the sustained parts first: a lead
@@ -658,7 +666,7 @@ existed have not been checked against it. **Re-audit them** (the order in
 
 Older Sets carry older plugin state. A restored AF101 instance keeps the parameter
 list it was saved with, so expression (0.3) and everything since - the matrix
-(0.4), sync, stereo, voices, env 3 and filter modes (0.5) - need a fresh instance
+(0.4), sync, stereo, voices, env 3 and filter modes (0.5), the low-pass slope (0.6) - need a fresh instance
 (delete, load, reapply the patch, carry any clip envelopes over, and re-place or
 edit in place the Arrangement copies - *Live facts*). Before 0.3, AF101 ignored velocity entirely: any accents
 written into those tracks have never sounded. An instance saved with 0.4 is a
@@ -673,7 +681,7 @@ preset file, not from reading it back. Threshold's instances are all 0.5 as of
 | Black Glass | `D:/ableton/blackglass` | E minor (9A), 125 | 2026-10-05, partial: hygiene clean; rubs 0 genuine (183 tails crossing chord changes); harmony agrees bar by bar; Arrangement envelopes have no seed blip; arp register against the strings measured and kept (an octave lift cost the breakdown 2.3 dB); arp now a live AF101 0.5 (patch rebuilt by measurement, `blackglass-arp.txt`; accents rewritten 112/65/41; Drop B within 0.6 dB of the render); stabs given a Simpler filter envelope and velocity to cutoff; GROOVE one-layer: six polymeters, kept as the user's brief; QC PASS | hook audit (HOOKS 42, /40); lead numbers (CAMELPHAT 6); LOW_END 19 against references; emotion; NEW_TRACK /100; DJ intro sub vs "after the build"; growl and stabs are still pre-0.3 AF101 renders in Simpler; listening tests open; full CHORDS.md, EDM-TIPS.md and EDM-PRODUCTION.md (2026-10-07) and NEW-TRACK-DETAILED.md never applied: harmony audited against §8 voice leading, §68 low-interval limit and §69 loop boundary; EDM-TIPS §21 symptom table; the §39 validation passes; EDM-PRODUCTION §13.4 energy ledger and §21 definition of done; orchestral parts never checked against ORCHESTRAL.md (ranges in scientific pitch, the §7 layer budget, §19 low spacing, §46 withheld climax resources); club master, 2026-10-08 pass in the open Set (unsaved): Kick and Sub high-passed, balance solved against the references, growl and Arp peak-limited, master clip 6 dB / limiter 10 dB at -0.1 dB; Drop B -11.1 -> -8.4 LUFS, tone within 1.4 dB, still 2.1 LU short - the limiter is pinned and Drop B lacks sustained mid content (strings and drone sit out) | due |
 | Cathedral | `D:/ableton/cathedral` | E minor (9A), 126 | 2026-10-05, partial: hygiene clean; rubs 0 genuine; DJ intro/outro pass; automation plays; HOOKS 23/40 (arp never removed, 3-8 dB under the mix in its bands, static sound); build 2 repeats build 1; peak's ceiling (E6) spent in the builds; four groove layers (brief); peak QC REVIEW (air -8, low-mid -3.3, -11.9 LUFS) | CAMELPHAT 6; LOW_END 19 against references; EMOTION in full; NEW_TRACK /100; timpani tuning; bars 65-96 darker than the render above 6 kHz; arp, bass, chords, shimmer are pre-0.3 renders; listening tests open; full CHORDS.md, EDM-TIPS.md and EDM-PRODUCTION.md (2026-10-07) and NEW-TRACK-DETAILED.md never applied: harmony audited against §8 voice leading, §68 low-interval limit and §69 loop boundary; EDM-TIPS §21 symptom table; the §39 validation passes; EDM-PRODUCTION §13.4 energy ledger and §21 definition of done; orchestral parts never checked against ORCHESTRAL.md (ranges in scientific pitch, the §7 layer budget, §19 low spacing, §46 withheld climax resources); club master vs the house references (2026-10-07: club tracks are the authority) - the played masters FAIL QC: loudest section 4.5-6.2 LU short, top end 4-12 dB under | due |
 | Clockwork | `D:/ableton/clockwork` | D minor (7A), 121 | never | **no Set in the folder** - ask the user where it was saved; then everything above; LOW_END audit (sec. 19, measured); full CHORDS.md, EDM-TIPS.md and EDM-PRODUCTION.md (2026-10-07) and NEW-TRACK-DETAILED.md never applied: harmony audited against §8 voice leading, §68 low-interval limit and §69 loop boundary; EDM-TIPS §21 symptom table; the §39 validation passes; EDM-PRODUCTION §13.4 energy ledger and §21 definition of done; club master: QC against the club references (2026-10-07: club tracks are the authority) | due - blocked on the Set |
-| Threshold | `D:/ableton/threshold` | D minor (7A), 124 | 2026-10-05: HOOKS audit, 28/40; LOW_END audit (sub D2 -> D1; kick +1.5 dB with a post-saturation cut at 220 Hz; low bands now within 2.7 dB of three CamelPhat references, from 6.7); CAMELPHAT; QC PASS | listening tests (HOOKS 13, 14) open; HOOKS 30 four variants not written; return at bar 97 identical to 65; sound identity 2/5; GROOVE §26 not re-run since the lead became the groove layer; NEW_TRACK audit not done; full CHORDS.md, EDM-TIPS.md and EDM-PRODUCTION.md (2026-10-07) and NEW-TRACK-DETAILED.md never applied: harmony audited against §8 voice leading, §68 low-interval limit and §69 loop boundary; EDM-TIPS §21 symptom table; the §39 validation passes; EDM-PRODUCTION §13.4 energy ledger and §21 definition of done; orchestral parts never checked against ORCHESTRAL.md (ranges in scientific pitch, the §7 layer budget, §19 low spacing, §46 withheld climax resources); club master vs the house references (2026-10-07: club tracks are the authority) - the played masters FAIL QC: loudest section 4.5-6.2 LU short, top end 4-12 dB under | due |
+| Threshold | `D:/ableton/threshold` | D minor (7A), 124 | 2026-10-05: HOOKS audit, 28/40; LOW_END audit (sub D2 -> D1; kick +1.5 dB with a post-saturation cut at 220 Hz; low bands now within 2.7 dB of three CamelPhat references, from 6.7); CAMELPHAT; QC PASS | listening tests (HOOKS 13, 14) open; lead and its octave layer close a separate filter envelope (fenv_sustain 0.3 / 0.15) under a 0.85 amp sustain, per the *Leads* advice before 2026-10-09 - only 2 of 18 CamelPhat leads do; A/B against the amp envelope on the cutoff; HOOKS 30 four variants not written; return at bar 97 identical to 65; sound identity 2/5; GROOVE §26 not re-run since the lead became the groove layer; NEW_TRACK audit not done; full CHORDS.md, EDM-TIPS.md and EDM-PRODUCTION.md (2026-10-07) and NEW-TRACK-DETAILED.md never applied: harmony audited against §8 voice leading, §68 low-interval limit and §69 loop boundary; EDM-TIPS §21 symptom table; the §39 validation passes; EDM-PRODUCTION §13.4 energy ledger and §21 definition of done; orchestral parts never checked against ORCHESTRAL.md (ranges in scientific pitch, the §7 layer budget, §19 low spacing, §46 withheld climax resources); club master vs the house references (2026-10-07: club tracks are the authority) - the played masters FAIL QC: loudest section 4.5-6.2 LU short, top end 4-12 dB under | due |
 | B.O.B. (Electric Revival Remix) | `D:/ableton/bobdad` | B minor (10A), 132 | 2026-10-07 verse pass: source tempo is **153.82**, not 154 (rewarped; drift now -18 ms over a 32-bar verse, 100 % of onsets within half a 16th); rap clips **Pitch +1 st**; the rap's fundamentals cleared (spiccato +12 st, strings' low voice +12 st, 0 rubs); vocal chain built and measured (verse 1 QC vs `camelphat`: air -3.2 -> -1.4, mid +3.4 -> +2.8, three REVIEW flags down to one). 2026-10-06 first build: hygiene, DJ, rubs, low-end phase, automation PASS | verse 1's clip is off-grid (beat 255.75 to 385.50, spilling 1.5 beats over bar 97); final chorus lost its register lift over the verse spiccato; the TRACK.md hook map still describes structure v1; listening tests; HOOKS /40; EMOTION review; LOW_END 19 in full; mastering; NEW_TRACK /100; full CHORDS.md, EDM-TIPS.md and EDM-PRODUCTION.md (2026-10-07) and NEW-TRACK-DETAILED.md never applied: harmony audited against §8 voice leading, §68 low-interval limit and §69 loop boundary; EDM-TIPS §21 symptom table; the §39 validation passes; EDM-PRODUCTION §13.4 energy ledger and §21 definition of done; orchestral parts never checked against ORCHESTRAL.md (ranges in scientific pitch, the §7 layer budget, §19 low spacing, §46 withheld climax resources); club master: QC against the club references (2026-10-07: club tracks are the authority) | in production |
 
 ## Starting a new track - ask for the key

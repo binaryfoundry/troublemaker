@@ -50,6 +50,7 @@ place, so check for errors rather than for a `.vst3` file. In an existing clone,
 | — | Note memory and MIDI panic (0.3.1) | Last-note priority as before, but up to 16 held notes are remembered: releasing the newest returns, legato, to the newest note still held (it used to release the voice). Releasing an older note changes nothing that sounds. **CC 123** (all notes off) releases everything through the release stage; **CC 120** (all sound off) silences on the next sample. Reference renders byte-identical to 0.3.0; 13 checks |
 | — | Oscillators and modulation (0.4) | **Oscillators 2 and 3**: saw, pulse, triangle or sine, each with level, octave, semitone and fine tune, through the shared unison stack. **LFO 2**, waveforms for both LFOs (sine, triangle, saw, square, sample-and-hold) and retrigger. **Pitch bend** (range 0-24 st), **mod wheel**, **aftertouch**. An **8-slot modulation matrix**: 9 sources (both envelopes, both LFOs, velocity, key, wheel, pressure, per-note random) to 16 destinations (cutoff, pitch, each oscillator's pitch and level, pulse width, resonance, amp, noise, sub, LFO rates, fine). Off by default, and reference renders are **byte-identical** to 0.3.1. Measured: each osc-2 wave within 0.5 dB of the saw's level; octave, semitone and fine tune to 0.5 Hz; bend to its range; velocity -> amp x1.5 = +3.5 dB; envelope -> pitch drops an octave to the note; LFO-2 square -> pitch exactly two semitones apart; sample-and-hold steps and repeats; note random differs per note and repeats per run; every feature at its extreme stays finite. 23 checks. Worst case (3 oscillators x 7-voice unison, all 8 slots) **22.7x realtime** |
 | — | Sync, stereo, polyphony (0.5) | **Tempo-synced LFOs**: each LFO's mode packs wave, retrigger and one of 13 divisions (1/32 to 4 bars, with triplets and dotted), read from the host's tempo and bar position. While the transport plays a synced LFO is **locked to the bar**: a note started one cycle later sounds the same (difference < 1 %), half a cycle later the other way; retriggered, it starts with the note. Measured 1/4 at 120 = 2.0 Hz, at 150 = 2.5 Hz, 1/8 at 120 = 4 Hz. **Stereo**: unison voices panned equal-power across the field (`stereo` 0-1); spread 1 takes the channel correlation below 0.8 and holds each channel's level within 1.5 dB; spread 0, or unison off, is mono bit for bit. **Polyphony**: `voices` 1-8; one voice is the monophonic 101 **bit for bit** (legato, glide, note memory), more give each note its own voice and steal the oldest; a three-note chord sounds each note within 3 dB, 30 dB above the gaps. **Envelope 3**, a free ADSR as a matrix source. **Filter modes**: the ladder low-pass, a 24 dB high-pass (the fundamental down 40 dB) and a 2-pole band-pass (unity at the cutoff, the fundamental down 15 dB). Reference renders **byte-identical** to 0.4 after the filter fix. 23 checks. An editor shows every parameter in words and the matrix as "LFO 1 -> Cutoff +35 %" |
+| — | Low-pass slope (0.6) | `filter_poles`: the ladder's output taken after 2, 3 or 4 of its poles, **12, 18 or 24 dB per octave**; resonance still feeds back from the fourth stage, as in a multimode ladder. Default 4, **bit-identical to 0.5**, and appended as parameter 64 so saved Sets keep their ids. Measured: 2 and 3 poles fall 12 and 18 dB per octave (within 2 dB) two octaves above cutoff (`dsp_tests`). Why: 36 of the 60 Serum pack presets use MG Low 12 or 18, and at 24 dB they rendered up to 46 dB too dark above 5 kHz against the pack's loops |
 
 ## CPU
 
@@ -142,11 +143,50 @@ output, `presets/converted/`, is **git-ignored**: patches derived from a license
 pack stay on this machine.
 
 Each patch's level is calibrated with `render_note` so that its loudest peak over
-three notes sits at -3 dBFS, like the hand-made patches. Rendering all 120 converted
-pack patches back through AF101: peaks -8.0 to -3.0 dBFS, released notes take 0.96x
-the stated release (median), and 49 of the 53 filter-envelope patches darken over
-the note. That checks AF101 plays what the conversion says. It does **not** check the
-sound against Serum or Diva, which are not installed here: the timbre is unverified.
+three notes sits at -3 dBFS, like the hand-made patches. Every converted patch loads
+as written: known ids, nothing clamped, matrix slots that decode and survive Live's
+32-bit normalised values (`bridge/tests/presets.test.ts`).
+
+**Checked against the synths' own audio (2026-10-09).** Neither synth is installed,
+but the CamelPhat pack's loops were played on its presets. Matching each loop to a
+preset's demo MIDI by its exact pitches (a semitone spectrogram against each clip's
+notes and harmonics) finds 21 that clearly belong to one preset: Synth Loops 02-11
+and Bass Loops 12, 18 and 20 are Serum, Synth Loops 12, 13, 15 and 18-20 and Bass
+Loops 07 and 10 are Diva. Pitch classes and rhythm alone are not enough: they put
+Synth Loop 13 on Serum's SY - Patterns when it is Diva's SY - Black, and two
+"findings" made against it were wrong. `tools/pack_loops.py` renders each clip
+through AF101 (`render_note --events`) and compares six bands, 40 Hz-12 kHz, with
+the loop; it fails if a converter change makes any pair worse.
+
+Fixed by measuring against them (the report's codes): Serum mod sources off by one,
+so the mod wheel played as an amp-envelope sweep (S11); every synced LFO at 1/4 (S7);
+LFOs never retriggered (S7); unipolar LFO routes centred on the base (S13); octave
+unison stacks dropped - they go an octave up (S12); LFO drawn shapes ignored (S14,
+read from the file, not measurable in the loops); Diva's cutoff an octave too high (D2).
+
+| Band error against the source | Before | Without filter slopes | Now |
+|---|---|---|---|
+| Serum, 13 presets: median / mean | - | 2.1 / 4.2 dB | 1.9 / 2.7 dB |
+| Diva, 8 presets: median / mean | 6.3 / 5.8 dB | - | 1.7 / 3.1 dB |
+
+For the four Serum pairs measured first, the before -> now band errors were Coast
+4.2 -> 0.7, Lines 11.7 -> 4.6, Following 12.5 -> 7.0 and Patterns (against its real
+loop) -> 2.1 dB.
+
+**Filter slope (0.6).** Serum's MG Low 12 and 18 (22 presets store MgL18, and the 14
+that store no type use MG Low 12, Serum 2's default) play on AF101's ladder taken
+after two or three of its four poles: `filter_poles`, appended as parameter 64 so
+every saved Set keeps its ids. Against the loops it brought SY - Desire from 13.8 to
+1.6 dB, Lines 4.6 to 1.5, Page 5.1 to 3.6 and Magician 10.3 to 6.9; Dimension and
+Patterns moved under 0.4 dB the other way.
+
+Still open: SY - Following (7.0 dB, 8-20 dB bright above 800 Hz: not its wavetables
+or noise), SY - Magician (its wavetable, PWM Inception, and table-position LFOs),
+Diva's BS - Life, BS - Tops and SY - Using (deep, short filter envelopes; no single
+envelope-time scale fits all three), wavetables other than the analog saws, the
+bipolar route span (S13) and the default envelope times (S2). Basic Mini at position
+1 measured as a saw. A loop includes the synth's effects, so these numbers are for
+tone, not a null test.
 
 ## Using it without the plugin
 
@@ -158,7 +198,9 @@ analogfoundry/build/Release/render_note.exe --note 45 --seconds 2.2 \
 ```
 
 `--preset FILE` loads a patch first (later flags override it) and `--velocity V`
-sets the note's velocity. `--unison N --detune CENTS` stack up to 7 detuned voices (the outermost at
+sets the note's velocity. `--events FILE --bpm B` plays a note list instead of one
+note, one `beat length note velocity` per line, which is how a preset's demo clip is
+rendered for comparison; `--mod-wheel W` holds the wheel. `--unison N --detune CENTS` stack up to 7 detuned voices (the outermost at
 +/- the detune), and `--stereo S` spreads them across the field. `--voices N --chord 60,64,67`
 plays a chord, and `--bpm B` runs a transport so synced LFOs follow it. The WAV is true
 stereo; with spread 0 both channels are identical.

@@ -39,7 +39,7 @@ bool isSlot(const char* id) { return std::strncmp(id, "mod", 3) == 0 && std::str
 bool isStepped(const char* id) {
   using af::labels::is;
   return is(id, "osc2_wave") || is(id, "osc3_wave") || is(id, "lfo1_wave") || is(id, "lfo2_wave") ||
-         is(id, "filter_mode") || is(id, "fenv_separate") || is(id, "legato_glide") || is(id, "unison") ||
+         is(id, "filter_mode") || is(id, "filter_poles") || is(id, "fenv_separate") || is(id, "legato_glide") || is(id, "unison") ||
          is(id, "voices") || is(id, "osc2_oct") || is(id, "osc3_oct") || is(id, "osc2_semi") || is(id, "osc3_semi");
 }
 
