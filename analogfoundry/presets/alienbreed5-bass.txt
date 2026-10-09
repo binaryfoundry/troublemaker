@@ -1,0 +1,42 @@
+# Alien Breed v5 - the bass riff (the hook, with the break).
+# Not a roll (user, 2026-10-08): short syncopated hits that answer the break's kicks, F-Gb
+# grind, octave jumps and a 16th anticipation of the next root. After threshold-growl: saw +
+# pulse, resonant ladder, stage and input drive for grit. Sub oscillator off - the sine sub
+# (sine-sub.txt) owns the fundamental, and the track high-passes this one above it.
+# Expression: a separate filter envelope snaps open on each hit and closes while the amp holds
+# (fenv), velocity opens it further (vel_cutoff), so the accents are timbre, not just level.
+# The 1/16 synced LFO adds a straight growl inside the long notes; it is not syncopated, so the
+# break stays the only groove layer (GROOVE 14, 15).
+analogfoundry101 1
+saw 1
+pulse 0.5
+sub 0
+noise 0.02
+pw 0.4
+tune 0
+cutoff 480
+resonance 0.45
+env_cutoff 0.55
+lfo_cutoff 0.12
+track 0.3
+attack 0.002
+decay 0.18
+sustain 0.35
+release 0.04
+lfo_rate 7
+lfo_pitch 0
+lfo_pw 0.15
+glide 0
+stage_drive 0.3
+input_drive 0.25
+level 0.8
+unison 1
+vel_amp 0.3
+vel_cutoff 0.5
+fenv_separate 1
+fenv_attack 0.001
+fenv_decay 0.12
+fenv_sustain 0.1
+fenv_release 0.05
+lfo1_wave 30
+voices 1

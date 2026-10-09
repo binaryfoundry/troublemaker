@@ -1,0 +1,33 @@
+# Alien Breed v5 - the stab: the secondary hook, swarm only (the peak's own sound, EMOTION 55).
+# Short power-fifth hits that answer the bass riff once every 2 bars. Bright for this track but
+# kept under 2 kHz in its fundamentals: the game's effects own 2-4 kHz. Two voices (a fifth).
+# Three detuned unison saws spread in stereo give it width the rest of the track does not have;
+# a snapping filter envelope and drive give it bite.
+analogfoundry101 1
+saw 1
+pulse 0.3
+sub 0
+noise 0.04
+pw 0.35
+cutoff 900
+resonance 0.3
+env_cutoff 0.6
+track 0.4
+attack 0.001
+decay 0.22
+sustain 0.15
+release 0.12
+glide 0
+stage_drive 0.35
+input_drive 0.3
+level 0.8
+unison 3
+unison_detune 14
+vel_cutoff 0.4
+fenv_separate 1
+fenv_attack 0.001
+fenv_decay 0.15
+fenv_sustain 0.05
+fenv_release 0.1
+stereo 0.6
+voices 2

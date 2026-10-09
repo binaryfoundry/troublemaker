@@ -1,0 +1,38 @@
+# Alien Breed grit - a saturated, detuned saw texture for the mid-range (F minor, 125 BPM).
+# The user's reference (Future Funk Squad, "The Colony") has 10-14 dB more at 500 Hz - 4 kHz than
+# v3; the user asked for its gritty mid-range only (2026-10-08). Not a growl: the ostinato's
+# resonant, LFO-wobbled bass was heard as ugly, so this has no resonance, a slow attack and a
+# straight 2-bar filter LFO. Sustained chord tones, so it is texture, not a groove layer or a
+# second hook. Five detuned unison voices plus a detuned pulse for the grit; the track saturates
+# it and band-limits it to 150 Hz - 5 kHz.
+analogfoundry101 1
+saw 1
+pulse 0
+sub 0
+noise 0.03
+pw 0.35
+tune 0
+cutoff 1400
+resonance 0.12
+env_cutoff 0.1
+lfo_cutoff 0.25
+track 0.4
+attack 0.25
+decay 1
+sustain 0.9
+release 0.8
+lfo_pw 0.2
+glide 0
+stage_drive 0.6
+input_drive 0.5
+level 0.7
+unison 5
+unison_detune 18
+vel_amp 0.3
+osc2_level 0.8
+osc2_wave 1
+osc2_fine -9
+stereo 0.6
+drift 6
+lfo1_wave 120
+voices 3

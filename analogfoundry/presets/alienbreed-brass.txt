@@ -1,0 +1,41 @@
+# Alien Breed brass - the hook (C -> Db) in the action layer, an octave above the violas.
+# Live 12 Standard has no orchestral brass, so this stands in for low horns (ORCHESTRAL 27, 30).
+# After bobdad-brass, made darker and slower for underscore: a 120 ms amp swell instead of a
+# blat, a filter envelope that opens over ~150 ms and settles low, velocity to cutoff so the
+# phrase's peak is the brightest note. The hook stays below 2 kHz (user, 2026-10-08).
+# Two voices: the motif in octaves at most.
+analogfoundry101 1
+saw 1
+pulse 0
+sub 0.1
+noise 0.01
+tune 0
+cutoff 420
+resonance 0.1
+env_cutoff 0.32
+track 0.5
+attack 0.12
+decay 0.8
+sustain 0.85
+release 0.6
+glide 0
+stage_drive 0.15
+input_drive 0.12
+level 0.75
+unison 2
+unison_detune 8
+vel_amp 0.45
+vel_cutoff 0.5
+fenv_separate 1
+fenv_attack 0.15
+fenv_decay 0.7
+fenv_sustain 0.3
+fenv_release 0.5
+vib_fade 1.2
+drift 4
+osc2_level 0.7
+osc2_wave 0
+osc2_oct 0
+osc2_fine 7
+stereo 0.3
+voices 2

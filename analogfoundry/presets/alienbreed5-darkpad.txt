@@ -1,0 +1,39 @@
+# Alien Breed v5.1 - the chord pad, dark. Replaces alienbreed5-pad.txt, which the user heard as "a
+# children's toy" (2026-10-08): its detuned pulse in the middle register, a 1.2 kHz boost and a
+# 4 kHz top made it nasal and bright - a toy organ. This is saws only (no pulse), seven-voice unison
+# spread wide, filtered low (cutoff 650 Hz, a little resonance; 420 left the mids 3.5 dB under the reference - dark is not dull), opening slowly over each 2-bar chord
+# (filter env attack 2.5 s) and swelling in (amp attack 1.2 s, release 2 s): a mass that breathes, not
+# a keyboard that is played. Noise for grain; drift so the stack never sits still. vel_cutoff keeps
+# the swarm brighter than the rest (EMOTION 55); vel_amp keeps the Regroup fade.
+analogfoundry101 1
+saw 1
+pulse 0
+sub 0
+noise 0.06
+tune 0
+cutoff 650
+resonance 0.22
+env_cutoff 0.35
+lfo_cutoff 0.12
+track 0.3
+attack 1.2
+decay 2
+sustain 0.9
+release 2
+glide 0
+stage_drive 0.5
+input_drive 0.55
+level 0.75
+unison 7
+unison_detune 22
+vel_amp 0.8
+vel_cutoff 0.6
+fenv_separate 1
+fenv_attack 2.5
+fenv_decay 3
+fenv_sustain 0.6
+fenv_release 2
+drift 8
+stereo 0.85
+lfo1_wave 130
+voices 3

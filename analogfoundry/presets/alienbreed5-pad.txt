@@ -1,0 +1,40 @@
+# Alien Breed v5 - the chord pad: stage 1's voiced harmony (F upper pedal) as gritty mid texture.
+# Built from v4's grit patch (alienbreed-grit.txt), which the user kept from The Colony's gritty
+# mid-range: five detuned unison saws plus a detuned pulse, slow attack, no resonance, a straight
+# 2-bar filter LFO (no syncopation: the break is the groove layer). vel_amp 0.8 so the Regroup's
+# velocity fade (1.0 -> 0.3) is a real fade without automation. Three voices: the voicing has three.
+# vel_cutoff 0.6: velocity is brightness too, so the swarm's x1.15 opens it and the build stays
+# darker (EMOTION 55: the brightest sound kept for the peak).
+# The track saturates it and band-limits it (HP 200 Hz, LP 4 kHz): fundamentals 233-466 Hz.
+analogfoundry101 1
+saw 1
+pulse 0
+sub 0
+noise 0.03
+pw 0.35
+tune 0
+cutoff 1400
+resonance 0.12
+env_cutoff 0.1
+lfo_cutoff 0.25
+track 0.4
+attack 0.25
+decay 1
+sustain 0.9
+release 0.8
+lfo_pw 0.2
+glide 0
+stage_drive 0.6
+input_drive 0.5
+level 0.7
+unison 5
+unison_detune 18
+vel_amp 0.8
+vel_cutoff 0.6
+osc2_level 0.8
+osc2_wave 1
+osc2_fine -9
+stereo 0.6
+drift 6
+lfo1_wave 120
+voices 3

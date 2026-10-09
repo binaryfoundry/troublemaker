@@ -1,0 +1,43 @@
+# Alien Breed ostinato - the low distorted pulse locked to the break's kicks (F minor, 125 BPM).
+# After threshold-growl, made slower and darker for underscore: no sub oscillator (a Drift sine
+# owns the fundamental), a 20 ms attack so the kick's click reads first and the pulse swells
+# after it, a separate filter envelope that snaps shut on each hit, and velocity to cutoff so
+# accents open the filter. Movement lives in the filter, not the pitch (user, 2026-10-08): the
+# filter LFO is a straight 2-bar sine locked to the bar (GROOVE: the break is the groove layer,
+# so no 3/16 rate). Played at F1 (MIDI 41, 87 Hz); the track high-passes it after its Saturator.
+analogfoundry101 1
+saw 1
+pulse 0.45
+sub 0
+noise 0.015
+pw 0.42
+tune 0
+cutoff 320
+resonance 0.42
+env_cutoff 0.38
+lfo_cutoff 0.18
+track 0.3
+attack 0.02
+decay 0.4
+sustain 0.6
+release 0.08
+lfo_pitch 0
+lfo_pw 0.12
+glide 0
+stage_drive 0.3
+input_drive 0.25
+level 0.8
+vel_amp 0.3
+vel_cutoff 0.45
+fenv_separate 1
+fenv_attack 0.004
+fenv_decay 0.28
+fenv_sustain 0.15
+fenv_release 0.1
+drift 3
+osc2_level 0.6
+osc2_wave 0
+osc2_oct 0
+osc2_fine 7
+lfo1_wave 120
+voices 1

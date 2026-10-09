@@ -1,0 +1,26 @@
+# Alien Breed v5 - noise riser: one 4-bar note swells and opens into the swarm (NEW-TRACK-DETAILED
+# 23.1: level rises, filter opens, ends at the boundary). The amp attack (7 s) and a separate
+# filter envelope (8 s attack) do the automation inside the note, so no automation lane can be left
+# stuck open (24.1). Band-pass, so it never adds low end. Fundamentals are noise; level kept low.
+analogfoundry101 1
+saw 0
+pulse 0
+sub 0
+noise 1
+cutoff 300
+resonance 0.35
+env_cutoff 1
+track 0
+attack 7
+decay 0.5
+sustain 1
+release 0.08
+level 0.6
+fenv_separate 1
+fenv_attack 8
+fenv_decay 1
+fenv_sustain 1
+fenv_release 0.08
+stereo 0
+voices 1
+filter_mode 2

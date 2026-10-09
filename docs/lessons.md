@@ -434,6 +434,43 @@ Retry both a few times before failing.
 - **Back to Arrangement lands a tick later**: straight after the call
   `session_overrides_arrangement` can still read true.
 
+## A staged build and a sample-exact game loop (Alien Breed v5, 2026-10-08)
+
+- **Measure "protect the peak" in absolute levels, not shares.** The first master's swarm measured
+  level with the build in every absolute band (within 0.3 dB) although it had the stab, crashes and
+  denser drums. Band *shares* lied: the Regroup read brightest and widest only because the sub and
+  bass had left. The fix that mattered was the earliest failing check of NEW-TRACK-DETAILED 33 -
+  low end removed before the drop (sub out, downbeat kicks only, under the riser) - not more layers.
+- **A riser can be the loudest thing in the track.** A noise riser at fader 0 made bars 25-32 3 dB
+  louder than the peak. Measure per 8 bars after adding transition FX.
+- **One part can still eat the master limiter.** A once-per-2-bars stab hit peaked at -0.8 dBFS alone
+  (a ~17 dB crest per hit); a limiter on its own track, not more master limiting.
+- **Live's Limiter in True Peak mode under-reads QC's true peak by 0.3-0.4 dB.** Set the ceiling
+  below the target (-3.4 for a -3 dBTP limit) and measure the render.
+- **Pick tempos that make whole bars.** At 115.2 BPM a bar is 91,875 samples at 44.1 kHz and
+  100,000 at 48 kHz, so a 64-bar loop is sample-exact at both rates and resamples 160/147 exactly.
+- **Wrap tails by capturing two passes and keeping the second.** Align the passes on the hats band:
+  AF101's unison and drift make each pass's waveform different (whole-signal correlation 0.03), but
+  the drums repeat exactly. Resample a loop as three tiled copies and keep the middle one, so the
+  seam is filtered as continuous audio. This machine's ffmpeg has no soxr; SciPy's `resample_poly`
+  does it exactly.
+- **A Drum Rack inside an Instrument Rack hides its pads.** "Break Lab Kit" could not be mapped
+  (`live.get_drum_pads`: not a Drum Rack); use a kit that is a Drum Rack at the top level.
+- **A long capture can come back short from outside.** One 128-bar capture stopped at 96.6 bars
+  (not a code limit); the retry was exact. Check the length of every render.
+- **Ask which instruments the reference uses before choosing the palette.** Stage 0 recommended "synths,
+  no orchestra" from tone numbers alone; The Colony's menace is strings. Two rounds of harmony and pad
+  changes made no audible difference (the user: "chill easy listening") because the pad sat 4-5 dB
+  under the drums and bass - the part being fixed was not the part being heard. Measure each stem's
+  level before deciding which part carries a complaint.
+- **Measure continuity, not just tone.** Band envelope floors (p10 of a 10 ms envelope against its
+  mean) separated a menacing reference from a chill mix where the tilt did not: The Colony's mids sat
+  2.8 dB under their mean at their quietest, ours 5-7 dB. `balance` fits average tone and kept the
+  strings too quiet to form a bed; set sustained layers by their floor, then let the solver trim.
+- **Live will not play into an unconnected output.** To capture without the user hearing it: Driver
+  Type "Windows Audio" on the normal device, and mute Ableton in the Windows Volume Mixer.
+
+
 ## Checking the Serum and Diva conversions without either synth (2026-10-09)
 
 - **A sample pack's loops are the synth's own renders.** Rendering a preset's demo MIDI
