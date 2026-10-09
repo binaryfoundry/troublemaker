@@ -241,8 +241,13 @@ converter:
 - A fine-tune route counts by its oscillator's share of the level, since AF101 has one
   pitch (S18). Horizons' pitch wobble on held notes: 16.5 cents added, 7.2 weighted,
   Serum 7.1.
-- Velocity to brightness already matched (within 0.1 octave on three presets; Coast's
-  lowest velocity is 0.5 octave too dark).
+- Velocity to brightness already matched (within 0.1 octave on three presets).
+
+**BS - Coast's comparisons are void:** its Serum pitch is two octaves down, beyond AF101's
++/-12 semitones, so the converter shifts AF101's clip an octave instead - and that shifted
+clip was what Serum played too, an octave below AF101 (and with its effects on). Its
+numbers above (tone 3.7 dB, release 2.0 dB, velocity) compare different octaves. Give
+Serum the preset's own notes: the clip shifted back by the octave the report names.
 
 Still open from it: Window's tone (6.7 dB; its Juno saw table, and an LFO of Serum's
 chaotic Rossler type that AF101 lacks; its pitch can't be measured, since AF101's render
