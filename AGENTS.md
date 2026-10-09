@@ -164,6 +164,16 @@ the user calls secondary (ChatGPT, from YouTube videos): use its process, not it
 numbers. **Never report a track finished with a loudness or tone FAIL open**, and
 never master without references.
 
+**A DJ should not have to touch the trim** (the user, 2026-10-09). A master must
+mix in and out of the reference tracks in `D:/beatport` with the trim left where
+it was, or moved by a nudge, never the full turn the old Threshold needed (+6.7 dB
+to meet Level 99). Measure the trim a DJ would need as the gap between the
+master's loudest 30 s and loudest 3 s and the same windows of the references it
+will be played next to, the ones named in the brief: aim within 1 dB. QC's
+1.5 LU fail line is the floor, not the target. Report the trim figure with
+every master. Threshold v3: +0.6 dB to Level 99, against +6.7 for the master
+played in the club.
+
 **Write by display value, not native value.** Live stores many parameters
 normalised (0-1) and the scaling differs per device and per Live version.
 `live.set_device_parameter_display` binary-searches for the native value whose
