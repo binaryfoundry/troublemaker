@@ -286,6 +286,26 @@ describe('Serum -> AF101', () => {
     expect(c.matrix.some((s) => s.src === SRC.ampEnv)).toBe(false);
   });
 
+  it("fits a table's tilt: a saw whose harmonics fall 2 dB per octave faster is a tilted saw (S20)", () => {
+    const juno = Float32Array.from({ length: 2048 }, (_, i) => {
+      let v = 0;
+      for (let h = 1; h <= 200; h++) v += Math.sin((2 * Math.PI * h * i) / 2048) / h / Math.pow(2, (2 / 6.0206) * Math.log2(h));
+      return v;
+    });
+    const on = waveFromFrames([juno], 1, true);
+    expect(on.wave).toBe(WAVE.saw);
+    expect(on.tilt).toBeCloseTo(-2, 0);
+    expect(on.error).toBeLessThan(0.5);
+    // Not applied by default: the plain saw, with the tilt named in the report.
+    const off = waveFromFrames([juno], 1);
+    expect(off.wave).toBe(WAVE.saw);
+    expect(off.tilt).toBe(0);
+    expect(off.how).toMatch(/tilted -2\.00 dB\/oct would be .* \(S20, not applied\)/);
+    // A plain saw needs no tilt.
+    const saw = Float32Array.from({ length: 2048 }, (_, i) => 1 - (2 * i) / 2048);
+    expect(waveFromFrames([saw], 1, true).tilt).toBe(0);
+  });
+
   it("lands an oscillator's pan on AF101's pan for its slot, fixed or from an LFO (S19)", () => {
     const panRoute = (osc: number, amount: number) => ({
       source: [6, 0], destModuleTypeString: 'Oscillator', destModuleID: osc, destModuleParamName: 'kParamPan',

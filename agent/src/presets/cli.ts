@@ -113,9 +113,61 @@ function peakDb(presetFile: string, note: number): number {
   if (!Number.isFinite(peak)) throw new Error(`render_note gave no peak for ${presetFile}`);
   return peak;
 }
-function calibrateLevel(c: Conversion, presetFile: string): string {
+// A Serum preset's demo clip is about this loud at its loudest: the mean of four
+// presets' demo clips captured from Serum 2 itself, dry, by their loudest 50 ms
+// (SY - Lines -7.3, LD - Horizons -6.8, LD - Window -8.1, BS - Coast -6.1 dBFS RMS,
+// 2026-10-09). The loudest moment, not the whole clip, so a sparse clip is not pushed
+// up for its rests, and a short one, so a pluck is judged by its attack, not its
+// decay (a 400 ms window asked up to +12 dB of the plucks). Serum's own takes peaked
+// at 0 dBFS, so no peak limit either.
+const SERUM_DEMO_LOUDEST_DB = -7.1;
+const LOUDEST_WINDOW_S = 0.05;
+const SERUM_DEMO_BPM = 124;
+function renderClip(presetText: string, clipFile: string, beats: number): { loudest: number; peak: number } {
+  const preset = join(tmpdir(), `af101-level-${process.pid}.txt`);
+  const wav = join(tmpdir(), `af101-level-${process.pid}-clip.wav`);
+  writeFileSync(preset, presetText);
+  const seconds = (beats * 60) / SERUM_DEMO_BPM;
+  const outText = execFileSync(RENDER, ['--preset', preset, '--events', clipFile, '--bpm', String(SERUM_DEMO_BPM), '--seconds', String(seconds), '--no-normalise', '--out', wav], { encoding: 'utf8' });
+  const x = readWavMono(wav);
+  rmSync(wav, { force: true });
+  rmSync(preset, { force: true });
+  const sr = 48000, n = Math.round(LOUDEST_WINDOW_S * sr);
+  let loudest = 0;
+  for (let i = 0; i + n <= x.length; i += Math.round(n / 4)) {
+    let sum = 0;
+    for (let j = i; j < i + n; j++) sum += x[j]! * x[j]!;
+    loudest = Math.max(loudest, sum / n);
+  }
+  const peak = Number(outText.match(/"peak_dbfs":(-?[0-9.]+)/)?.[1]);
+  return { loudest: 10 * Math.log10(loudest + 1e-20), peak };
+}
+function calibrateLevel(c: Conversion, presetFile: string, demo?: { file: string; beats: number }): string {
   if (!existsSync(RENDER)) return 'level not calibrated: build analogfoundry (render_note) first';
   const level = c.patch.level ?? 0.8;
+  if (demo) {
+    // render_note's file clips at 0 dBFS: measure where it does not, then scale back.
+    const text = readFileSync(presetFile, 'utf8');
+    const at = (l: number) =>
+      /^level \S+$/m.test(text) ? text.replace(/^level \S+$/m, `level ${l}`) : `${text.trimEnd()}\nlevel ${l}\n`;
+    let probe = level;
+    let m = renderClip(at(probe), demo.file, demo.beats);
+    if (m.peak > -1) {
+      probe = level * Math.pow(10, (-3 - m.peak) / 20);
+      m = renderClip(at(probe), demo.file, demo.beats);
+    }
+    const loudest = m.loudest + 20 * Math.log10(level / probe), peak = m.peak + 20 * Math.log10(level / probe);
+    const wanted = level * Math.pow(10, (SERUM_DEMO_LOUDEST_DB - loudest) / 20);
+    const scaled = Math.min(1, Math.max(0.02, wanted));
+    c.patch.level = scaled;
+    // Past AF101's maximum level, the rest goes on a Utility ahead of the effects,
+    // where AF101's own level sits.
+    const extra = wanted > 1 ? Math.round(20 * Math.log10(wanted) * 10) / 10 : 0;
+    if (extra >= 0.1) c.chain.unshift({ device: 'Utility', settings: { Gain: extra }, from: 'level calibration: AF101 at its maximum level' });
+    const gain = 20 * Math.log10(scaled / level) + extra;
+    return `level ${level.toFixed(2)} -> ${scaled.toFixed(3)}${extra ? ` and a Utility at +${extra.toFixed(1)} dB` : ''}: the demo clip's loudest 50 ms ${loudest.toFixed(1)} -> ${(loudest + gain).toFixed(1)} dBFS (Serum's ${SERUM_DEMO_LOUDEST_DB}), peak ${(peak + gain).toFixed(1)} dBFS (render_note)`;
+  }
+
   const peak = Math.max(...[45, 57, 69].map((n) => peakDb(presetFile, n)));
   const scaled = Math.min(1, Math.max(0.02, level * Math.pow(10, (TARGET_PEAK_DB - peak) / 20)));
   c.patch.level = scaled;
@@ -149,14 +201,15 @@ for (const file of files) {
     ...(c.transposeOctaves ? [`transpose the clip ${c.transposeOctaves} octave(s)`] : []),
   ];
   writeFileSync(join(dir, `${name}.txt`), toPresetText(c.patch, header));
-  c.report.mapped.push(calibrateLevel(c, join(dir, `${name}.txt`)));
-  writeFileSync(join(dir, `${name}.txt`), toPresetText(c.patch, header));
-  writeFileSync(join(dir, `${name}.chain.json`), JSON.stringify(c.chain, null, 2) + '\n');
-  writeFileSync(join(dir, `${name}.md`), reportMarkdown(c, c.source === 'serum' ? SERUM_ASSUMPTIONS : DIVA_ASSUMPTIONS));
   if (clip) {
     const head = `# ${name}: the preset's demo clip, ${clip.beats} beats. render_note --preset "${name}.txt" --events "${name}.clip.txt" --bpm B\n`;
     writeFileSync(join(dir, `${name}.clip.txt`), head + clip.events);
   }
+  const demo = clip && clip.events.trim() ? { file: join(dir, `${name}.clip.txt`), beats: clip.beats } : undefined;
+  c.report.mapped.push(calibrateLevel(c, join(dir, `${name}.txt`), demo));
+  writeFileSync(join(dir, `${name}.txt`), toPresetText(c.patch, header));
+  writeFileSync(join(dir, `${name}.chain.json`), JSON.stringify(c.chain, null, 2) + '\n');
+  writeFileSync(join(dir, `${name}.md`), reportMarkdown(c, c.source === 'serum' ? SERUM_ASSUMPTIONS : DIVA_ASSUMPTIONS));
   rows.push(`| ${c.source} | ${name} | ${c.polyphonic ? 'poly' : 'mono'} | ${c.report.mapped.length} | ${c.report.approximated.length} | ${c.report.dropped.length} | ${c.matrix.length} | ${c.chain.map((d) => d.device).join(', ')} |`);
   done++;
 }

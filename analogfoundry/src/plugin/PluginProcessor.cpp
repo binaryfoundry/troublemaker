@@ -43,7 +43,7 @@ class AnalogFoundry101 : public Plugin {
   const char* getMaker() const override { return "AnalogFoundry"; }
   const char* getHomePage() const override { return DISTRHO_PLUGIN_URI; }
   const char* getLicense() const override { return "ISC"; }
-  uint32_t getVersion() const override { return d_version(0, 7, 0); }  // 0.7: pan in the matrix (0.6: low-pass slope; 0.5: tempo sync, stereo, polyphony, env 3, filter modes)
+  uint32_t getVersion() const override { return d_version(0, 8, 0); }  // 0.8: oscillator tilt (0.7: pan in the matrix; 0.6: low-pass slope; 0.5: tempo sync, stereo, polyphony, env 3, filter modes)
 
   /// Stable across releases: changing it makes hosts lose existing projects.
   int64_t getUniqueId() const override { return d_cconst('A', 'F', '1', '1'); }

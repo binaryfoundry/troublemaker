@@ -80,7 +80,11 @@ export const DST = {
   osc1Level: 9, osc2Level: 10, osc3Level: 11, noiseLevel: 12, subLevel: 13, lfo1Rate: 14, lfo2Rate: 15, fine: 16,
   /** 0.7: pans, -1 left to 1 right from the centre (amount 1 = one side). Oscillator and noise pans take LFO 1, LFO 2 or the constant; the voice pan any source. */
   osc1Pan: 17, osc2Pan: 18, osc3Pan: 19, noisePan: 20, pan: 21,
+  /** 0.8: an oscillator's spectral tilt, amount 1 = +6 dB per octave (negative darker). The constant source only. */
+  osc1Tilt: 22, osc2Tilt: 23, osc3Tilt: 24,
 } as const;
+/** A tilt route's amount 1 is this many dB per octave. */
+export const TILT_DB_PER_OCTAVE = 6;
 /** Amount 1 with a source at 1 moves cutoff 5 octaves, pitch 24 st, fine 100 ct, LFO rate 4 octaves. */
 export const MOD_SCALE = { cutoffOctaves: 5, pitchSemitones: 24, fineCents: 100, lfoRateOctaves: 4 } as const;
 /** env_cutoff 1 opens the filter this many octaves; vel_cutoff 1 lowers velocity 0 this many. */
@@ -115,6 +119,7 @@ const EXTRA_ROUTES: Array<[number, number]> = [
   [SRC.lfo2, DST.osc1Pan], [SRC.lfo2, DST.osc2Pan], [SRC.lfo2, DST.osc3Pan], [SRC.lfo2, DST.noisePan],
   [SRC.constant, DST.osc1Pan], [SRC.constant, DST.osc2Pan], [SRC.constant, DST.osc3Pan], [SRC.constant, DST.noisePan],
   [SRC.constant, DST.pan],
+  [SRC.constant, DST.osc1Tilt], [SRC.constant, DST.osc2Tilt], [SRC.constant, DST.osc3Tilt],
 ];
 /** The route code for a pair, or -1 when a slot cannot hold it (Voice101.h modRoute). */
 function modRoute(src: number, dst: number): number {

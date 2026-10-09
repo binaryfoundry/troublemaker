@@ -19,6 +19,9 @@
 // bit): each oscillator and the noise panned by LFO 1, LFO 2 or a constant, and the
 // whole voice by any source. A panned oscillator runs the stereo filter path.
 //
+// 0.8: a spectral tilt per oscillator (a constant route, off by default and off
+// is the 0.7 path), for analog tables whose harmonics fall faster than a saw's.
+//
 // Optional oscillators and modulation (0.4, not on the 101, off by default): two
 // more oscillators (saw, pulse, triangle or sine, each with octave, semitone and
 // fine tune) sharing the unison stack; a second LFO; LFO waveforms and retrigger;
@@ -42,6 +45,7 @@
 #include "../dsp/Envelope.h"
 #include "../dsp/Filter101.h"
 #include "../dsp/Oscillator.h"
+#include "../dsp/Tilt.h"
 #include "Calibration.h"
 
 namespace af {
@@ -192,12 +196,14 @@ enum ModSource {
 /// Modulation destinations. Amount 1 with a source at 1 moves each by: cutoff
 /// 5 octaves; pitch 24 semitones; fine 100 cents; pulse width 0.45; resonance,
 /// levels 1 (added, clamped); amp x2 (multiplied, clamped 0..2); LFO rate 4 octaves;
-/// a pan (0.7) from the centre to one side (added, clamped -1..1).
+/// a pan (0.7) from the centre to one side (added, clamped -1..1); a tilt (0.8,
+/// the constant only) 6 dB per octave, negative darker.
 enum ModDest {
   kDstNone = 0, kDstCutoff, kDstPitch, kDstOsc1Pitch, kDstOsc2Pitch, kDstOsc3Pitch,
   kDstPulseWidth, kDstResonance, kDstAmp, kDstOsc1Level, kDstOsc2Level, kDstOsc3Level,
   kDstNoiseLevel, kDstSubLevel, kDstLfo1Rate, kDstLfo2Rate, kDstFine,
-  kDstOsc1Pan, kDstOsc2Pan, kDstOsc3Pan, kDstNoisePan, kDstPan, kDstCount
+  kDstOsc1Pan, kDstOsc2Pan, kDstOsc3Pan, kDstNoisePan, kDstPan,
+  kDstOsc1Tilt, kDstOsc2Tilt, kDstOsc3Tilt, kDstCount
 };
 
 /// One matrix slot as a single parameter value:
@@ -206,7 +212,7 @@ enum ModDest {
 /// destinations 1-16). Amount resolution is 1/10000; the largest value, 3,740,186,
 /// survives a host's 32-bit normalised parameter (it rounds back to the same integer).
 ///
-/// 0.7 adds the pans without changing that layout, because Live stores a slot by
+/// 0.7 adds the pans (and 0.8 the tilts) without changing that layout, because Live stores a slot by
 /// its value: a new destination number or a wider range would move every saved
 /// slot. They use the routes 0.4 ignored. Destination 0 with a source is that
 /// source -> Pan; source 0 with destination d is kExtraRoutes[d].
@@ -230,6 +236,7 @@ inline constexpr ExtraRoute kExtraRoutes[] = {
     {kSrcLfo2, kDstOsc1Pan},     {kSrcLfo2, kDstOsc2Pan},     {kSrcLfo2, kDstOsc3Pan},     {kSrcLfo2, kDstNoisePan},
     {kSrcConstant, kDstOsc1Pan}, {kSrcConstant, kDstOsc2Pan}, {kSrcConstant, kDstOsc3Pan}, {kSrcConstant, kDstNoisePan},
     {kSrcConstant, kDstPan},
+    {kSrcConstant, kDstOsc1Tilt}, {kSrcConstant, kDstOsc2Tilt}, {kSrcConstant, kDstOsc3Tilt},  // 0.8
 };
 constexpr int kExtraRouteCount = sizeof(kExtraRoutes) / sizeof(kExtraRoutes[0]);
 static_assert(kExtraRouteCount <= kLegacyDests, "the extra routes use source 0's destination codes");
@@ -294,6 +301,7 @@ class Voice101 {
     variationEngine_.configure(variation_, sampleRate_);
     filter_.setStageSpread(variationEngine_.stageSpread());
     filterR_.setStageSpread(variationEngine_.stageSpread());
+    configureMatrix();  // the tilts are designed for the rate
     reset();
   }
 
@@ -379,6 +387,10 @@ class Voice101 {
     modWheel_ = 0.0;
     aftertouch_ = 0.0;
     pitchBend_ = 0.0;
+    for (auto& t : tilt_) {
+      t[0].reset();
+      t[1].reset();
+    }
     filter_.reset();
     filterR_.reset();
     amplitudeEnvelope_.reset();
@@ -691,7 +703,9 @@ class Voice101 {
       if (mod[kDstNoiseLevel] != 0.0) noiseLevel = clamp(noiseLevel + mod[kDstNoiseLevel], 0.0, 1.0);
     }
     double mixed = 0.0, mixedR = 0.0;
-    if (!stereo) {
+    if (tilted_) {
+      tiltedMixer(stereo, frequency1, sawLevel, pulseLevel, subLevel, noiseLevel, osc1L, osc1R, noiseL, noiseR, mixed, mixedR);
+    } else if (!stereo) {
       if (unisonExtra_ == 0) {
         mixed = oscillator_.saw() * sawLevel * OscillatorCalibration::sawGain() +
                 oscillator_.pulse() * pulseLevel * OscillatorCalibration::pulseGain() +
@@ -751,11 +765,23 @@ class Voice101 {
       double f = frequency * extraRatio_[k];
       const double pitchMod = mod[k == 0 ? kDstOsc2Pitch : kDstOsc3Pitch];
       if (pitchMod != 0.0) f *= std::pow(2.0, pitchMod * 2.0);
+      Tilt* t = tilt_[k + 1];
       if (!stereo) {
-        mixed += level * renderExtra(extra_[k], extraWave_[k], f);
+        double v = renderExtra(extra_[k], extraWave_[k], f);
+        if (t[0].active()) {
+          t[0].setFundamental(f);
+          v = t[0].process(v);
+        }
+        mixed += level * v;
       } else {
         double l, r;
         renderExtraStereo(extra_[k], extraWave_[k], f, l, r);
+        if (t[0].active()) {
+          t[0].setFundamental(f);
+          t[1].setFundamental(f);
+          l = t[0].process(l);
+          r = t[1].process(r);
+        }
         mixed += level * l * extraL[k];
         mixedR += level * r * extraR[k];
       }
@@ -883,6 +909,44 @@ class Voice101 {
     }
   }
 
+  /// The mixer with oscillator 1's stack tilted (0.8): the stack is summed on its
+  /// own, tilted, then the sub (untouched, centred) and the noise are added.
+  void tiltedMixer(bool stereo, double frequency1, double sawLevel, double pulseLevel, double subLevel,
+                   double noiseLevel, double g1L, double g1R, double gnL, double gnR, double& outL,
+                   double& outR) noexcept {
+    double sawL = unisonUsesCentre_ ? oscillator_.saw() : 0.0;
+    double pulseL = unisonUsesCentre_ ? oscillator_.pulse() : 0.0;
+    double sawR = sawL, pulseR = pulseL;
+    for (int i = 0; i < unisonExtra_; ++i) {
+      const double sv = unison_[i].saw(), pv = unison_[i].pulse();
+      const double pl = stereo ? panL_[i] : 1.0, pr = stereo ? panR_[i] : 1.0;
+      sawL += sv * pl;
+      sawR += sv * pr;
+      pulseL += pv * pl;
+      pulseR += pv * pr;
+    }
+    double o1L = sawL * unisonGain_ * sawLevel * OscillatorCalibration::sawGain() +
+                 pulseL * unisonGain_ * pulseLevel * OscillatorCalibration::pulseGain();
+    double o1R = sawR * unisonGain_ * sawLevel * OscillatorCalibration::sawGain() +
+                 pulseR * unisonGain_ * pulseLevel * OscillatorCalibration::pulseGain();
+    if (tilt_[0][0].active()) {
+      tilt_[0][0].setFundamental(frequency1);
+      o1L = tilt_[0][0].process(o1L);
+      if (stereo) {
+        tilt_[0][1].setFundamental(frequency1);
+        o1R = tilt_[0][1].process(o1R);
+      }
+    }
+    const double sub = oscillator_.subOctaveDown() * subLevel * OscillatorCalibration::subGain();
+    const double noise = noise_.next() * noiseLevel * OscillatorCalibration::noiseGain();
+    if (stereo) {
+      outL = o1L * g1L + sub + noise * gnL;
+      outR = o1R * g1R + sub + noise * gnR;
+    } else {
+      outL = o1L + sub + noise;
+    }
+  }
+
   /// Oscillator 2 or 3, through the same unison stack as oscillator 1.
   double renderExtra(ExtraOscillator& e, int wave, double frequency) noexcept {
     e.main.setFrequency(frequency);
@@ -933,6 +997,7 @@ class Voice101 {
     lfo2Used_ = false;
     oscPanned_ = voicePanned_ = false;
     voicePan_ = 0.0;
+    double tilt[3] = {0.0, 0.0, 0.0};
     for (int i = 0; i < 8; ++i) {
       const ModSlot slot = getModSlot(params_, i);
       const long src = slot.source, dst = slot.dest;
@@ -946,7 +1011,14 @@ class Voice101 {
       if (src == kSrcLfo2) lfo2Used_ = true;
       if (dst == kDstOsc1Pan || dst == kDstOsc2Pan || dst == kDstOsc3Pan || dst == kDstNoisePan) oscPanned_ = true;
       if (dst == kDstPan) voicePanned_ = true;
+      if (dst >= kDstOsc1Tilt && dst <= kDstOsc3Tilt && src == kSrcConstant) tilt[dst - kDstOsc1Tilt] += amount;
       ++matrixSlots_;
+    }
+    // A tilt is static (the constant source only): designed here, not per sample.
+    tilted_ = false;
+    for (int k = 0; k < 3; ++k) {
+      for (auto& side : tilt_[k]) side.configure(tilt[k] * Tilt::kMaxSlope, sampleRate_);
+      tilted_ = tilted_ || tilt_[k][0].active();
     }
     if (!resonanceModulated_) filter_.setResonance(params_.resonance);
     if (matrixSlots_ == 0) lfoRateMod_[0] = lfoRateMod_[1] = 0.0;
@@ -1006,6 +1078,8 @@ class Voice101 {
   bool oscPanned_ = false;    ///< an oscillator or the noise has a pan route: the stereo path runs
   bool voicePanned_ = false;  ///< the whole voice has a pan route, applied after the VCA
   double voicePan_ = 0.0;
+  Tilt tilt_[3][2]{};   ///< oscillators 1-3, left/mono and right (0.8)
+  bool tilted_ = false;
   int filterMode_ = 0;
   LfoMode lfoMode_[2] = {{0, false, 0}, {0, false, 0}};
   double bpm_ = 120.0, beatPosition_ = 0.0;

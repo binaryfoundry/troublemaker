@@ -12,7 +12,7 @@
 import { decompress } from 'fzstd';
 import { decode } from 'cbor-x';
 
-import { DST, ENV_CUTOFF_OCTAVES, FILTER_MODE, LFO_DIVISION_BEATS, LFO_WAVE, MOD_SCALE, SRC, WAVE, clampParam, lfoMode, nearestDivision, placeMatrix, type Af101Patch, type MatrixSlot } from './af101.js';
+import { DST, ENV_CUTOFF_OCTAVES, TILT_DB_PER_OCTAVE, FILTER_MODE, LFO_DIVISION_BEATS, LFO_WAVE, MOD_SCALE, SRC, WAVE, clampParam, lfoMode, nearestDivision, placeMatrix, type Af101Patch, type MatrixSlot } from './af101.js';
 import { categoryOf, emptyReport, type ChainDevice, type Conversion } from './types.js';
 
 export const SERUM_ASSUMPTIONS: Record<string, string> = {
@@ -32,6 +32,7 @@ export const SERUM_ASSUMPTIONS: Record<string, string> = {
   S17: "Serum's amp envelope is squared: a stored sustain of 0.671 shows as -6.9 dB in its own panel, 20 log10(0.671^2), and its decay and release reach their ends at the stored times, where AF101's are exponential to 99 %. So the sustain is squared and decay and release are 1.8 x the stored time. Measured against Serum 2, dry, on four presets' test clips (held notes, a release into a rest, a chord's tail): sustain level 3.6 -> 0.4 dB off on LD - Horizons; release 3.3-10.2 -> 0.2-2.0 dB off on all four, with 1.8 the best of 1.0-2.4 for each. Attack and the modulation envelopes are unchanged (unmeasured); where AF101's amp envelope also drives the cutoff (no separate filter envelope) the cutoff follows the converted times and sustain.",
   S18: "AF101 has one pitch for all its oscillators, so a fine-tune route to one Serum oscillator counts by that oscillator's share of the audible level: routes to two oscillators average by level rather than add. Measured against Serum 2, dry, on held notes: LD - Horizons' pitch wobble 16.5 cents when added, 7.2 weighted, Serum 7.1; SY - Lines 10.8 added, 2.8 weighted, Serum 6.6. LD - Window could not be read: AF101's render shows 20 cents of tracker wobble with no pitch modulation at all, and its LFO is a Rossler, which AF101 lacks.",
   S19: "An oscillator's pan lands on AF101 0.7's pan for the slot that oscillator plays in (osc 1-3, or the noise); the sub stays in the middle. Serum's pan knob runs -100..100, taken as AF101's -1..1, and a route's 100 % moves it from the centre to one side, as a fine-tune route's 100 % moves 100 cents. Measured against Serum 2, dry, on SY - Lines' held note (its LFO on Osc A's pan): Serum's balance swings to +/-4.9 dB; AF101 +/-4.2 at this span, +/-8.7 at twice it. Its average width is still 2.3 dB narrower (-15.0 against -12.7 dB side), from the LFO's shape: Serum's sits near the extremes far longer than the sine it converts to (S14). A fixed pan - the knob, macros, a unipolar LFO's centre - rides the constant source. AF101's oscillator pans take LFO 1, LFO 2 or the constant; a pan route from any other source is dropped and reported.",
+  S20: "A table whose frame is an AF101 wave with its harmonics falling faster (or slower) plays as that wave with AF101 0.8's tilt: the wave and the slope, in quarter dB per octave up to 6, fitted together to the frame's first 24 harmonics (a different wave only when darkened: a triangle brightened into a square is a square), and kept only where the tilt is half a dB nearer than the plain wave. Serum's analog saws are this: AT Juno 106 is a saw at about -2 dB per octave (0.9 dB from it tilted, 6.0 dB not). A tilt takes a matrix slot (the constant source). Not applied yet (APPLY_TABLE_TILT): against Serum 2, dry, it took LD - Horizons' harmonics from 2.8 to 0.9 dB off and LD - Window's tone from 6.8 to 5.0, but SY - Lines went from 2.6 to 4.0 unless its filter envelope also opened 15 % further (then 1.8), and on the pack loops Lines and BS - Kinetic got worse while five others improved. The envelope depth was fitted while the oscillators were too bright; it needs dry Serum captures of envelope-driven presets before the tilt goes on.",
   S10: 'Serum stores no voice count for a polyphonic preset; it plays on AF101\'s full 8 voices.',
   S9: 'Routing slots 0-4 are oscillators A, B, C, noise and sub. An FX bus (racks 2 and 3) is a parallel send: it is converted only when an oscillator AF101 plays feeds it, at an inline wet of x/(1+x), x = send level x bus volume.',
   S8: "Effects become the nearest Live 12 Standard devices with their wet levels; times and sizes are approximate, and a macro on an effect's wet is applied to every effect of that kind (Serum's FX module numbering is not confirmed).",
@@ -89,6 +90,8 @@ interface Osc {
   table: string;
   /** Serum's unison stack (kOctave1 ...), when the oscillator has unison. */
   stack?: string;
+  /** The table's tilt against the AF101 wave, dB per octave (S20); 0 when none helps. */
+  tilt: number;
 }
 
 /** A wavetable's frames, 2048 samples each, by its path relative to Serum's Tables folder. */
@@ -140,13 +143,43 @@ function profileError(a: number[], b: number[]): number {
  * table position: frame floor((pos - 1) / 256 x frames) - measured on LD - Window, where
  * that frame alone matched Serum's harmonics better than a crossfade.
  */
-export function waveFromFrames(frames: Float32Array[], pos: number): { wave: number; pw?: number; how: string; error: number; sawError: number } {
+/**
+ * Whether the converter plays a table's tilt (S20). Off until the filter-envelope
+ * depth is recalibrated on dry Serum captures: the depth was fitted to the pack loops
+ * while the oscillators were too bright, and darkening them alone made SY - Lines
+ * worse against Serum (tone 2.6 -> 4.0 dB) where a 15 % deeper envelope with the tilt
+ * made it better than ever (1.8). The tilt is fitted and reported either way.
+ */
+export const APPLY_TABLE_TILT = false;
+
+export function waveFromFrames(frames: Float32Array[], pos: number, withTilt = APPLY_TABLE_TILT): { wave: number; pw?: number; tilt: number; how: string; error: number; sawError: number } {
   const k = Math.min(frames.length - 1, Math.max(0, Math.floor(((pos - 1) / 256) * frames.length)));
   const h = harmonicsDb(frames[k]!);
   const ranked = BASIC.map((b) => ({ ...b, error: profileError(h, b.h) })).sort((a, b) => a.error - b.error);
-  const best = ranked[0]!;
+  const plain = ranked[0]!;
   const sawError = ranked.find((b) => b.name === 'saw')!.error;
-  return { wave: best.wave, ...(best.pw !== undefined ? { pw: best.pw } : {}), error: best.error, sawError, how: `frame ${k + 1} of ${frames.length}, nearest ${best.name} (harmonics ${best.error.toFixed(1)} dB off${best.name === 'saw' ? '' : `; a saw ${sawError.toFixed(1)}`})` };
+  // The same waves with AF101 0.8's tilt (S20): a table that is a saw with its
+  // harmonics falling faster - Serum's Juno saws - is a tilted saw.
+  let best = { ...plain, tilt: 0 };
+  for (const b of BASIC) {
+    for (let t = -TILT_DB_PER_OCTAVE; t <= TILT_DB_PER_OCTAVE + 1e-9; t += 0.25) {
+      // Analog tables are darker relatives: another wave only by darkening it.
+      if (t > 0 && b.name !== plain.name) continue;
+      const e = profileError(h, b.h.map((v, j) => v + t * Math.log2(j + 1)));
+      if (e < best.error) best = { ...b, error: e, tilt: t };
+    }
+  }
+  // A tilt has to earn its slot: half a dB better, and a slope worth hearing.
+  if (plain.error - best.error < 0.5 || Math.abs(best.tilt) < 0.5) best = { ...plain, tilt: 0 };
+  let tilted = best.tilt !== 0 ? `, tilted ${best.tilt > 0 ? '+' : ''}${best.tilt.toFixed(2)} dB/oct (${plain.error.toFixed(1)} dB untilted)` : '';
+  if (!withTilt && best.tilt !== 0) {
+    tilted = `; a ${best.name} tilted ${best.tilt > 0 ? '+' : ''}${best.tilt.toFixed(2)} dB/oct would be ${best.error.toFixed(1)} dB (S20, not applied)`;
+    best = { ...plain, tilt: 0 };
+  }
+  return {
+    wave: best.wave, ...(best.pw !== undefined ? { pw: best.pw } : {}), tilt: best.tilt, error: best.error, sawError,
+    how: `frame ${k + 1} of ${frames.length}, nearest ${best.name}${tilted} (harmonics ${best.error.toFixed(1)} dB off${best.name === 'saw' ? '' : `; a saw ${sawError.toFixed(1)}`})`,
+  };
 }
 
 function waveFromTable(table: string, pos: number): { wave: number; how: string } {
@@ -257,6 +290,8 @@ export function convertSerum(body: any, name: string, readTable?: TableReader): 
       : undefined;
     const frames = embedded ?? (tablePath && readTable ? readTable(tablePath.replace(/^\/+/, '')) : undefined);
     const fromFrames = frames?.length ? waveFromFrames(frames, pos || 1) : undefined;
+    const tilt = fromFrames?.tilt ?? 0;
+    if (fromFrames && /S20/.test(fromFrames.how)) report.assumptions.push('S20');
     const { wave, how } = fromFrames
       ? { wave: fromFrames.wave, how: `${tablePath || 'embedded table'} ${fromFrames.how}` }
       : waveFromTable(tablePath, pos);
@@ -266,7 +301,7 @@ export function convertSerum(body: any, name: string, readTable?: TableReader): 
     const vol = Math.min(1, Math.max(0, num(p.kParamVolume, 0.75) + offset));
     if (offset) report.mapped.push(`Osc ${'ABC'[i]} volume ${num(p.kParamVolume, 0.75).toFixed(2)} ${offset >= 0 ? '+' : ''}${offset.toFixed(2)} from macros`);
     oscs.push({
-      index: i, wave, volume: vol,
+      index: i, wave, volume: vol, tilt,
       semis: Math.round(num(p.kParamOctave, 0)) * 12 + Math.round(num(p.kParamCoarsePit, 0)),
       fine: num(p.kParamFine, 0), unison: Math.round(num(p.kParamUnison, 1)), detune: num(p.kParamDetune, 0.25), stereo: Math.min(1, Math.max(0, num(p.kParamUnisonStereo, 100) / 100)), table: how,
       ...(typeof p.kParamUnisonStack === 'string' && Math.round(num(p.kParamUnison, 1)) > 1 ? { stack: p.kParamUnisonStack } : {}),
@@ -308,6 +343,10 @@ export function convertSerum(body: any, name: string, readTable?: TableReader): 
     }
   }
   const slotsFor = rest.slice(0, 2);
+  // Each AF101 oscillator's tilt (S20), by the Serum oscillator it plays.
+  const tiltOf = new Map<number, number>();
+  if (main && slotsFor.indexOf(main) < 0 && main.tilt) tiltOf.set(DST.osc1Tilt, main.tilt);
+  slotsFor.forEach((o, k) => o.tilt && tiltOf.set(k === 0 ? DST.osc2Tilt : DST.osc3Tilt, o.tilt));
   for (const o of rest.slice(2)) report.dropped.push(`Osc ${'ABC'[o.index]} (AF101 has three oscillators and osc 1 is saw/pulse only)`);
   const baseSemis = main ? main.semis + main.fine / 100 : 0;
   slotsFor.forEach((o, k) => {
@@ -339,6 +378,7 @@ export function convertSerum(body: any, name: string, readTable?: TableReader): 
     patch[`osc${n}_oct`] = playsFrom >= 0 ? (patch[`osc${playsFrom + 2}_oct`] ?? 0) + 1 : 1;
     patch[`osc${n}_semi`] = playsFrom >= 0 ? (patch[`osc${playsFrom + 2}_semi`] ?? 0) : 0;
     patch[`osc${n}_fine`] = playsFrom >= 0 ? (patch[`osc${playsFrom + 2}_fine`] ?? 0) : 0;
+    if (o.tilt) tiltOf.set(n === 2 ? DST.osc2Tilt : DST.osc3Tilt, o.tilt);
     report.approximated.push(`Osc ${'ABC'[o.index]} unison stack ${o.stack} -> osc ${n} an octave up at the same level${/Fifth/.test(o.stack!) ? ' (the fifth is dropped)' : ''}`);
     report.assumptions.push('S12');
   }
@@ -650,6 +690,10 @@ export function convertSerum(body: any, name: string, readTable?: TableReader): 
     report.assumptions.push('S19');
   }
   if (slots.some((s) => s.dst >= DST.osc1Pan && s.dst <= DST.noisePan && s.src !== SRC.constant)) report.assumptions.push('S19');
+  for (const [dst, tilt] of tiltOf) {
+    slots.push({ src: SRC.constant, dst, amt: tilt / TILT_DB_PER_OCTAVE, why: `osc ${dst - DST.osc1Tilt + 1} tilted ${tilt > 0 ? '+' : ''}${tilt.toFixed(2)} dB/oct (S20)` });
+    report.assumptions.push('S20');
+  }
   const { placed, overflow, unroutable } = placeMatrix(patch, slots);
   for (const s of overflow) report.dropped.push(`${s.why} (matrix full)`);
   for (const s of unroutable) report.dropped.push(`${s.why} (AF101's matrix has no route for that pair)`);

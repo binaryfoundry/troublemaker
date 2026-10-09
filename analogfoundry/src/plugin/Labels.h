@@ -26,7 +26,7 @@ inline constexpr const char* kDests[] = {"None",        "Cutoff",      "Pitch", 
                                          "Osc 3 Pitch", "Pulse Width", "Resonance",   "Amp",         "Osc 1 Level",
                                          "Osc 2 Level", "Osc 3 Level", "Noise Level", "Sub Level",   "LFO 1 Rate",
                                          "LFO 2 Rate",  "Fine",        "Osc 1 Pan",   "Osc 2 Pan",   "Osc 3 Pan",
-                                         "Noise Pan",   "Pan"};
+                                         "Noise Pan",   "Pan",         "Osc 1 Tilt",  "Osc 2 Tilt",  "Osc 3 Tilt"};
 inline constexpr const char* kFilterModes[] = {"Low-pass", "High-pass", "Band-pass"};
 inline constexpr const char* kFilterSlopes[] = {"12 dB", "18 dB", "24 dB"};
 

@@ -104,7 +104,7 @@ more than one client.
 ## Testing
 
 ```bash
-npm test                      # 595 tests, no Ableton needed
+npm test                      # 596 tests, no Ableton needed
 npm run typecheck
 npm run cli -- selftest       # round trip, needs Live running
 ```
@@ -256,7 +256,7 @@ table drives the preset format, the host's automation list and the DSP ranges
 — so those three can never disagree. Add a parameter in one place:
 `parameterTable()` in `src/model/Preset.h`.
 
-**What it has (0.7):** three oscillators (saw, pulse, triangle, sine; octave,
+**What it has (0.8):** three oscillators (saw, pulse, triangle, sine; octave,
 semitone, fine) through one unison stack of up to 7, spread in stereo by `stereo`;
 a square sub (a sine sub is oscillator 2's sine: `presets/sine-sub.txt`), noise; a ladder low-pass at 12, 18 or 24 dB per octave (`filter_poles`, 0.6), a 24 dB
 high-pass or a band-pass (`filter_mode`); amp, filter and a third envelope (a matrix source); two LFOs (five
@@ -265,8 +265,10 @@ Live plays); velocity, key, mod wheel, aftertouch, pitch bend, per-note random; 
 8-slot modulation matrix; vibrato fade-in, drift, legato-only glide, note memory;
 1-8 voices; pans in the matrix (0.7) - each oscillator and the noise by LFO 1, LFO 2 or a
 constant, the whole voice by any source - so a single voice can be wide without unison,
-and with no pan route it is the 0.6 path, bit for bit. The pans took no parameter: they
-use matrix codes 0.6 ignored, so a 0.6 instance in a saved Set gains them as it is. Its editor shows every parameter in words and the matrix as
+and with no pan route it is the 0.6 path, bit for bit; a spectral tilt per oscillator
+(0.8, the constant source), for Serum's analog tables. The pans and tilts took no
+parameter: they use matrix codes 0.6 ignored, so a 0.6 instance in a saved Set gains them
+as it is. Those codes are now all used. Its editor shows every parameter in words and the matrix as
 "LFO 1 -> Cutoff +35 %". It has **no** wavetables and no effects (Live devices do
 that). One filter per voice: a Serum or Diva patch with a high-pass *and* a
 low-pass still needs EQ Eight for one of them. An LFO's mode packs wave, retrigger
@@ -682,7 +684,7 @@ Older Sets carry older plugin state. A restored AF101 instance keeps the paramet
 list it was saved with, so expression (0.3) and everything since - the matrix
 (0.4), sync, stereo, voices, env 3 and filter modes (0.5), the low-pass slope (0.6) - need a fresh instance
 (delete, load, reapply the patch, carry any clip envelopes over, and re-place or
-edit in place the Arrangement copies - *Live facts*). 0.7's pans do not: they added no parameter. Before 0.3, AF101 ignored velocity entirely: any accents
+edit in place the Arrangement copies - *Live facts*). 0.7's pans and 0.8's tilts do not: they added no parameter. Before 0.3, AF101 ignored velocity entirely: any accents
 written into those tracks have never sounded. An instance saved with 0.4 is a
 special case (*Synthesis*: its ids shifted in 0.5): take its values from its
 preset file, not from reading it back. Threshold's instances are all 0.5 as of

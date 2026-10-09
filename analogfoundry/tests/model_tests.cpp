@@ -1311,7 +1311,8 @@ void oscillatorMatrixTests() {
       }
     check(ok, "a packed matrix slot survives a 32-bit normalised host value", worst);
     // 0.4's 160 routes, 10 voice pans and 13 extra routes (the pans' other sources).
-    check(routes == 1 + 160 + 10 + 13, "every route the layout holds round-trips", routes);
+    // ... and 0.8's 3 tilts.
+    check(routes == 1 + 160 + 10 + 13 + 3, "every route the layout holds round-trips", routes);
     // 0.7 changed no 0.4 value: source 3 (LFO 1) -> 1 (cutoff) at +0.35 is still the same integer.
     check(af::packModSlot(af::kSrcLfo1, af::kDstCutoff, 0.35) == (3 * 17 + 1) * 20001.0 + 13500.0,
           "a 0.4 route packs to the value it always had", af::packModSlot(af::kSrcLfo1, af::kDstCutoff, 0.35));
@@ -1698,6 +1699,55 @@ void sineSubTests() {
   }
 }
 
+/// 0.8: an oscillator's tilt. A saw tilted -2 dB per octave: its harmonics fall
+/// 2 dB per octave faster than a saw's and its fundamental keeps its level.
+void tiltTests() {
+  std::printf("oscillator tilt (0.8)\n");
+  af::Voice101Parameters q = openSaw();
+  const int note = 45;  // 110 Hz
+  const double f0 = 110.0;
+  const auto plain = renderHeld(q, note, 48000);
+  af::Voice101Parameters t = q;
+  af::setModSlot(t, 0, af::kSrcConstant, af::kDstOsc1Tilt, -2.0 / 6.0);
+  check(af::getModSlot(t, 0).dest == af::kDstOsc1Tilt, "a constant -> osc 1 tilt route reads back", af::getModSlot(t, 0).dest);
+  const auto tilted = renderHeld(t, note, 48000);
+  // Slope of the tilted saw against the plain one over harmonics 2-32 (5 octaves).
+  double sx = 0, sy = 0, sxx = 0, sxy = 0, worst = 0;
+  int n = 0;
+  for (int h = 2; h <= 32; ++h) {
+    const double x = std::log2(static_cast<double>(h));
+    const double y = db(toneAt(tilted, h * f0) / toneAt(plain, h * f0));
+    sx += x; sy += y; sxx += x * x; sxy += x * y; ++n;
+  }
+  const double slope = (n * sxy - sx * sy) / (n * sxx - sx * sx);
+  for (int h = 2; h <= 32; ++h) {
+    const double fit = slope * std::log2(static_cast<double>(h)) + (sy - slope * sx) / n;
+    worst = std::fmax(worst, std::fabs(db(toneAt(tilted, h * f0) / toneAt(plain, h * f0)) - fit));
+  }
+  check(std::fabs(slope + 2.0) < 0.3, "a -2 dB/oct tilt falls 2 dB per octave over harmonics 2-32", slope);
+  check(worst < 1.0, "within 1 dB of a straight line", worst);
+  const double fundamental = db(toneAt(tilted, f0) / toneAt(plain, f0));
+  check(std::fabs(fundamental) < 0.3, "the fundamental keeps its level", fundamental);
+  // Brighter works the other way.
+  af::Voice101Parameters b = q;
+  af::setModSlot(b, 0, af::kSrcConstant, af::kDstOsc1Tilt, 1.5 / 6.0);
+  const auto bright = renderHeld(b, note, 48000);
+  const double up = db(toneAt(bright, 16 * f0) / toneAt(plain, 16 * f0));
+  check(up > 4.5 && up < 7.5, "+1.5 dB/oct lifts the 16th harmonic about 6 dB", up);
+  // Oscillator 2 tilts on its own: osc 1 off, osc 2 a saw.
+  af::Voice101Parameters o2 = q;
+  o2.sawLevel = 0.0;
+  o2.osc2Level = 1.0;
+  o2.osc2Wave = 0.0;
+  af::Voice101Parameters o2t = o2;
+  af::setModSlot(o2t, 0, af::kSrcConstant, af::kDstOsc2Tilt, -3.0 / 6.0);
+  const auto a2 = renderHeld(o2, note, 48000), b2 = renderHeld(o2t, note, 48000);
+  const double drop = db(toneAt(b2, 16 * f0) / toneAt(a2, 16 * f0));
+  check(drop < -10.5 && drop > -13.5, "osc 2 at -3 dB/oct: the 16th harmonic 12 dB down", drop);
+  // Only the constant drives a tilt: an LFO -> tilt has no route.
+  check(!af::modRouteExists(af::kSrcLfo1, af::kDstOsc1Tilt), "an LFO cannot drive a tilt", 0.0);
+}
+
 int main() {
   std::printf("AnalogFoundry 101 - model tests (M5, M6, M8, M10, unison, expression, note memory, 0.4, 0.5)\n\n");
   calibrationTests();
@@ -1710,6 +1760,7 @@ int main() {
   oscillatorMatrixTests();
   release05Tests();
   sineSubTests();
+  tiltTests();
   std::printf("\n%d checks, %d failures\n", gChecks, gFailures);
   return gFailures == 0 ? 0 : 1;
 }
