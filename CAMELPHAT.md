@@ -177,19 +177,24 @@ Everything above is measured from the pack's MIDI files, which are the presets'
 **demo clips**. The pack's own audio says something else. Transcribed to a 16th
 grid, the four *Signature Lead Loops* are:
 
-| Loop | What it plays | Register |
+| Loop | What it plays (pitch-tracked, 2026-10-09) | Register |
 |---|---|---|
-| 01 (A minor, 125) | A4 two bars, G4 two, F4, A4: one note per two bars, by step, no re-articulation | MIDI 65-69 |
-| 02 (F minor, 122) | C5 three bars, A#4 three bars | MIDI 70-72 |
+| 01 (A minor, 125) | A4 one bar, then a turn **B4 . C5 B4 C5** into C5; G4 two bars; a turn **F4 G4 F4** into E4; A4 four bars | MIDI 64-72 |
+| 02 (F minor, 122) | a fast run **C5 D#5 F5 C#5** landing on C5 for three bars; **A#4 C#5** into C5 for three more | MIDI 70-77 |
 | 03 (A minor, 125) | A3 and E3 pulsing, then low notes ringing out | MIDI 45-57 |
 | 04 (G# minor, 122) | an E2 pedal struck every six 16ths, B2 answers | MIDI 40-59 |
 
-So CamelPhat's high leads are **long-note lines** (section 2.1's fifth kind):
-0.3-1 notes a bar, held for one to three bars, moving by step, wide and bright
-(side within 2 dB of mid; `analogfoundry/README.md`). The low ones are pedal
-figures in dotted rhythms. The riff numbers in 2.2-2.4 describe the demo clips,
-and a lead built to them alone was heard as "nothing like CamelPhat" (Threshold
-v4, 2026-10-09); rebuilt as a long-note line in the high register, it was right.
+So CamelPhat's high leads are **long-note lines approached by quick turns**: the
+long notes (one to four bars) move by step, and the way into a note is a flick -
+a neighbour note back and forth, or a three- or four-note run. A first reading on
+a coarse grid missed the turns ("one note every two bars"); a line written to it
+had the long notes and not the life. The sound under them (Loop 01's held A4):
+the octave above at -3 dB, the octave-and-fifth at -8 dB (a 12+7 stack), bright to
+the top and very wide, moving all the time (`analogfoundry/README.md`). The low
+leads are pedal figures in dotted rhythms. The riff numbers in 2.2-2.4 describe
+the demo clips, and a lead built to them alone was heard as "nothing like
+CamelPhat" (Threshold v4, 2026-10-09).
+
 `checkLeadNumbers` measures a line whose median note is 1.5 beats or longer
 against the long-note family (Blind, Electricity, Serene, Shutter and Loops
 01-02): notes a bar 0.25-1, 60 % of moves within 4 semitones, MIDI 52-72.

@@ -506,12 +506,14 @@ procedure with pass/fail numbers.
 
 **Listen to the pack's audio, not only its MIDI** (the user, 2026-10-09). The MIDI
 files are the presets' demo clips; CamelPhat's own Signature Lead Loops are
-**long-note lines** up high - one note every one to three bars, moving by step,
-bright and very wide - or low pedal figures in dotted rhythms (`CAMELPHAT.md`
-2.5). Threshold's v4 hook matched every riff number and was heard as "nothing
-like CamelPhat"; rebuilt as a long-note line (A C D C | D F | E D, two bars a
-note) it was right. Choose the kind first, then measure the line against its
-own family (`checkLeadNumbers` does).
+**long-note lines** up high - notes of one to four bars moving by step, each
+approached by a quick turn (a neighbour flicked back and forth, or a three- or
+four-note run), on a bright, very wide sound with the octave and the octave-and-fifth
+stacked in - or low pedal figures in dotted rhythms (`CAMELPHAT.md` 2.5).
+Threshold's v4 hook matched every riff number and was heard as "nothing like
+CamelPhat". Transcribe the pack's audio by pitch tracking, not on a coarse grid:
+the first reading missed the turns. Choose the kind first, then measure the line
+against its own family (`checkLeadNumbers` does).
 
 **Threshold's lead took four rewrites, and each failed on a different thing, in
 this order. Work in the same order:**

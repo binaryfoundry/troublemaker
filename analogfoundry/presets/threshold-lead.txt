@@ -1,3 +1,8 @@
+# v5.1 (2026-10-09, measured against Signature Lead Loop 01's own held note played
+# on the same line): filter follows the amp envelope (it stays open on long notes),
+# osc 2 a saw an octave up at 0.45 (loop: octave at -3 dB), osc 3 a saw at +19 st
+# (an octave and a fifth) at 0.2 (loop: -8 dB), vibrato 0.35 st, drift 10 ct.
+# Tone within 1.2 dB of the loop, width 1.1 dB.
 # Threshold lead v5 (2026-10-09) - matched to CamelPhat's Signature Lead Loops 01-02,
 # measured solo in context: tone within 1.1 dB, width within 0.7 dB (was 13.1 / 8.5).
 #   - from v3: no sub (the loops have none below 250 Hz), cutoff 1600 -> 2400 Hz,
@@ -38,7 +43,7 @@ decay 0.6
 sustain 0.85
 release 0.35
 lfo_rate 5.2
-lfo_pitch 0.2
+lfo_pitch 0.35
 lfo_pw 0.2
 glide 0.07
 stage_drive 0.2
@@ -48,12 +53,20 @@ unison 7
 unison_detune 22
 vel_amp 0.3
 vel_cutoff 0.35
-fenv_separate 1
+fenv_separate 0
 fenv_attack 0.003
 fenv_decay 0.4
 fenv_sustain 0.3
 fenv_release 0.3
 vib_fade 0.5
-drift 5
+drift 10
 legato_glide 1
 stereo 1
+
+osc2_level 0.45
+osc2_wave 0
+osc2_oct 1
+osc3_level 0.2
+osc3_wave 0
+osc3_oct 1
+osc3_semi 7
